@@ -1,17 +1,20 @@
+import { NextResponse } from "next/server";
+
 export function middleware(request) {
   const { pathname } = request.nextUrl;
 
   // قراءة الكوكي
   const token = request.cookies.get("token")?.value;
 
-  console.log("Token in middleware:", token); // للتأكد على Vercel
+  // صفحات محمية
+  const protectedPaths = ["/orders", "/products"];
 
-  // لو مفيش توكن، اعمل redirect
-  if (!token && (pathname.startsWith("/orders") || pathname.startsWith("/products"))) {
+  // لو مفيش توكن وداخل صفحة محمية
+  if (!token && protectedPaths.some((p) => pathname.startsWith(p))) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // لو مسجل دخول ومش عايز يدخل login
+  // لو مسجل دخول وداخل login
   if (token && pathname === "/login") {
     return NextResponse.redirect(new URL("/", request.url));
   }

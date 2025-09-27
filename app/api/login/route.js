@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export async function POST(req) {
   const { username, password } = await req.json();
 
-  // نكلم API بتاع ووردبريس
+  // طلب توكن من ووردبريس
   const res = await fetch("https://spare2app.com/wp-json/jwt-auth/v1/token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -20,7 +20,7 @@ export async function POST(req) {
   const response = NextResponse.json({ success: true });
   response.cookies.set("token", data.token, {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === "production", // لو محلي=false، لو Production=true
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24, // يوم
