@@ -2,11 +2,8 @@ import { NextResponse } from "next/server";
 
 export function middleware(request) {
   const { pathname } = request.nextUrl;
-
-  // قراءة الكوكي
   const token = request.cookies.get("token")?.value;
 
-  // صفحات محمية
   const protectedPaths = ["/orders", "/products"];
 
   // لو مفيش توكن وداخل صفحة محمية

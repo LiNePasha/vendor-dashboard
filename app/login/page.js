@@ -20,7 +20,7 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
-        router.push("/"); // ✅ بعد اللوجين يروح للداشبورد
+        window.location.href = "/";
       } else {
         setError("بيانات الدخول غير صحيحة");
       }
