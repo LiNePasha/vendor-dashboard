@@ -193,7 +193,10 @@ export default function ProductsPage() {
         prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
       );
       setSelectedProduct(null);
-      setToast({ message: "تم تعديل المنتج بنجاح", type: "success" });
+      // خليها تختفي بعد 3 ثواني مثلاً
+      setTimeout(() => {
+        setToast(null); // أو { message: "", type: "" } حسب كيف معرف الـ state
+      }, 2500);
     } catch (err) {
       console.error(err);
       setToast({
