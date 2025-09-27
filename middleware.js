@@ -1,18 +1,17 @@
-import { NextResponse } from "next/server";
-
 export function middleware(request) {
   const { pathname } = request.nextUrl;
 
-  // جلب الكوكي بشكل آمن
-  const tokenCookie = request.cookies.get("token");
-  const token = tokenCookie ? tokenCookie.value : null;
+  // قراءة الكوكي
+  const token = request.cookies.get("token")?.value;
 
-  // redirect لو فعلاً مفيش token
+  console.log("Token in middleware:", token); // للتأكد على Vercel
+
+  // لو مفيش توكن، اعمل redirect
   if (!token && (pathname.startsWith("/orders") || pathname.startsWith("/products"))) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // لو متسجل دخول وما ينفعش login
+  // لو مسجل دخول ومش عايز يدخل login
   if (token && pathname === "/login") {
     return NextResponse.redirect(new URL("/", request.url));
   }

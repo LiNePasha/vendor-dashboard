@@ -25,7 +25,9 @@ export default function OrdersPage() {
   useEffect(() => {
     async function fetchOrders() {
       try {
-        const res = await fetch("/api/orders");
+        const res = await fetch("/api/orders", {
+          credentials: "include", // ⚡ مهم جدًا
+        });
         const data = await res.json();
         setOrders(data);
       } catch (err) {
@@ -49,8 +51,10 @@ export default function OrdersPage() {
       const res = await fetch("/api/orders", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // ⚡ مهم
         body: JSON.stringify({ orderId, status: newStatus }),
       });
+
       const updatedOrder = await res.json();
 
       setOrders((prev) =>

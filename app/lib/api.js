@@ -13,6 +13,7 @@ export async function apiFetch(endpoint, options = {}) {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
+    credentials: "include",
     cache: "no-store",
   });
 

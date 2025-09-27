@@ -120,7 +120,6 @@ function EditProductModal({ product, onClose, onSave, updating, setToast }) {
   );
 }
 
-
 // Main Products Page
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
@@ -146,7 +145,12 @@ export default function ProductsPage() {
     fetchProducts(page, perPage, debouncedSearch, filterStatus);
   }, [page, perPage, debouncedSearch, filterStatus]);
 
-  const fetchProducts = async (pageNum, perPageNum, searchTerm = "", status = "all") => {
+  const fetchProducts = async (
+    pageNum,
+    perPageNum,
+    searchTerm = "",
+    status = "all"
+  ) => {
     setLoading(true);
     try {
       const query = new URLSearchParams();
@@ -155,7 +159,10 @@ export default function ProductsPage() {
       if (searchTerm) query.set("search", searchTerm);
       if (status !== "all") query.set("status", status);
 
-      const res = await fetch(`/api/products?${query.toString()}`);
+      const res = await fetch(`/api/products?${query.toString()}`, {
+        credentials: "include", // ⚡ مهم جدًا
+      });
+
       if (!res.ok) throw new Error("فشل جلب المنتجات");
 
       const data = await res.json();
@@ -175,8 +182,10 @@ export default function ProductsPage() {
       const res = await fetch("/api/products", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include", // ⚡ مهم جدًا
         body: JSON.stringify(updatedData),
       });
+
       if (!res.ok) throw new Error("فشل التعديل");
 
       const updatedProduct = await res.json();
@@ -187,7 +196,10 @@ export default function ProductsPage() {
       setToast({ message: "تم تعديل المنتج بنجاح", type: "success" });
     } catch (err) {
       console.error(err);
-      setToast({ message: "فشل تعديل المنتج! تأكد من البيانات", type: "error" });
+      setToast({
+        message: "فشل تعديل المنتج! تأكد من البيانات",
+        type: "error",
+      });
     } finally {
       setUpdating(false);
     }
@@ -278,7 +290,10 @@ export default function ProductsPage() {
                   className="border rounded px-2 py-1"
                   value={product.status}
                   onChange={(e) =>
-                    handleUpdateProduct({ id: product.id, status: e.target.value })
+                    handleUpdateProduct({
+                      id: product.id,
+                      status: e.target.value,
+                    })
                   }
                 >
                   <option value="publish">منشور</option>
@@ -322,7 +337,9 @@ export default function ProductsPage() {
           setToast={setToast}
         />
       )}
-      {imageModal && <ImageModal src={imageModal} onClose={() => setImageModal(null)} />}
+      {imageModal && (
+        <ImageModal src={imageModal} onClose={() => setImageModal(null)} />
+      )}
 
       {/* Toast */}
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
