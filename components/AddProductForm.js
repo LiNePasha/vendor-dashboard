@@ -93,7 +93,9 @@ export default function AddProductModal({ onAdded, setToast, onClose }) {
           ✕
         </button>
 
-        <h2 className="text-xl font-bold mb-4 text-center">➕ إضافة منتج جديد</h2>
+        <h2 className="text-xl font-bold mb-4 text-center">
+          ➕ إضافة منتج جديد
+        </h2>
 
         <form onSubmit={handleAdd} className="space-y-4">
           {/* الاسم */}
@@ -124,15 +126,34 @@ export default function AddProductModal({ onAdded, setToast, onClose }) {
           />
 
           {/* صورة */}
-          <input
+          {/* <input
             type="file"
             onChange={handleFileChange}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4
-                     file:rounded-full file:border-0
-                     file:text-sm file:font-semibold
-                     file:bg-green-50 file:text-green-600
-                     hover:file:bg-green-100"
-          />
+            accept="image/*"
+            className="block w-full text-sm text-gray-500
+             file:mr-4 file:py-2 file:px-4
+             file:rounded-lg file:border-0
+             file:text-sm file:font-semibold
+             file:bg-green-600 file:text-white
+             hover:file:bg-green-700
+             cursor-pointer"
+          /> */}
+
+          <div>
+            <label
+              htmlFor="productImage"
+              className="flex items-center justify-center w-full px-4 py-3 bg-green-600 text-white rounded-lg cursor-pointer hover:bg-green-700 transition"
+            >
+              📷 تحميل صورة المنتج
+            </label>
+            <input
+              id="productImage"
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
 
           {/* معاينة الصورة */}
           {preview && (
@@ -150,8 +171,12 @@ export default function AddProductModal({ onAdded, setToast, onClose }) {
             <div className="mt-3 text-center">
               {salePrice ? (
                 <div className="space-x-2">
-                  <span className="line-through text-gray-500">{price} ج.م</span>
-                  <span className="text-red-600 font-bold">{salePrice} ج.م</span>
+                  <span className="line-through text-gray-500">
+                    {price} ج.م
+                  </span>
+                  <span className="text-red-600 font-bold">
+                    {salePrice} ج.م
+                  </span>
                 </div>
               ) : (
                 <span className="text-green-600 font-bold">{price} ج.م</span>
