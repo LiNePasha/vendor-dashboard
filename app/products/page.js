@@ -1,14 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import AddProductForm from "@/components/AddProductForm";
+import EditProductModal from "@/components/EditProductModal";
 
 // Toast Component
 function Toast({ message, type, onClose }) {
   return (
     <div
-      className={`fixed bottom-5 right-5 px-4 py-2 rounded shadow text-white z-50 transition-all ${
-        type === "success" ? "bg-green-500" : "bg-red-500"
-      }`}
+      className={`fixed px-4 py-2 rounded shadow text-white z-50 transition-all 
+    ${
+      type === "success"
+        ? "bg-green-500 bottom-5 left-1/2 -translate-x-1/2"
+        : "bg-red-500 top-12 left-1/2 -translate-x-1/2"
+    }`}
     >
       {message}
       <button className="ml-2 font-bold" onClick={onClose}>
@@ -46,80 +51,6 @@ function ImageModal({ src, onClose }) {
   );
 }
 
-// Edit Modal (Name & Price)
-function EditProductModal({ product, onClose, onSave, updating, setToast }) {
-  const [name, setName] = useState(product.name);
-  const [price, setPrice] = useState(product.price);
-
-  const handleSave = () => {
-    if (!name || !price)
-      return setToast({ message: "الرجاء ملء الاسم والسعر", type: "error" });
-    onSave({ id: product.id, name, price, status: product.status });
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-xl shadow-lg w-full max-w-lg p-6 relative max-h-[80vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-xl font-bold mb-4">تعديل المنتج</h2>
-
-        {/* الاسم والسعر */}
-        <label className="block mb-2">الاسم:</label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="border w-full rounded px-2 py-1 mb-4"
-        />
-
-        <label className="block mb-2">السعر:</label>
-        <input
-          type="number"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          className="border w-full rounded px-2 py-1 mb-4"
-        />
-
-        {/* الصورة للتأكيد */}
-        {product.images[0] && (
-          <div className="mb-4">
-            <label className="block mb-2 font-semibold">معاينة الصورة:</label>
-            <img
-              src={product.images[0].src}
-              alt={product.name}
-              className="w-full h-64 object-contain rounded border"
-            />
-          </div>
-        )}
-
-        <div className="flex justify-end gap-2">
-          <button
-            className="bg-gray-300 px-3 py-1 rounded hover:bg-gray-400 transition"
-            onClick={onClose}
-            disabled={updating}
-          >
-            إلغاء
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={updating}
-            className={`bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition ${
-              updating ? "opacity-50 cursor-not-allowed" : ""
-            }`}
-          >
-            {updating ? "جاري الحفظ..." : "حفظ"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Main Products Page
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
@@ -133,6 +64,7 @@ export default function ProductsPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [toast, setToast] = useState(null);
   const [imageModal, setImageModal] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
   // Debounce للبحث
   const [debouncedSearch, setDebouncedSearch] = useState(search);
@@ -213,7 +145,24 @@ export default function ProductsPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6">المنتجات</h1>
+      {/* <h1 className="text-2xl font-bold mb-6">المنتجات</h1> */}
+
+      <div className="flex justify-center md:justify-between  items-center mb-4">
+        <button
+          onClick={() => setShowModal(true)}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg"
+        >
+          ➕ منتج جديد
+        </button>
+
+        {showModal && (
+          <AddProductForm
+            onAdded={(p) => console.log("تمت الإضافة:", p)}
+            setToast={setToast}
+            onClose={() => setShowModal(false)}
+          />
+        )}
+      </div>
 
       {/* Search & Filter */}
       <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
@@ -277,9 +226,23 @@ export default function ProductsPage() {
                 </span>
               </div>
               <h2 className="font-bold mt-3 truncate">{product.name}</h2>
-              <p className="text-gray-600 mt-1">
-                {product.price} {product.currency}
-              </p>
+              {/* السعر */}
+              <div className="mt-1">
+                {product.sale_price ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500 line-through">
+                      {product.regular_price} {product.currency}
+                    </span>
+                    <span className="text-red-600 font-bold">
+                      {product.sale_price} {product.currency}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-gray-700 font-semibold">
+                    {product.regular_price || product.price} {product.currency}
+                  </span>
+                )}
+              </div>
 
               <div className="mt-3 flex justify-between items-center gap-2">
                 <button

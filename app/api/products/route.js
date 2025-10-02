@@ -52,6 +52,40 @@ export async function GET(req) {
   }
 }
 
+// POST: إضافة منتج جديد
+export async function POST(req) {
+  try {
+    const token = await getToken();
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const body = await req.json();
+    const { name, price, salePrice, imageUrl, status } = body;
+
+    const res = await fetch("https://spare2app.com/wp-json/wc/v3/products", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name,
+        price,
+        regular_price: price,
+        sale_price: salePrice || "",
+        status: status || "publish",
+        images: imageUrl ? [{ src: imageUrl }] : [],
+      }),
+    });
+
+    if (!res.ok) throw new Error(`API Error: ${res.status}`);
+    const newProduct = await res.json();
+    return NextResponse.json(newProduct);
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "فشل إضافة المنتج" }, { status: 500 });
+  }
+}
+
 // PATCH: تعديل منتج (الاسم، السعر، الحالة)
 export async function PATCH(req) {
   try {
@@ -59,16 +93,21 @@ export async function PATCH(req) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const { id, name, price, status } = body;
+    const { id, name, price, status, sale_price } = body;
 
-    // تحديث المنتج عبر WooCommerce API
     const res = await fetch(`https://spare2app.com/wp-json/wc/v3/products/${id}`, {
-      method: "PUT", // WooCommerce يستخدم PUT لتحديث المنتج
+      method: "PUT",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name, price, status }),
+      body: JSON.stringify({
+        name,
+        regular_price: price,   // السعر الأساسي
+        price,                  // بيتساوي مع الريجولار
+        sale_price: sale_price || "", // لو محدد سعر عرض
+        status,
+      }),
     });
 
     if (!res.ok) throw new Error(`API Error: ${res.status}`);
