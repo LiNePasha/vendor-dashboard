@@ -108,6 +108,11 @@ export default function ProductsPage() {
     }
   };
 
+  // دالة بتضيف المنتج الجديد على طول في الـ state
+  const handleAdded = (newProduct) => {
+    setProducts((prev) => [newProduct, ...prev]); // يضيفه أول القائمة
+  };
+
   const handleUpdateProduct = async (updatedData) => {
     setUpdating(true);
     try {
@@ -157,7 +162,7 @@ export default function ProductsPage() {
 
         {showModal && (
           <AddProductForm
-            onAdded={(p) => console.log("تمت الإضافة:", p)}
+            onAdded={handleAdded}
             setToast={setToast}
             onClose={() => setShowModal(false)}
           />

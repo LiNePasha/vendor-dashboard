@@ -65,6 +65,7 @@ export default function AddProductModal({ onAdded, setToast, onClose }) {
       setSalePrice("");
       setFile(null);
       setPreview(null);
+      setTimeout(() => setToast(null), 3000);
 
       onAdded && onAdded(data);
       onClose(); // ✅ قفل المودال بعد الإضافة
