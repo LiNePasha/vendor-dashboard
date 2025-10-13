@@ -53,14 +53,37 @@ export async function GET(req) {
 }
 
 // POST: إضافة منتج جديد
+// POST: إضافة منتج جديد
 export async function POST(req) {
   try {
     const token = await getToken();
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!token)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // دالة بسيطة تفك تشفير JWT من غير مكتبات
+    function decodeToken(token) {
+      try {
+        const payload = token.split(".")[1];
+        return JSON.parse(Buffer.from(payload, "base64").toString());
+      } catch {
+        return null;
+      }
+    }
+
+    // استخراج vendor ID من التوكن
+    const decoded = decodeToken(token);
+    const vendorId = decoded?.data?.user?.id;
+
+    if (!vendorId)
+      return NextResponse.json(
+        { error: "Vendor ID not found in token" },
+        { status: 400 }
+      );
 
     const body = await req.json();
     const { name, price, salePrice, imageUrl, status } = body;
 
+    // إرسال البيانات إلى WooCommerce
     const res = await fetch("https://spare2app.com/wp-json/wc/v3/products", {
       method: "POST",
       headers: {
@@ -74,6 +97,12 @@ export async function POST(req) {
         sale_price: salePrice || "",
         status: status || "publish",
         images: imageUrl ? [{ src: imageUrl }] : [],
+        meta_data: [
+          {
+            key: "_wcfm_product_author",
+            value: vendorId, // ✅ هنا بيتربط التاجر بالمنتج
+          },
+        ],
       }),
     });
 
