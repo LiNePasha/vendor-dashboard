@@ -15,8 +15,11 @@ export async function POST(req) {
     return NextResponse.json({ error: "بيانات الدخول غير صحيحة" }, { status: 401 });
   }
 
+  console.log(data);
+
   const response = NextResponse.json({ success: true });
 
+  // ✅ حفظ التوكن
   response.cookies.set("token", data.token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -24,6 +27,16 @@ export async function POST(req) {
     path: "/",
     maxAge: 60 * 60 * 24, // يوم
   });
+
+  // ✅ لو عنده الدور wholesale_vendor نحفظها في كوكي تانية
+  if (data.roles?.includes("wholesale_vendor")) {
+    response.cookies.set("isWholesale", "true", {
+      httpOnly: false, // عشان تقدر تقراها من client
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24,
+    });
+  }
 
   return response;
 }

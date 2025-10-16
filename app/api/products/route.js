@@ -53,14 +53,12 @@ export async function GET(req) {
 }
 
 // POST: إضافة منتج جديد
-// POST: إضافة منتج جديد
 export async function POST(req) {
   try {
     const token = await getToken();
     if (!token)
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // دالة بسيطة تفك تشفير JWT من غير مكتبات
     function decodeToken(token) {
       try {
         const payload = token.split(".")[1];
@@ -70,40 +68,44 @@ export async function POST(req) {
       }
     }
 
-    // استخراج vendor ID من التوكن
     const decoded = decodeToken(token);
     const vendorId = decoded?.data?.user?.id;
-
-    if (!vendorId)
-      return NextResponse.json(
-        { error: "Vendor ID not found in token" },
-        { status: 400 }
-      );
+    const roles = decoded?.data?.user?.roles || [];
 
     const body = await req.json();
-    const { name, price, salePrice, imageUrl, status } = body;
+    const { name, price, salePrice, imageUrl, whatsapp, type } = body;
 
-    // إرسال البيانات إلى WooCommerce
+    let payload = {
+      name,
+      status: "publish",
+      images: imageUrl ? [{ src: imageUrl }] : [],
+      meta_data: [{ key: "_wcfm_product_author", value: vendorId }],
+    };
+
+    // ✅ لو التاجر جملة
+    if (roles.includes("wholesale_vendor") || type === "external") {
+      payload = {
+        ...payload,
+        type: "external",
+        external_url: `https://wa.me/+2${whatsapp}`,
+        button_text: "تواصل على الواتساب",
+      };
+    } else {
+      payload = {
+        ...payload,
+        regular_price: price,
+        sale_price: salePrice || "",
+        type: "simple",
+      };
+    }
+
     const res = await fetch("https://spare2app.com/wp-json/wc/v3/products", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        name,
-        price,
-        regular_price: price,
-        sale_price: salePrice || "",
-        status: status || "publish",
-        images: imageUrl ? [{ src: imageUrl }] : [],
-        meta_data: [
-          {
-            key: "_wcfm_product_author",
-            value: vendorId, // ✅ هنا بيتربط التاجر بالمنتج
-          },
-        ],
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!res.ok) throw new Error(`API Error: ${res.status}`);

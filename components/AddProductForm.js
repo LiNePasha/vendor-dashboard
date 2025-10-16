@@ -1,18 +1,40 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function AddProductModal({ onAdded, setToast, onClose }) {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [salePrice, setSalePrice] = useState("");
   const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null); // ✅ معاينة الصورة
+  const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isWholesale, setIsWholesale] = useState(false);
+  const [whatsapp, setWhatsapp] = useState("");
+
+useEffect(() => {
+  // ✅ قراءة الكوكيز اللي اسمها isWholesale
+  const wholesaleCookie = document.cookie
+    .split("; ")
+    .find((c) => c.startsWith("isWholesale="));
+
+  if (wholesaleCookie) {
+    const value = wholesaleCookie.split("=")[1] === "true";
+    setIsWholesale(value);
+
+    console.log(
+      "🎯 حالة المستخدم:",
+      value ? "تاجر جملة ✅" : "مستخدم عادي 🛒"
+    );
+  } else {
+    console.log("⚠️ مفيش كوكي isWholesale، المستخدم عادي 🛒");
+  }
+}, []);
+
 
   const handleFileChange = (e) => {
     const f = e.target.files[0];
     setFile(f);
-    if (f) setPreview(URL.createObjectURL(f)); // توليد صورة معاينة
+    if (f) setPreview(URL.createObjectURL(f));
   };
 
   const handleAdd = async (e) => {
@@ -20,17 +42,36 @@ export default function AddProductModal({ onAdded, setToast, onClose }) {
     setLoading(true);
 
     try {
-      if (!name || !price) {
-        setToast({ message: "الرجاء إدخال الاسم والسعر", type: "error" });
+      if (!name) {
+        setToast({ message: "الرجاء إدخال الاسم", type: "error" });
         setTimeout(() => setToast(null), 3000);
         return setLoading(false);
       }
 
-      if (salePrice && parseFloat(salePrice) >= parseFloat(price)) {
+      if (!isWholesale && !price) {
+        setToast({ message: "الرجاء إدخال السعر", type: "error" });
+        setTimeout(() => setToast(null), 3000);
+        return setLoading(false);
+      }
+
+      if (
+        !isWholesale &&
+        salePrice &&
+        parseFloat(salePrice) >= parseFloat(price)
+      ) {
         setToast({
           message: "سعر العرض يجب أن يكون أقل من السعر الأساسي",
           type: "error",
         });
+        return setLoading(false);
+      }
+
+      if (isWholesale && !whatsapp) {
+        setToast({
+          message: "من فضلك أدخل رقم الواتساب للتواصل",
+          type: "error",
+        });
+        setTimeout(() => setToast(null), 3000);
         return setLoading(false);
       }
 
@@ -49,26 +90,31 @@ export default function AddProductModal({ onAdded, setToast, onClose }) {
         imageUrl = uploadData.url;
       }
 
+      // ✅ بناء البيانات حسب نوع المستخدم
+      const body = isWholesale
+        ? {
+            name,
+            whatsapp,
+            imageUrl,
+            type: "external",
+          }
+        : { name, price, salePrice, imageUrl, type: "simple" };
+
       const res = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ name, price, salePrice, imageUrl }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
       setToast({ message: "تم إضافة المنتج بنجاح ✅", type: "success" });
-      setName("");
-      setPrice("");
-      setSalePrice("");
-      setFile(null);
-      setPreview(null);
       setTimeout(() => setToast(null), 3000);
 
       onAdded && onAdded(data);
-      onClose(); // ✅ قفل المودال بعد الإضافة
+      onClose();
     } catch (err) {
       console.error(err);
       setToast({ message: "فشل إضافة المنتج", type: "error" });
@@ -86,7 +132,6 @@ export default function AddProductModal({ onAdded, setToast, onClose }) {
         className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-2 p-6 relative overflow-y-auto max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* زر إغلاق */}
         <button
           className="absolute top-3 right-3 text-gray-600 hover:text-black"
           onClick={onClose}
@@ -99,7 +144,6 @@ export default function AddProductModal({ onAdded, setToast, onClose }) {
         </h2>
 
         <form onSubmit={handleAdd} className="space-y-4">
-          {/* الاسم */}
           <input
             type="text"
             placeholder="اسم المنتج"
@@ -108,37 +152,33 @@ export default function AddProductModal({ onAdded, setToast, onClose }) {
             className="border w-full px-3 py-2 rounded-lg focus:ring focus:ring-green-300"
           />
 
-          {/* السعر الأساسي */}
-          <input
-            type="number"
-            placeholder="السعر الأساسي"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            className="border w-full px-3 py-2 rounded-lg focus:ring focus:ring-green-300"
-          />
+          {!isWholesale ? (
+            <>
+              <input
+                type="number"
+                placeholder="السعر الأساسي"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                className="border w-full px-3 py-2 rounded-lg focus:ring focus:ring-green-300"
+              />
 
-          {/* سعر العرض */}
-          <input
-            type="number"
-            placeholder="سعر العرض (اختياري)"
-            value={salePrice}
-            onChange={(e) => setSalePrice(e.target.value)}
-            className="border w-full px-3 py-2 rounded-lg focus:ring focus:ring-green-300"
-          />
-
-          {/* صورة */}
-          {/* <input
-            type="file"
-            onChange={handleFileChange}
-            accept="image/*"
-            className="block w-full text-sm text-gray-500
-             file:mr-4 file:py-2 file:px-4
-             file:rounded-lg file:border-0
-             file:text-sm file:font-semibold
-             file:bg-green-600 file:text-white
-             hover:file:bg-green-700
-             cursor-pointer"
-          /> */}
+              <input
+                type="number"
+                placeholder="سعر العرض (اختياري)"
+                value={salePrice}
+                onChange={(e) => setSalePrice(e.target.value)}
+                className="border w-full px-3 py-2 rounded-lg focus:ring focus:ring-green-300"
+              />
+            </>
+          ) : (
+            <input
+              type="text"
+              placeholder="رقم واتساب للتواصل (مثال: 01000000000)"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+              className="border w-full px-3 py-2 rounded-lg focus:ring focus:ring-green-300"
+            />
+          )}
 
           <div>
             <label
@@ -156,7 +196,6 @@ export default function AddProductModal({ onAdded, setToast, onClose }) {
             />
           </div>
 
-          {/* معاينة الصورة */}
           {preview && (
             <div className="mt-3">
               <img
@@ -167,25 +206,6 @@ export default function AddProductModal({ onAdded, setToast, onClose }) {
             </div>
           )}
 
-          {/* معاينة السعر */}
-          {price && (
-            <div className="mt-3 text-center">
-              {salePrice ? (
-                <div className="space-x-2">
-                  <span className="line-through text-gray-500">
-                    {price} ج.م
-                  </span>
-                  <span className="text-red-600 font-bold">
-                    {salePrice} ج.م
-                  </span>
-                </div>
-              ) : (
-                <span className="text-green-600 font-bold">{price} ج.م</span>
-              )}
-            </div>
-          )}
-
-          {/* أزرار */}
           <div className="flex justify-between mt-6">
             <button
               type="button"
