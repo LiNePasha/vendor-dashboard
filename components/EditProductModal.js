@@ -33,6 +33,7 @@ export default function EditProductModal({
       id: product.id,
       name,
       regular_price: price,
+      price,
       sale_price: salePrice || "",
       status: product.status,
       external_url: externalUrl || "",

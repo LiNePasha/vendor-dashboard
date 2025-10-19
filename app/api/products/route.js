@@ -134,8 +134,8 @@ export async function PATCH(req) {
       },
       body: JSON.stringify({
         name,
+        price,
         regular_price: price,   // السعر الأساسي
-        price,                  // بيتساوي مع الريجولار
         sale_price: sale_price || "", // لو محدد سعر عرض
         status,
       }),
