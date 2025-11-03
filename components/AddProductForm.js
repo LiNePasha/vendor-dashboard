@@ -10,6 +10,8 @@ export default function AddProductModal({ onAdded, setToast, onClose }) {
   const [loading, setLoading] = useState(false);
   const [isWholesale, setIsWholesale] = useState(false);
   const [whatsapp, setWhatsapp] = useState("");
+  const [manageStock, setManageStock] = useState(false);
+  const [stockQuantity, setStockQuantity] = useState(0);
 
 useEffect(() => {
   // ✅ قراءة الكوكيز اللي اسمها isWholesale
@@ -98,7 +100,15 @@ useEffect(() => {
             imageUrl,
             type: "external",
           }
-        : { name, price, salePrice, imageUrl, type: "simple" };
+        : { 
+            name, 
+            price, 
+            salePrice, 
+            imageUrl, 
+            type: "simple",
+            manage_stock: manageStock,
+            stock_quantity: manageStock ? stockQuantity : null
+          };
 
       const res = await fetch("/api/products", {
         method: "POST",
@@ -169,6 +179,33 @@ useEffect(() => {
                 onChange={(e) => setSalePrice(e.target.value)}
                 className="border w-full px-3 py-2 rounded-lg focus:ring focus:ring-green-300"
               />
+
+              {/* إدارة المخزون */}
+              <div className="space-y-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={manageStock}
+                    onChange={(e) => setManageStock(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span>تفعيل إدارة المخزون</span>
+                </label>
+
+                {manageStock && (
+                  <div>
+                    <label className="block mb-1">الكمية المتوفرة:</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={stockQuantity}
+                      onChange={(e) => setStockQuantity(parseInt(e.target.value) || 0)}
+                      className="border w-full px-3 py-2 rounded-lg focus:ring focus:ring-green-300"
+                      placeholder="أدخل الكمية المتوفرة"
+                    />
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <input

@@ -29,6 +29,30 @@ export default function DashboardPage() {
           إدارة المنتجات →
         </span>
       </div>
+
+      {/* POS Card */}
+      <div
+        className="bg-white p-6 rounded-xl shadow hover:shadow-lg transition cursor-pointer"
+        onClick={() => router.push("/pos")}
+      >
+        <h2 className="text-lg font-semibold mb-2">🛍️ الكاشير</h2>
+        <p className="text-gray-600 mb-4">أضف، عدّل أو احذف فواتير</p>
+        <span className="text-blue-600 font-medium hover:underline">
+          برنامج الكاشير →
+        </span>
+      </div>
+
+      {/* Products Card */}
+      <div
+        className="bg-white p-6 rounded-xl shadow hover:shadow-lg transition cursor-pointer"
+        onClick={() => router.push("/pos/invoices")}
+      >
+        <h2 className="text-lg font-semibold mb-2">🛍️ الفواتير</h2>
+        <p className="text-gray-600 mb-4">أضف، عدّل أو احذف الفواتير</p>
+        <span className="text-blue-600 font-medium hover:underline">
+          إدارة الفواتير →
+        </span>
+      </div>
     </div>
   );
 }

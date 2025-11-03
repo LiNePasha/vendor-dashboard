@@ -8,8 +8,61 @@ async function getToken() {
   return cookieStore.get("token")?.value;
 }
 
+// جلب التصنيفات من WooCommerce
+async function fetchCategories(token) {
+  // جلب المنتجات المتاحة أولاً
+  const productsRes = await fetch(
+    `https://spare2app.com/wp-json/wc/v3/products?status=publish&per_page=100`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!productsRes.ok) throw new Error(`API Error: ${productsRes.status}`);
+  const products = await productsRes.json();
+
+  // استخراج معرفات التصنيفات من المنتجات
+  const categoryIds = new Set();
+  products.forEach(product => {
+    if (product.categories && Array.isArray(product.categories)) {
+      product.categories.forEach(cat => categoryIds.add(cat.id));
+    }
+  });
+
+  // جلب تفاصيل التصنيفات المستخدمة فقط
+  if (categoryIds.size === 0) return [];
+
+  const categoriesQuery = new URLSearchParams();
+  categoriesQuery.set('include', Array.from(categoryIds).join(','));
+
+  const res = await fetch(
+    `https://spare2app.com/wp-json/wc/v3/products/categories?${categoriesQuery.toString()}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (!res.ok) throw new Error(`API Error: ${res.status}`);
+  const categories = await res.json();
+  
+  // إضافة عدد المنتجات لكل تصنيف
+  return categories.map(cat => ({
+    ...cat,
+    count: products.filter(p => 
+      p.categories && 
+      p.categories.some(c => c.id === cat.id)
+    ).length
+  }));
+}
+
 // جلب المنتجات من WooCommerce
-async function fetchProducts({ page = 1, per_page = 12, search = "", status = "all" }) {
+async function fetchProducts({ page = 1, per_page = 12, search = "", status = "all", category = "" }) {
   const token = await getToken();
   if (!token) throw new Error("Unauthorized");
 
@@ -18,7 +71,9 @@ async function fetchProducts({ page = 1, per_page = 12, search = "", status = "a
   query.set("per_page", per_page);
   if (search) query.set("search", search);
   if (status !== "all") query.set("status", status);
+  if (category) query.set("category", category);
 
+  // 1. Fetch products
   const res = await fetch(
     `https://spare2app.com/wp-json/wc/v3/products?${query.toString()}`,
     {
@@ -30,9 +85,20 @@ async function fetchProducts({ page = 1, per_page = 12, search = "", status = "a
   );
 
   if (!res.ok) throw new Error(`API Error: ${res.status}`);
-  const data = await res.json();
+  const products = await res.json();
   const totalPages = parseInt(res.headers.get("X-WP-TotalPages") || "1");
-  return { products: data, totalPages };
+  
+  // 2. Fetch categories on first page only
+  let categories = [];
+  if (page === 1) {
+    categories = await fetchCategories(token);
+  }
+
+  return { 
+    products,
+    categories,
+    pagination: { totalPages } 
+  };
 }
 
 // GET: جلب المنتجات
@@ -41,10 +107,12 @@ export async function GET(req) {
   const page = parseInt(searchParams.get("page") || "1");
   const per_page = parseInt(searchParams.get("per_page") || "12");
   const search = searchParams.get("search") || "";
-  const status = searchParams.get("status") || "all";
+  const category = searchParams.get("category") || "";
+  // دائماً نجلب المنتجات المنشورة فقط
+  const status = "publish";
 
   try {
-    const data = await fetchProducts({ page, per_page, search, status });
+    const data = await fetchProducts({ page, per_page, search, status, category });
     return NextResponse.json(data);
   } catch (err) {
     console.error(err);
@@ -124,7 +192,7 @@ export async function PATCH(req) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const { id, name, price, status, sale_price } = body;
+    const { id, name, price, status, sale_price, manage_stock, stock_quantity } = body;
 
     const res = await fetch(`https://spare2app.com/wp-json/wc/v3/products/${id}`, {
       method: "PUT",
@@ -138,6 +206,8 @@ export async function PATCH(req) {
         regular_price: price,   // السعر الأساسي
         sale_price: sale_price || "", // لو محدد سعر عرض
         status,
+        manage_stock: manage_stock || false,
+        stock_quantity: manage_stock ? stock_quantity : null,
       }),
     });
 

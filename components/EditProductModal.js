@@ -10,7 +10,9 @@ export default function EditProductModal({
   const [name, setName] = useState(product.name);
   const [price, setPrice] = useState(product.regular_price);
   const [salePrice, setSalePrice] = useState(product.sale_price || "");
-  const [externalUrl, setExternalUrl] = useState(product.external_url || ""); // ✅ جديد
+  const [externalUrl, setExternalUrl] = useState(product.external_url || "");
+  const [stockQuantity, setStockQuantity] = useState(product.stock_quantity || 0);
+  const [manageStock, setManageStock] = useState(product.manage_stock || false);
 
   const handleSave = () => {
     if (!name || (!price && !externalUrl)) {
@@ -37,6 +39,8 @@ export default function EditProductModal({
       sale_price: salePrice || "",
       status: product.status,
       external_url: externalUrl || "",
+      manage_stock: manageStock,
+      stock_quantity: manageStock ? stockQuantity : null,
     };
 
     onSave(updatedProduct);
@@ -96,6 +100,32 @@ export default function EditProductModal({
             />
           </>
         )}
+
+        {/* إدارة المخزون */}
+        <div className="mb-4 space-y-2">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={manageStock}
+              onChange={(e) => setManageStock(e.target.checked)}
+              className="rounded"
+            />
+            <span>تفعيل إدارة المخزون</span>
+          </label>
+
+          {manageStock && (
+            <div>
+              <label className="block mb-1">الكمية المتوفرة:</label>
+              <input
+                type="number"
+                min="0"
+                value={stockQuantity}
+                onChange={(e) => setStockQuantity(parseInt(e.target.value) || 0)}
+                className="border w-full rounded px-2 py-1"
+              />
+            </div>
+          )}
+        </div>
 
         {/* معاينة الصورة */}
         {product.images?.[0] && (

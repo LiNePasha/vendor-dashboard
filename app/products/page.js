@@ -99,7 +99,9 @@ export default function ProductsPage() {
 
       const data = await res.json();
       setProducts(data.products);
-      setTotalPages(data.totalPages);
+      if (data.pagination) {
+        setTotalPages(data.pagination.totalPages);
+      }
     } catch (err) {
       console.error(err);
       setToast({ message: "فشل تحميل المنتجات", type: "error" });
