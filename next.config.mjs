@@ -4,7 +4,8 @@ const withPWA = withPWAInit({
   dest: "public",
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === "development", // يعطل PWA في وضع التطوير
+  // Allow disabling PWA with env var during build if needed
+  disable: process.env.NODE_ENV === "development" || process.env.NEXT_DISABLE_PWA === "1",
 });
 
 const nextConfig = {

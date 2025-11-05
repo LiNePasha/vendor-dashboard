@@ -5,8 +5,18 @@ import { useSearchParams } from 'next/navigation';
 import { invoiceStorage } from '@/app/lib/localforage';
 import { getVendorLogo, getVendorStoreLink } from '@/app/lib/vendor-constants';
 import usePOSStore from '@/app/stores/pos-store';
+import { Suspense } from 'react';
 
+// Wrap the client content that uses useSearchParams in a Suspense boundary
 export default function PrintInvoicePage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 16, textAlign: 'center' }}>جاري التحميل...</div>}>
+      <PrintInvoiceContent />
+    </Suspense>
+  );
+}
+
+function PrintInvoiceContent() {
   const searchParams = useSearchParams();
   const idParam = searchParams.get('id');
   const invoiceId = useMemo(() => (idParam ? String(idParam) : ''), [idParam]);
