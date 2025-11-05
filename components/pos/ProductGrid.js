@@ -10,14 +10,7 @@ function ProductSkeleton() {
   );
 }
 
-export function ProductGrid({ products, loading, search, category, onAddToCart }) {
-  const filteredProducts = products
-    .filter((product) => {
-      const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = category === 'all' || product.categories?.includes(category);
-      return matchesSearch && matchesCategory;
-    });
-
+export function ProductGrid({ products, loading, onAddToCart }) {
   if (loading) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -30,11 +23,11 @@ export function ProductGrid({ products, loading, search, category, onAddToCart }
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      {filteredProducts.map((product) => (
+      {products.map((product) => (
         <div key={product.id} className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition">
           <div className="relative h-40 mb-4">
             <img
-              src={product.images[0]?.src || '/placeholder.png'}
+              src={product.images[0]?.src || '/placeholder.webp'}
               alt={product.name}
               className="w-full h-full object-contain"
             />

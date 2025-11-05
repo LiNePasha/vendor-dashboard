@@ -115,7 +115,6 @@ export async function GET(req) {
     const data = await fetchProducts({ page, per_page, search, status, category });
     return NextResponse.json(data);
   } catch (err) {
-    console.error(err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
@@ -180,7 +179,6 @@ export async function POST(req) {
     const newProduct = await res.json();
     return NextResponse.json(newProduct);
   } catch (err) {
-    console.error(err);
     return NextResponse.json({ error: "فشل إضافة المنتج" }, { status: 500 });
   }
 }
@@ -215,7 +213,6 @@ export async function PATCH(req) {
     const updatedProduct = await res.json();
     return NextResponse.json(updatedProduct);
   } catch (err) {
-    console.error(err);
     return NextResponse.json({ error: "فشل التحديث" }, { status: 500 });
   }
 }

@@ -32,7 +32,6 @@ export async function POST(req) {
 
     return NextResponse.json({ url: result.secure_url });
   } catch (err) {
-    console.error(err);
     return NextResponse.json({ error: "فشل رفع الصورة" }, { status: 500 });
   }
 }

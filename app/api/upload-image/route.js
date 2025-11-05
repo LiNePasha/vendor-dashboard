@@ -17,7 +17,6 @@ export async function POST(req) {
   return new Promise((resolve, reject) => {
     form.parse(req, (err, fields, files) => {
       if (err) {
-        console.error(err);
         return resolve(
           new Response(JSON.stringify({ error: "فشل رفع الصورة" }), { status: 500 })
         );

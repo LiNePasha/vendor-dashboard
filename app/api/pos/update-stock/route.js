@@ -40,7 +40,6 @@ export async function POST(req) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Stock update error:', error);
     return NextResponse.json(
       { error: 'Failed to update product stock' },
       { status: 500 }

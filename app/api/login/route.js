@@ -15,8 +15,6 @@ export async function POST(req) {
     return NextResponse.json({ error: "بيانات الدخول غير صحيحة" }, { status: 401 });
   }
 
-  console.log(data);
-
   const response = NextResponse.json({ success: true });
 
   // ✅ حفظ التوكن

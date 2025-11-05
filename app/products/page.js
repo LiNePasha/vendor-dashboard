@@ -3,21 +3,28 @@
 import { useState, useEffect } from "react";
 import AddProductForm from "@/components/AddProductForm";
 import EditProductModal from "@/components/EditProductModal";
+import { wholesalePriceStorage } from "@/app/lib/localforage";
+
+// Simple in-module dedupe to prevent duplicate network calls (e.g., React StrictMode double-mount in dev)
+let __products_fetch_in_flight = false;
 
 // Toast Component
 function Toast({ message, type, onClose }) {
   return (
     <div
-      className={`fixed px-4 py-2 rounded shadow text-white z-50 transition-all 
-    ${
-      type === "success"
-        ? "bg-green-500 bottom-5 left-1/2 -translate-x-1/2"
-        : "bg-red-500 top-12 left-1/2 -translate-x-1/2"
-    }`}
+      className={`fixed px-5 py-3 rounded-xl shadow-2xl text-white z-50 transition-all animate-slideUp backdrop-blur-sm font-semibold flex items-center gap-3 ${
+        type === "success"
+          ? "bg-gradient-to-r from-green-500 to-green-600 bottom-5 left-1/2 -translate-x-1/2"
+          : "bg-gradient-to-r from-red-500 to-red-600 top-12 left-1/2 -translate-x-1/2"
+      }`}
     >
-      {message}
-      <button className="ml-2 font-bold" onClick={onClose}>
-        &times;
+      <span className="text-xl">{type === "success" ? "✓" : "⚠️"}</span>
+      <span>{message}</span>
+      <button 
+        className="ml-2 hover:bg-white/20 rounded-full w-6 h-6 flex items-center justify-center transition-all" 
+        onClick={onClose}
+      >
+        ×
       </button>
     </div>
   );
@@ -26,10 +33,17 @@ function Toast({ message, type, onClose }) {
 // Skeleton Loader
 function SkeletonCard() {
   return (
-    <div className="bg-white rounded-lg shadow p-4 flex flex-col animate-pulse">
-      <div className="bg-gray-200 h-40 w-full rounded mb-2" />
-      <div className="bg-gray-200 h-4 w-3/4 rounded mb-1" />
-      <div className="bg-gray-200 h-4 w-1/2 rounded" />
+    <div className="bg-white rounded-xl shadow-sm p-0 flex flex-col animate-pulse border border-gray-100 overflow-hidden">
+      <div className="bg-gradient-to-br from-gray-200 to-gray-300 h-44 w-full" />
+      <div className="p-3 space-y-2">
+        <div className="bg-gray-200 h-4 w-full rounded" />
+        <div className="bg-gray-200 h-4 w-3/4 rounded" />
+        <div className="bg-gray-200 h-6 w-1/2 rounded mt-3" />
+        <div className="flex gap-2 mt-3">
+          <div className="bg-gray-200 h-8 flex-1 rounded-lg" />
+          <div className="bg-gray-200 h-8 flex-1 rounded-lg" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -38,13 +52,19 @@ function SkeletonCard() {
 function ImageModal({ src, onClose }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fadeIn"
       onClick={onClose}
     >
+      <button
+        onClick={onClose}
+        className="absolute top-4 left-4 bg-white/10 hover:bg-white/20 text-white rounded-full w-10 h-10 flex items-center justify-center text-2xl font-bold backdrop-blur-md transition-all z-10"
+      >
+        ×
+      </button>
       <img
         src={src}
         alt="product"
-        className="max-h-[90vh] max-w-full rounded shadow-lg"
+        className="max-h-[90vh] max-w-[90vw] rounded-xl shadow-2xl animate-scaleIn"
         onClick={(e) => e.stopPropagation()}
       />
     </div>
@@ -54,17 +74,21 @@ function ImageModal({ src, onClose }) {
 // Main Products Page
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(false); // Start false, fetchProducts will set to true
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [perPage, setPerPage] = useState(12);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [updating, setUpdating] = useState(false);
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [toast, setToast] = useState(null);
   const [imageModal, setImageModal] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+  const [wholesalePrices, setWholesalePrices] = useState({});
 
   // Debounce للبحث
   const [debouncedSearch, setDebouncedSearch] = useState(search);
@@ -73,23 +97,57 @@ export default function ProductsPage() {
     return () => clearTimeout(handler);
   }, [search]);
 
+  // Initial load only
   useEffect(() => {
-    fetchProducts(page, perPage, debouncedSearch, filterStatus);
-  }, [page, perPage, debouncedSearch, filterStatus]);
+    if (!initialized) {
+      fetchProducts(1, perPage, "", "all", "all");
+      loadWholesalePrices();
+      setInitialized(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load wholesale prices
+  const loadWholesalePrices = async () => {
+    const prices = await wholesalePriceStorage.getAllWholesalePrices();
+    setWholesalePrices(prices);
+  };
+
+  // Reload wholesale prices when product modal closes
+  const handleProductModalClose = () => {
+    setSelectedProduct(null);
+    loadWholesalePrices();
+  };
+
+  // Handle filter/search changes (skip initial render)
+  useEffect(() => {
+    if (!initialized) return;
+    fetchProducts(page, perPage, debouncedSearch, filterStatus, category);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, perPage, debouncedSearch, filterStatus, category]);
 
   const fetchProducts = async (
     pageNum,
     perPageNum,
     searchTerm = "",
-    status = "all"
+    status = "all",
+    categoryId = "all"
   ) => {
+    // Skip if already fetching to avoid duplicate calls
+    if (__products_fetch_in_flight) {
+      return;
+    }
+
+    __products_fetch_in_flight = true;
     setLoading(true);
+    
     try {
       const query = new URLSearchParams();
       query.set("page", pageNum);
       query.set("per_page", perPageNum);
       if (searchTerm) query.set("search", searchTerm);
       if (status !== "all") query.set("status", status);
+      if (categoryId && categoryId !== "all") query.set("category", categoryId);
 
       const res = await fetch(`/api/products?${query.toString()}`, {
         credentials: "include", // ⚡ مهم جدًا
@@ -99,14 +157,17 @@ export default function ProductsPage() {
 
       const data = await res.json();
       setProducts(data.products);
+      if (data.categories && Array.isArray(data.categories)) {
+        setCategories(data.categories);
+      }
       if (data.pagination) {
         setTotalPages(data.pagination.totalPages);
       }
     } catch (err) {
-      console.error(err);
       setToast({ message: "فشل تحميل المنتجات", type: "error" });
     } finally {
       setLoading(false);
+      __products_fetch_in_flight = false;
     }
   };
 
@@ -116,34 +177,78 @@ export default function ProductsPage() {
   };
 
   const handleUpdateProduct = async (updatedData) => {
-    setUpdating(true);
-    try {
-      const res = await fetch("/api/products", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include", // ⚡ مهم جدًا
-        body: JSON.stringify(updatedData),
-      });
+    // 1) Optimistic UI update immediately
+    const isManageStock = typeof updatedData.manage_stock !== 'undefined' ? !!updatedData.manage_stock : !!selectedProduct?.manage_stock;
+    const newQty = isManageStock ? Number(updatedData.stock_quantity ?? selectedProduct?.stock_quantity ?? 0) : null;
+    const productId = updatedData.id;
 
-      if (!res.ok) throw new Error("فشل التعديل");
+    setProducts((prev) => prev.map((p) => {
+      if (p.id !== productId) return p;
+      // Merge optimistic fields similar to what API returns
+      return {
+        ...p,
+        name: typeof updatedData.name !== 'undefined' ? updatedData.name : p.name,
+        status: typeof updatedData.status !== 'undefined' ? updatedData.status : p.status,
+        price: typeof updatedData.price !== 'undefined' ? updatedData.price : p.price,
+        regular_price: typeof updatedData.price !== 'undefined' ? updatedData.price : p.regular_price,
+        sale_price: typeof updatedData.sale_price !== 'undefined' ? (updatedData.sale_price || "") : p.sale_price,
+        manage_stock: isManageStock,
+        stock_quantity: isManageStock ? (newQty ?? 0) : p.stock_quantity,
+      };
+    }));
 
-      const updatedProduct = await res.json();
-      setProducts((prev) =>
-        prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
-      );
-      setSelectedProduct(null);
-      // خليها تختفي بعد 3 ثواني مثلاً
-      setTimeout(() => {
-        setToast(null); // أو { message: "", type: "" } حسب كيف معرف الـ state
-      }, 2500);
-    } catch (err) {
-      console.error(err);
-      setToast({
-        message: "فشل تعديل المنتج! تأكد من البيانات",
-        type: "error",
-      });
-    } finally {
-      setUpdating(false);
+    // Close modal fast and show lightweight toast
+    setSelectedProduct(null);
+  setToast({ message: 'تم حفظ التعديل مؤقتًا وسيتم التحقق خلال 15 ثانية', type: 'success' });
+  setTimeout(() => setToast(null), 2500);
+    // Do not block UI
+    setUpdating(false);
+
+    // 2) Fire-and-forget remote PATCH
+    (async () => {
+      try {
+        const res = await fetch("/api/products", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(updatedData),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setToast({ message: data?.error || data?.message || 'تعذر تحديث المنتج على الخادم، سيُعاد التحقق قريبًا', type: 'error' });
+          setTimeout(() => setToast(null), 2500);
+        }
+      } catch (err) {
+        setToast({ message: 'حدث خطأ أثناء تحديث الخادم، سيُعاد التحقق قريبًا', type: 'error' });
+        setTimeout(() => setToast(null), 2500);
+      }
+    })();
+
+    // 3) Delayed verification after 15s (like invoices)
+    if (isManageStock) {
+      setTimeout(async () => {
+        try {
+          const verifyRes = await fetch('/api/pos/verify-stock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ updates: [{ productId, expectedQuantity: Number(newQty ?? 0) }] })
+          });
+          const verifyData = await verifyRes.json();
+          const result = Array.isArray(verifyData.results) ? verifyData.results.find(r => r.productId === productId) : null;
+          if (result && result.body) {
+            const serverQty = typeof result.body.stock_quantity !== 'undefined' ? Number(result.body.stock_quantity) : null;
+            if (serverQty !== null && serverQty !== Number(newQty ?? 0)) {
+              // Reconcile mismatch from server
+              setProducts((prev) => prev.map((p) => p.id === productId ? { ...p, stock_quantity: serverQty } : p));
+              setToast({ message: 'تمت مزامنة المخزون مع الخادم', type: 'success' });
+              setTimeout(() => setToast(null), 2500);
+            }
+          }
+        } catch (e) {
+          // Silently handle verification error
+        }
+      }, 15000);
     }
   };
 
@@ -151,152 +256,276 @@ export default function ProductsPage() {
   const prevPage = () => page > 1 && setPage(page - 1);
 
   return (
-    <div className="p-6">
-      {/* <h1 className="text-2xl font-bold mb-6">المنتجات</h1> */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="p-4 sm:p-6 max-w-[1600px] mx-auto">
+        {/* Header */}
+        <div className="mb-6 bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-1">📦 إدارة المنتجات</h1>
+              <p className="text-sm text-gray-500">
+                {loading ? 'جاري التحميل...' : `${products.length} منتج في الصفحة الحالية`}
+              </p>
+            </div>
+            <button
+              onClick={() => setShowModal(true)}
+              className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-2.5 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2"
+            >
+              <span className="text-lg">➕</span>
+              <span>منتج جديد</span>
+            </button>
+          </div>
 
-      <div className="flex justify-center md:justify-between  items-center mb-4">
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg"
-        >
-          ➕ منتج جديد
-        </button>
+          {showModal && (
+            <AddProductForm
+              onAdded={handleAdded}
+              setToast={setToast}
+              onClose={() => setShowModal(false)}
+            />
+          )}
+        </div>
 
-        {showModal && (
-          <AddProductForm
-            onAdded={handleAdded}
-            setToast={setToast}
-            onClose={() => setShowModal(false)}
-          />
-        )}
-      </div>
-
-      {/* Search & Filter */}
-      <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
-        <input
-          type="text"
-          placeholder="ابحث بالاسم..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="border rounded px-3 py-2 flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <select
-          className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-        >
-          <option value="all">كل الحالات</option>
-          <option value="publish">منشور</option>
-          <option value="draft">مسودة</option>
-          <option value="pending">قيد المراجعة</option>
-        </select>
-      </div>
+        {/* Search & Filter */}
+        <div className="mb-6 bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 relative">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+              <input
+                type="text"
+                placeholder="ابحث بالاسم..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="border border-gray-200 rounded-lg px-4 pr-10 py-2.5 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              />
+            </div>
+            <select
+              className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white font-medium text-sm min-w-[140px]"
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                setPage(1);
+              }}
+              disabled={loading}
+            >
+              <option value="all">{loading ? 'جاري التحميل...' : '🏷️ كل الفئات'}</option>
+              {Array.isArray(categories) && categories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}{c.count ? ` (${c.count})` : ''}</option>
+              ))}
+            </select>
+            <select
+              className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white font-medium text-sm min-w-[140px]"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+            >
+              <option value="all">📊 كل الحالات</option>
+              <option value="publish">✓ منشور</option>
+              <option value="draft">✎ مسودة</option>
+              <option value="pending">⏳ قيد المراجعة</option>
+            </select>
+          </div>
+        </div>
 
       {/* Products Grid */}
       {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {Array.from({ length: perPage }).map((_, idx) => (
             <SkeletonCard key={idx} />
           ))}
         </div>
       ) : products.length === 0 ? (
-        <p className="text-center text-gray-500">لا توجد منتجات حتى الآن</p>
+        <div className="text-center py-16">
+          <div className="text-6xl mb-4">📦</div>
+          <p className="text-gray-500 text-lg">لا توجد منتجات حتى الآن</p>
+          <button
+            onClick={() => setShowModal(true)}
+            className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+          >
+            أضف منتج جديد
+          </button>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {products.map((product) => (
-            <div
-              key={product.id}
-              className="bg-white rounded-xl shadow hover:shadow-2xl transition transform hover:-translate-y-1 p-4 flex flex-col justify-between border border-gray-200"
-            >
-              <div className="relative w-full h-48 overflow-hidden rounded bg-gray-100 group cursor-pointer">
-                <img
-                  src={product.images[0]?.src || "/placeholder.png"}
-                  alt={product.name}
-                  className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
-                  loading="lazy"
-                  onClick={() => setSelectedProduct(product)}
-                />
-                <span
-                  className={`absolute top-2 left-2 px-2 py-1 rounded text-white text-xs font-semibold ${
-                    product.status === "publish"
-                      ? "bg-green-500"
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          {products.map((product) => {
+            const stockQty = product.stock_quantity ?? 0;
+            const manageStock = product.manage_stock;
+            const isLowStock = manageStock && stockQty > 0 && stockQty <= 5;
+            const isOutOfStock = manageStock && stockQty === 0;
+            const hasWholesalePrice = wholesalePrices[product.id] !== undefined;
+            
+            return (
+              <div
+                key={product.id}
+                className="bg-white rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col border border-gray-100 overflow-hidden group"
+              >
+                {/* Image Container */}
+                <div className="relative w-full h-44 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 cursor-pointer">
+                  <img
+                    src={product.images[0]?.src || "/placeholder.webp"}
+                    alt={product.name}
+                    className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-110"
+                    loading="lazy"
+                    onClick={() => setSelectedProduct(product)}
+                  />
+                  
+                  {/* Status Badge - Top Left */}
+                  <span
+                    className={`absolute top-2 left-2 px-2.5 py-1 rounded-full text-white text-[10px] font-bold shadow-lg backdrop-blur-sm ${
+                      product.status === "publish"
+                        ? "bg-gradient-to-r from-green-500 to-green-600"
+                        : product.status === "draft"
+                        ? "bg-gradient-to-r from-yellow-500 to-yellow-600"
+                        : "bg-gradient-to-r from-blue-500 to-blue-600"
+                    }`}
+                  >
+                    {product.status === "publish"
+                      ? "✓ منشور"
                       : product.status === "draft"
-                      ? "bg-yellow-500"
-                      : "bg-blue-500"
-                  }`}
-                >
-                  {product.status === "publish"
-                    ? "منشور"
-                    : product.status === "draft"
-                    ? "مسودة"
-                    : "قيد المراجعة"}
-                </span>
-              </div>
-              <h2 className="font-bold mt-3 truncate">{product.name}</h2>
-              {/* السعر */}
-              <div className="mt-1">
-                {product.sale_price ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-500 line-through">
-                      {product.regular_price} {product.currency}
-                    </span>
-                    <span className="text-red-600 font-bold">
-                      {product.sale_price} {product.currency}
-                    </span>
-                  </div>
-                ) : (
-                  <span className="text-gray-700 font-semibold">
-                    {product.regular_price || product.price} {product.currency}
+                      ? "✎ مسودة"
+                      : "⏳ مراجعة"}
                   </span>
-                )}
-              </div>
 
-              <div className="mt-3 flex justify-between items-center gap-2">
-                <button
-                  className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 transition"
-                  onClick={() => setSelectedProduct(product)}
-                >
-                  تعديل
-                </button>
-                <select
-                  disabled={updating}
-                  className="border rounded px-2 py-1"
-                  value={product.status}
-                  onChange={(e) =>
-                    handleUpdateProduct({
-                      id: product.id,
-                      status: e.target.value,
-                    })
-                  }
-                >
-                  <option value="publish">منشور</option>
-                  <option value="draft">مسودة</option>
-                  <option value="pending">قيد المراجعة</option>
-                </select>
+                  {/* Wholesale Price Badge - Below Status */}
+                  {hasWholesalePrice && (
+                    <div className="absolute top-10 left-2">
+                      <span className="px-2.5 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] font-bold rounded-full shadow-lg backdrop-blur-sm">
+                        💰 الأرباح
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Stock Badge - Top Right */}
+                  {manageStock && (
+                    <div className="absolute top-2 right-2">
+                      {isOutOfStock ? (
+                        <span className="px-2.5 py-1 bg-red-500 text-white text-[10px] font-bold rounded-full shadow-lg backdrop-blur-sm">
+                          نفذ المخزون
+                        </span>
+                      ) : isLowStock ? (
+                        <span className="px-2.5 py-1 bg-orange-500 text-white text-[10px] font-bold rounded-full shadow-lg backdrop-blur-sm">
+                          ⚠️ {stockQty} متبقي
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 bg-green-600/90 text-white text-[10px] font-semibold rounded-full shadow-lg backdrop-blur-sm">
+                          📦 {stockQty}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Sale Badge - Bottom Right */}
+                  {product.sale_price && (
+                    <div className="absolute bottom-2 right-2 bg-red-500 text-white px-2.5 py-1 rounded-full text-[10px] font-bold shadow-lg">
+                      🔥 تخفيض
+                    </div>
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="p-3 flex flex-col flex-grow">
+                  {/* Product Name */}
+                  <h2 
+                    className="font-bold text-sm mb-2 line-clamp-2 min-h-[2.5rem] text-gray-800 group-hover:text-blue-600 transition-colors cursor-pointer"
+                    onClick={() => setSelectedProduct(product)}
+                    title={product.name}
+                  >
+                    {product.name}
+                  </h2>
+
+                  {/* Categories */}
+                  {product.categories && product.categories.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {product.categories.slice(0, 2).map(cat => (
+                        <span 
+                          key={cat.id} 
+                          className="text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium"
+                        >
+                          {cat.name}
+                        </span>
+                      ))}
+                      {product.categories.length > 2 && (
+                        <span className="text-[9px] text-gray-400 px-1">
+                          +{product.categories.length - 2}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Price */}
+                  <div className="mb-3 flex-grow">
+                    {product.sale_price ? (
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-red-600 font-bold text-lg">
+                            {product.sale_price} 
+                            <span className="text-xs mr-0.5">{product.currency || 'ج.م'}</span>
+                          </span>
+                          <span className="text-gray-400 line-through text-xs">
+                            {product.regular_price}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-green-600 font-semibold">
+                          وفّر {(parseFloat(product.regular_price) - parseFloat(product.sale_price)).toFixed(0)} ج.م
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-gray-900 font-bold text-lg">
+                        {product.regular_price || product.price} 
+                        <span className="text-xs font-normal text-gray-500 mr-1">
+                          {product.currency || 'ج.م'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 mt-auto pt-2 border-t border-gray-100">
+                    <button
+                      className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-2 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all text-xs font-semibold shadow-sm hover:shadow-md"
+                      onClick={() => setSelectedProduct(product)}
+                    >
+                      ✏️ تعديل
+                    </button>
+                    <select
+                      disabled={updating}
+                      className="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 bg-white cursor-pointer"
+                      value={product.status}
+                      onChange={(e) =>
+                        handleUpdateProduct({
+                          id: product.id,
+                          status: e.target.value,
+                        })
+                      }
+                    >
+                      <option value="publish">✓ منشور</option>
+                      <option value="draft">✎ مسودة</option>
+                      <option value="pending">⏳ مراجعة</option>
+                    </select>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* Pagination */}
-      <div className="flex justify-center items-center gap-4 mt-6">
+      <div className="flex justify-center items-center gap-4 mt-8 mb-4">
         <button
           onClick={prevPage}
           disabled={page === 1}
-          className="px-4 py-2 bg-gray-300 rounded disabled:opacity-50"
+          className="px-6 py-2.5 bg-white border border-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-all font-semibold text-gray-700 shadow-sm"
         >
-          السابق
+          ← السابق
         </button>
-        <span>
+        <div className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-bold shadow-md">
           {page} / {totalPages}
-        </span>
+        </div>
         <button
           onClick={nextPage}
           disabled={page === totalPages}
-          className="px-4 py-2 bg-gray-300 rounded disabled:opacity-50"
+          className="px-6 py-2.5 bg-white border border-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-all font-semibold text-gray-700 shadow-sm"
         >
-          التالي
+          التالي →
         </button>
       </div>
 
@@ -304,7 +533,7 @@ export default function ProductsPage() {
       {selectedProduct && (
         <EditProductModal
           product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
+          onClose={handleProductModalClose}
           onSave={handleUpdateProduct}
           updating={updating}
           setToast={setToast}
@@ -316,6 +545,7 @@ export default function ProductsPage() {
 
       {/* Toast */}
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
+      </div>
     </div>
   );
 }

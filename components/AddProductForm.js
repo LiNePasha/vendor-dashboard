@@ -22,13 +22,6 @@ useEffect(() => {
   if (wholesaleCookie) {
     const value = wholesaleCookie.split("=")[1] === "true";
     setIsWholesale(value);
-
-    console.log(
-      "🎯 حالة المستخدم:",
-      value ? "تاجر جملة ✅" : "مستخدم عادي 🛒"
-    );
-  } else {
-    console.log("⚠️ مفيش كوكي isWholesale، المستخدم عادي 🛒");
   }
 }, []);
 
@@ -126,7 +119,6 @@ useEffect(() => {
       onAdded && onAdded(data);
       onClose();
     } catch (err) {
-      console.error(err);
       setToast({ message: "فشل إضافة المنتج", type: "error" });
     } finally {
       setLoading(false);
