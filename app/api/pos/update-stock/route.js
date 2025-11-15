@@ -13,10 +13,12 @@ export async function POST(req) {
     const body = await req.json();
     const { updates } = body;
 
+    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+
     // Update stock for each product
     const updatePromises = updates.map(async ({ productId, newQuantity }) => {
       const res = await fetch(
-        `https://spare2app.com/wp-json/wc/v3/products/${productId}`,
+        `${API_BASE}/wp-json/wc/v3/products/${productId}`,
         {
           method: 'PUT',
           headers: {

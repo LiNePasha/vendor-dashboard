@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { wholesalePriceStorage } from "@/app/lib/localforage";
 
 export default function EditProductModal({
   product,
@@ -14,20 +13,6 @@ export default function EditProductModal({
   const [externalUrl, setExternalUrl] = useState(product.external_url || "");
   const [stockQuantity, setStockQuantity] = useState(product.stock_quantity || 0);
   const [manageStock, setManageStock] = useState(product.manage_stock || false);
-  const [wholesalePrice, setWholesalePrice] = useState("");
-  const [showWholesale, setShowWholesale] = useState(false);
-
-  // Load wholesale price from local storage
-  useEffect(() => {
-    async function loadWholesalePrice() {
-      const wp = await wholesalePriceStorage.getWholesalePrice(product.id);
-      if (wp !== null) {
-        setWholesalePrice(wp.toString());
-        setShowWholesale(true);
-      }
-    }
-    loadWholesalePrice();
-  }, [product.id]);
 
   const handleSave = async () => {
     if (!name || (!price && !externalUrl)) {
@@ -43,26 +28,6 @@ export default function EditProductModal({
         type: "error",
       });
       return;
-    }
-
-    // Validate wholesale price
-    if (showWholesale && wholesalePrice) {
-      const wp = parseFloat(wholesalePrice);
-      const regularPrice = parseFloat(price);
-      if (wp >= regularPrice) {
-        setToast({
-          message: "سعر الجملة يجب أن يكون أقل من السعر الأساسي",
-          type: "error",
-        });
-        return;
-      }
-    }
-
-    // Save wholesale price locally
-    if (showWholesale && wholesalePrice) {
-      await wholesalePriceStorage.setWholesalePrice(product.id, parseFloat(wholesalePrice));
-    } else {
-      await wholesalePriceStorage.removeWholesalePrice(product.id);
     }
 
     // ✅ بناء الداتا حسب نوع المنتج
@@ -158,39 +123,6 @@ export default function EditProductModal({
                 onChange={(e) => setStockQuantity(parseInt(e.target.value) || 0)}
                 className="border w-full rounded px-2 py-1"
               />
-            </div>
-          )}
-        </div>
-
-        {/* سعر الجملة (Local Only) */}
-        <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200">
-          <label className="flex items-center gap-2 mb-3">
-            <input
-              type="checkbox"
-              checked={showWholesale}
-              onChange={(e) => setShowWholesale(e.target.checked)}
-              className="rounded text-purple-600"
-            />
-            <span className="font-semibold text-purple-800">💰 تفعيل سعر الجملة (لحساب الأرباح)</span>
-          </label>
-
-          {showWholesale && (
-            <div>
-              <label className="block mb-1 text-sm text-purple-700">
-                سعر الجملة (محلي - لن يُرسل إلى WooCommerce):
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={wholesalePrice}
-                onChange={(e) => setWholesalePrice(e.target.value)}
-                placeholder="مثال: 50.00"
-                className="border border-purple-300 w-full rounded px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              />
-              <p className="text-xs text-purple-600 mt-1">
-                💡 سيُستخدم لحساب الربح: (سعر البيع - سعر الجملة) × الكمية
-              </p>
             </div>
           )}
         </div>

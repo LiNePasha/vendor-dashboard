@@ -93,7 +93,7 @@ export default function POSPage() {
     if (result.success && result.invoice) {
       setLastInvoice(result.invoice);
       setShowInvoice(true);
-      setToast({ message: 'تم إنشاء الفاتورة - سيتم التحقق من المخزون بعد 15 ثانية', type: 'success' });
+      setToast({ message: 'تم إنشاء الفاتورة وتحديث المخزون بنجاح ✅', type: 'success' });
       
       // Poll invoice status to update UI when synced
       const invoiceId = result.invoice.id;
@@ -119,7 +119,7 @@ export default function POSPage() {
 
   return (
     <>
-      <div className="flex h-screen bg-gray-100">
+      <div className="flex bg-gray-100">
         <div className="flex-1 p-6 overflow-y-auto">
           <div className="mb-4 space-y-4">
             <div className="flex gap-4">
@@ -141,6 +141,15 @@ export default function POSPage() {
                   <option key={c.id} value={c.id}>{c.name}{c.count ? ` (${c.count})` : ''}</option>
                 ))}
               </select>
+              <button
+                onClick={() => fetchProducts({ page: 1, search: '', category: 'all' })}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                title="تحديث المنتجات من السيرفر"
+              >
+                <span className={loading ? 'animate-spin' : ''}>🔄</span>
+                <span className="hidden sm:inline">تحديث</span>
+              </button>
             </div>
           </div>
 
@@ -157,7 +166,7 @@ export default function POSPage() {
           )}
         </div>
 
-        <div className="w-1/3 min-w-[400px] bg-white border-l">
+        <div className="w-1/3 min-w-[400px] bg-white border-l sticky top-0 self-start">
           <Cart
             items={cart}
             services={services}

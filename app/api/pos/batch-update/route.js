@@ -70,7 +70,8 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Invalid updates format' }, { status: 400 });
         }
 
-        const WC_BASE = process.env.WC_API_URL || 'https://spare2app.com/wp-json/wc/v3';
+        const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+        const WC_BASE = `${API_BASE}/wp-json/wc/v3`;
         
         // Setup authentication headers
         const cookieStore = cookies ? await cookies() : null;

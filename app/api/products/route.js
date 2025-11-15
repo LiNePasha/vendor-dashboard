@@ -10,9 +10,11 @@ async function getToken() {
 
 // جلب التصنيفات من WooCommerce
 async function fetchCategories(token) {
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+  
   // جلب المنتجات المتاحة أولاً
   const productsRes = await fetch(
-    `https://spare2app.com/wp-json/wc/v3/products?status=publish&per_page=100`,
+    `${API_BASE}/wp-json/wc/v3/products?status=publish&per_page=100`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -39,7 +41,7 @@ async function fetchCategories(token) {
   categoriesQuery.set('include', Array.from(categoryIds).join(','));
 
   const res = await fetch(
-    `https://spare2app.com/wp-json/wc/v3/products/categories?${categoriesQuery.toString()}`,
+    `${API_BASE}/wp-json/wc/v3/products/categories?${categoriesQuery.toString()}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -73,9 +75,11 @@ async function fetchProducts({ page = 1, per_page = 12, search = "", status = "a
   if (status !== "all") query.set("status", status);
   if (category) query.set("category", category);
 
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+
   // 1. Fetch products
   const res = await fetch(
-    `https://spare2app.com/wp-json/wc/v3/products?${query.toString()}`,
+    `${API_BASE}/wp-json/wc/v3/products?${query.toString()}`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -163,10 +167,11 @@ export async function POST(req) {
         regular_price: price,
         sale_price: salePrice || "",
         type: "simple",
-      };
+      }
     }
 
-    const res = await fetch("https://spare2app.com/wp-json/wc/v3/products", {
+    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+    const res = await fetch(`${API_BASE}/wp-json/wc/v3/products`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -192,7 +197,8 @@ export async function PATCH(req) {
     const body = await req.json();
     const { id, name, price, status, sale_price, manage_stock, stock_quantity } = body;
 
-    const res = await fetch(`https://spare2app.com/wp-json/wc/v3/products/${id}`, {
+    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+    const res = await fetch(`${API_BASE}/wp-json/wc/v3/products/${id}`, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${token}`,

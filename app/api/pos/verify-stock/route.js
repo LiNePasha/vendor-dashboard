@@ -11,9 +11,11 @@ export async function POST(req) {
     const { updates } = body;
     if (!Array.isArray(updates)) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
+    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+
     const results = await Promise.all(updates.map(async ({ productId, expectedQuantity }) => {
       try {
-        const res = await fetch(`https://spare2app.com/wp-json/wc/v3/products/${productId}`, {
+        const res = await fetch(`${API_BASE}/wp-json/wc/v3/products/${productId}`, {
           method: 'GET',
           headers: { Authorization: `Bearer ${token}` }
         });

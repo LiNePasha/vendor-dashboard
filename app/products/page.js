@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import AddProductForm from "@/components/AddProductForm";
 import EditProductModal from "@/components/EditProductModal";
-import { wholesalePriceStorage } from "@/app/lib/localforage";
+import Link from "next/link";
+import { productsCacheStorage } from "@/app/lib/localforage";
 
 // Simple in-module dedupe to prevent duplicate network calls (e.g., React StrictMode double-mount in dev)
 let __products_fetch_in_flight = false;
@@ -86,9 +86,10 @@ export default function ProductsPage() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [toast, setToast] = useState(null);
   const [imageModal, setImageModal] = useState(null);
-  const [showModal, setShowModal] = useState(false);
   const [initialized, setInitialized] = useState(false);
-  const [wholesalePrices, setWholesalePrices] = useState({});
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAddForm, setQuickAddForm] = useState({ name: '', price: '', stock: 0 });
+  const [quickAddLoading, setQuickAddLoading] = useState(false);
 
   // Debounce للبحث
   const [debouncedSearch, setDebouncedSearch] = useState(search);
@@ -101,22 +102,14 @@ export default function ProductsPage() {
   useEffect(() => {
     if (!initialized) {
       fetchProducts(1, perPage, "", "all", "all");
-      loadWholesalePrices();
       setInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load wholesale prices
-  const loadWholesalePrices = async () => {
-    const prices = await wholesalePriceStorage.getAllWholesalePrices();
-    setWholesalePrices(prices);
-  };
-
-  // Reload wholesale prices when product modal closes
+  // Handle product modal close
   const handleProductModalClose = () => {
     setSelectedProduct(null);
-    loadWholesalePrices();
   };
 
   // Handle filter/search changes (skip initial render)
@@ -139,18 +132,39 @@ export default function ProductsPage() {
     }
 
     __products_fetch_in_flight = true;
-    setLoading(true);
-    
+
     try {
+      // 🚀 Stale-While-Revalidate: عرض الـ cache فوراً (بدون فلاتر)
+      if (!searchTerm && status === "all" && categoryId === "all" && pageNum === 1) {
+        const cache = await productsCacheStorage.getCache();
+        if (cache && cache.products && cache.products.length > 0) {
+          // عرض البيانات من الـ cache فوراً
+          setProducts(cache.products);
+          setCategories(cache.categories || []);
+          setTotalPages(cache.pagination?.totalPages || 1);
+          
+          // فحص: هل الـ cache حديث؟
+          const isStale = await productsCacheStorage.isCacheStale(3 * 60 * 1000); // 3 دقائق
+          if (!isStale) {
+            __products_fetch_in_flight = false;
+            return; // الـ cache حديث، لا داعي للتحديث
+          }
+          // الـ cache قديم - التحديث في الخلفية (بدون لودر)
+          setLoading(false); // ✅ أوقف اللودر
+        }
+      } else {
+        setLoading(true); // فقط عند البحث أو الفلترة
+      }
+
       const query = new URLSearchParams();
       query.set("page", pageNum);
-      query.set("per_page", perPageNum);
+      query.set("per_page", searchTerm || status !== "all" || categoryId !== "all" ? perPageNum : "100");
       if (searchTerm) query.set("search", searchTerm);
       if (status !== "all") query.set("status", status);
       if (categoryId && categoryId !== "all") query.set("category", categoryId);
 
       const res = await fetch(`/api/products?${query.toString()}`, {
-        credentials: "include", // ⚡ مهم جدًا
+        credentials: "include",
       });
 
       if (!res.ok) throw new Error("فشل جلب المنتجات");
@@ -163,6 +177,15 @@ export default function ProductsPage() {
       if (data.pagination) {
         setTotalPages(data.pagination.totalPages);
       }
+
+      // تحديث الـ cache (فقط للقائمة الكاملة بدون فلاتر)
+      if (!searchTerm && status === "all" && categoryId === "all" && pageNum === 1) {
+        await productsCacheStorage.saveCache(
+          data.products,
+          data.categories,
+          data.pagination
+        );
+      }
     } catch (err) {
       setToast({ message: "فشل تحميل المنتجات", type: "error" });
     } finally {
@@ -171,20 +194,20 @@ export default function ProductsPage() {
     }
   };
 
-  // دالة بتضيف المنتج الجديد على طول في الـ state
-  const handleAdded = (newProduct) => {
+  // دالة بتضيف المنتج الجديد على طول في الـ state والـ cache
+  const handleAdded = async (newProduct) => {
     setProducts((prev) => [newProduct, ...prev]); // يضيفه أول القائمة
+    await productsCacheStorage.addProductToCache(newProduct); // إضافة للـ cache
   };
 
   const handleUpdateProduct = async (updatedData) => {
-    // 1) Optimistic UI update immediately
+    // 1) Optimistic UI update immediately (state + cache)
     const isManageStock = typeof updatedData.manage_stock !== 'undefined' ? !!updatedData.manage_stock : !!selectedProduct?.manage_stock;
     const newQty = isManageStock ? Number(updatedData.stock_quantity ?? selectedProduct?.stock_quantity ?? 0) : null;
     const productId = updatedData.id;
 
-    setProducts((prev) => prev.map((p) => {
+    const optimisticUpdate = (p) => {
       if (p.id !== productId) return p;
-      // Merge optimistic fields similar to what API returns
       return {
         ...p,
         name: typeof updatedData.name !== 'undefined' ? updatedData.name : p.name,
@@ -195,7 +218,20 @@ export default function ProductsPage() {
         manage_stock: isManageStock,
         stock_quantity: isManageStock ? (newQty ?? 0) : p.stock_quantity,
       };
-    }));
+    };
+
+    setProducts((prev) => prev.map(optimisticUpdate));
+    
+    // Update cache too
+    await productsCacheStorage.updateProductInCache(productId, {
+      name: updatedData.name,
+      status: updatedData.status,
+      price: updatedData.price,
+      regular_price: updatedData.price,
+      sale_price: updatedData.sale_price,
+      manage_stock: isManageStock,
+      stock_quantity: isManageStock ? (newQty ?? 0) : undefined,
+    });
 
     // Close modal fast and show lightweight toast
     setSelectedProduct(null);
@@ -239,8 +275,9 @@ export default function ProductsPage() {
           if (result && result.body) {
             const serverQty = typeof result.body.stock_quantity !== 'undefined' ? Number(result.body.stock_quantity) : null;
             if (serverQty !== null && serverQty !== Number(newQty ?? 0)) {
-              // Reconcile mismatch from server
+              // Reconcile mismatch from server (state + cache)
               setProducts((prev) => prev.map((p) => p.id === productId ? { ...p, stock_quantity: serverQty } : p));
+              await productsCacheStorage.updateProductInCache(productId, { stock_quantity: serverQty });
               setToast({ message: 'تمت مزامنة المخزون مع الخادم', type: 'success' });
               setTimeout(() => setToast(null), 2500);
             }
@@ -255,6 +292,56 @@ export default function ProductsPage() {
   const nextPage = () => page < totalPages && setPage(page + 1);
   const prevPage = () => page > 1 && setPage(page - 1);
 
+  const handleQuickAdd = async (e) => {
+    e.preventDefault();
+    if (!quickAddForm.name || !quickAddForm.price) {
+      setToast({ message: '⚠️ الاسم والسعر مطلوبان', type: 'error' });
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
+
+    setQuickAddLoading(true);
+    try {
+      const response = await fetch('/api/warehouse/create-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: quickAddForm.name,
+          sellingPrice: parseFloat(quickAddForm.price),
+          purchasePrice: 0,
+          stock: parseInt(quickAddForm.stock) || 0,
+          category: '',
+          sku: '',
+          imageBase64: null
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'فشل إنشاء المنتج');
+      }
+
+      // Add to state and cache
+      const newProduct = result.product;
+      setProducts((prev) => [newProduct, ...prev]);
+      await productsCacheStorage.addProductToCache(newProduct);
+
+      setToast({ message: `✅ تم إضافة "${newProduct.name}" بنجاح!`, type: 'success' });
+      setTimeout(() => setToast(null), 2500);
+      
+      // Reset and close
+      setQuickAddForm({ name: '', price: '', stock: 0 });
+      setShowQuickAdd(false);
+    } catch (error) {
+      console.error('Error adding product:', error);
+      setToast({ message: '❌ ' + error.message, type: 'error' });
+      setTimeout(() => setToast(null), 2500);
+    } finally {
+      setQuickAddLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="p-4 sm:p-6 max-w-[1600px] mx-auto">
@@ -267,22 +354,27 @@ export default function ProductsPage() {
                 {loading ? 'جاري التحميل...' : `${products.length} منتج في الصفحة الحالية`}
               </p>
             </div>
-            <button
-              onClick={() => setShowModal(true)}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-2.5 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2"
-            >
-              <span className="text-lg">➕</span>
-              <span>منتج جديد</span>
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowQuickAdd(true)}
+                className="bg-gradient-to-r from-green-600 to-emerald-700 text-white px-5 py-2.5 rounded-lg hover:from-green-700 hover:to-emerald-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2"
+              >
+                <span className="text-lg">⚡</span>
+                <span>إضافة سريعة</span>
+              </button>
+              <Link
+                href="/warehouse"
+                className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white px-5 py-2.5 rounded-lg hover:from-purple-700 hover:to-indigo-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2"
+              >
+                <span className="text-lg">📦</span>
+                <span>إدارة المخزن</span>
+              </Link>
+            </div>
           </div>
 
-          {showModal && (
-            <AddProductForm
-              onAdded={handleAdded}
-              setToast={setToast}
-              onClose={() => setShowModal(false)}
-            />
-          )}
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+            <span className="font-semibold">💡 ملاحظة:</span> المنتجات الجديدة يتم إضافتها وإدارتها من خلال نظام المخزن.
+          </div>
         </div>
 
         {/* Search & Filter */}
@@ -322,6 +414,21 @@ export default function ProductsPage() {
               <option value="draft">✎ مسودة</option>
               <option value="pending">⏳ قيد المراجعة</option>
             </select>
+            <button
+              onClick={() => {
+                setSearch('');
+                setCategory('all');
+                setFilterStatus('all');
+                setPage(1);
+                fetchProducts(1, perPage, '', 'all', 'all');
+              }}
+              disabled={loading}
+              className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 transition-all font-medium text-sm"
+              title="تحديث المنتجات من السيرفر"
+            >
+              <span className={loading ? 'animate-spin' : ''}>🔄</span>
+              <span>تحديث</span>
+            </button>
           </div>
         </div>
 
@@ -350,7 +457,6 @@ export default function ProductsPage() {
             const manageStock = product.manage_stock;
             const isLowStock = manageStock && stockQty > 0 && stockQty <= 5;
             const isOutOfStock = manageStock && stockQty === 0;
-            const hasWholesalePrice = wholesalePrices[product.id] !== undefined;
             
             return (
               <div
@@ -383,15 +489,6 @@ export default function ProductsPage() {
                       ? "✎ مسودة"
                       : "⏳ مراجعة"}
                   </span>
-
-                  {/* Wholesale Price Badge - Below Status */}
-                  {hasWholesalePrice && (
-                    <div className="absolute top-10 left-2">
-                      <span className="px-2.5 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[10px] font-bold rounded-full shadow-lg backdrop-blur-sm">
-                        💰 الأرباح
-                      </span>
-                    </div>
-                  )}
 
                   {/* Stock Badge - Top Right */}
                   {manageStock && (
@@ -541,6 +638,98 @@ export default function ProductsPage() {
       )}
       {imageModal && (
         <ImageModal src={imageModal} onClose={() => setImageModal(null)} />
+      )}
+
+      {/* Quick Add Modal */}
+      {showQuickAdd && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-2xl animate-scaleIn">
+            <div className="border-b border-gray-200 dark:border-gray-700 p-5 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span className="text-2xl">⚡</span>
+                <span>إضافة منتج سريع</span>
+              </h2>
+              <button
+                onClick={() => setShowQuickAdd(false)}
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-3xl leading-none transition-colors"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickAdd} className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                  اسم المنتج *
+                </label>
+                <input
+                  type="text"
+                  value={quickAddForm.name}
+                  onChange={(e) => setQuickAddForm({ ...quickAddForm, name: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="مثال: مساعد هيدروليك أمامي"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                  سعر البيع * (ج.م)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={quickAddForm.price}
+                  onChange={(e) => setQuickAddForm({ ...quickAddForm, price: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="450"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+                  المخزون المتاح للبيع 🛒
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={quickAddForm.stock || 0}
+                  onChange={(e) => setQuickAddForm({ ...quickAddForm, stock: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">💡 الكمية المتاحة للبيع من POS</p>
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <p className="text-xs text-blue-800 dark:text-blue-300">
+                  💡 <strong>ملاحظة:</strong> سيتم إنشاء المنتج بالاسم والسعر والمخزون. يمكنك تعديل باقي التفاصيل (الصورة، الفئة) لاحقاً من صفحة المنتجات أو المخزن.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  type="submit"
+                  disabled={quickAddLoading}
+                  className="flex-1 bg-gradient-to-r from-green-600 to-emerald-700 text-white py-3 rounded-lg hover:from-green-700 hover:to-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-md transition-all"
+                >
+                  {quickAddLoading ? '⏳ جاري الإضافة...' : '✅ إضافة المنتج'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAdd(false)}
+                  disabled={quickAddLoading}
+                  className="px-6 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 font-semibold transition-colors text-gray-900 dark:text-white"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Toast */}

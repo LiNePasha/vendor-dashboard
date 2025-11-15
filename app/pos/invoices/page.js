@@ -198,8 +198,24 @@ export default function InvoicesPage() {
     synced: invoices.filter(i => i.synced).length,
     pending: invoices.filter(i => !i.synced).length,
     totalRevenue: invoices.reduce((sum, inv) => sum + (inv.summary?.total || 0), 0),
-    totalProfit: invoices.reduce((sum, inv) => sum + (inv.summary?.totalProfit || 0), 0),
-    profitInvoicesCount: invoices.filter(i => (i.summary?.totalProfit || 0) > 0).length,
+    // Calculate profit: use new totalProfit if available, otherwise calculate from old data
+    totalProfit: invoices.reduce((sum, inv) => {
+      // New invoices have totalProfit
+      if (inv.summary?.totalProfit !== undefined && inv.summary?.totalProfit !== null) {
+        return sum + inv.summary.totalProfit;
+      }
+      // Old invoices: calculate manually
+      // (old productsProfit if exists) + services + extraFee - discount
+      const oldProfit = (inv.summary?.productsProfit || 0);
+      const services = (inv.summary?.servicesTotal || 0);
+      const extraFee = (inv.summary?.extraFee || 0);
+      return sum + oldProfit + services + extraFee;
+    }, 0),
+    profitInvoicesCount: invoices.filter(i => {
+      const profit = i.summary?.totalProfit !== undefined ? i.summary.totalProfit : 
+                     ((i.summary?.productsProfit || 0) + (i.summary?.servicesTotal || 0) + (i.summary?.extraFee || 0));
+      return profit > 0;
+    }).length,
     totalServices: invoices.reduce((sum, inv) => sum + (inv.summary?.servicesTotal || 0), 0),
     servicesInvoicesCount: invoices.filter(i => i.services?.length > 0).length
   };
@@ -285,8 +301,8 @@ export default function InvoicesPage() {
           <div className="bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between mb-3">
               <div className="flex-1">
-                <p className="text-pink-100 text-sm font-medium mb-1">💰 إجمالي الأرباح </p>
-                <p className="text-3xl font-bold">{formatPrice(stats.totalProfit + stats.totalServices)} ج.م</p>
+                <p className="text-pink-100 text-sm font-medium mb-1">💰 صافي الأرباح</p>
+                <p className="text-3xl font-bold">{formatPrice(stats.totalProfit)} ج.م</p>
               </div>
               <div className="bg-pink-400 bg-opacity-30 rounded-full p-3">
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -294,23 +310,21 @@ export default function InvoicesPage() {
                 </svg>
               </div>
             </div>
-            <div className="space-y-1.5 pt-3 border-t border-pink-400 border-opacity-30">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-pink-100 flex items-center gap-1">
-                  <span>📦</span>
-                  <span>أرباح المنتجات</span>
-                </span>
-                <span className="font-bold">{formatPrice(stats.totalProfit)} ج.م</span>
+            <div className="space-y-1.5 pt-3 border-t border-pink-400 border-opacity-30 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-pink-100">📦 أرباح المنتجات (بعد الخصم)</span>
+                <span className="font-bold">{formatPrice(invoices.reduce((sum, inv) => sum + (inv.summary?.finalProductsProfit || inv.summary?.productsProfit || 0), 0))} ج.م</span>
               </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-pink-100 flex items-center gap-1">
-                  <span>🔧</span>
-                  <span>إيرادات الخدمات</span>
-                </span>
+              <div className="flex items-center justify-between">
+                <span className="text-pink-100">🔧 إيرادات الخدمات</span>
                 <span className="font-bold">{formatPrice(stats.totalServices)} ج.م</span>
               </div>
-              <div className="flex items-center justify-between text-xs pt-1">
-                <span className="text-pink-100">من {Math.max(stats.profitInvoicesCount, stats.servicesInvoicesCount)} فاتورة</span>
+              <div className="flex items-center justify-between">
+                <span className="text-pink-100">➕ رسوم إضافية</span>
+                <span className="font-bold">{formatPrice(invoices.reduce((sum, inv) => sum + (inv.summary?.extraFee || 0), 0))} ج.م</span>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-pink-400 border-opacity-20">
+                <span className="text-pink-100">من {stats.profitInvoicesCount} فاتورة</span>
               </div>
             </div>
           </div>
@@ -527,6 +541,39 @@ export default function InvoicesPage() {
                           <span>رسوم إضافية:</span>
                           <span className="font-medium">+ {formatPrice(invoice.summary.extraFee)} ج.م</span>
                         </div>
+                      )}
+
+                      {/* Profit breakdown if available */}
+                      {(invoice.summary?.totalProfit > 0 || invoice.summary?.productsProfit > 0) && (
+                        <>
+                          <div className="col-span-4 border-t-2 border-green-300 my-1"></div>
+                          
+                          {invoice.summary?.productsProfit > 0 && (
+                            <div className="flex justify-between text-green-600 border-2 p-1 bg-green-50">
+                              <span>💰 ربح المنتجات (قبل الخصم):</span>
+                              <span className="font-bold">+ {formatPrice(invoice.summary.productsProfit)} ج.م</span>
+                            </div>
+                          )}
+
+                          {invoice.summary?.discountOnProducts > 0 && (
+                            <div className="flex justify-between text-orange-600 border-2 p-1 bg-orange-50">
+                              <span>➖ خصم على الأرباح:</span>
+                              <span className="font-bold">- {formatPrice(invoice.summary.discountOnProducts)} ج.م</span>
+                            </div>
+                          )}
+
+                          {invoice.summary?.finalProductsProfit !== undefined && invoice.summary?.finalProductsProfit !== invoice.summary?.productsProfit && (
+                            <div className="flex justify-between text-green-700 border-2 p-1 bg-green-100">
+                              <span>📦 صافي ربح المنتجات:</span>
+                              <span className="font-bold">{formatPrice(invoice.summary.finalProductsProfit)} ج.م</span>
+                            </div>
+                          )}
+
+                          <div className="flex justify-between text-green-800 border-2 p-1 bg-green-100">
+                            <span className="font-bold">✅ إجمالي الربح الصافي:</span>
+                            <span className="font-bold text-lg">{formatPrice(invoice.summary.totalProfit)} ج.م</span>
+                          </div>
+                        </>
                       )}
 
                     </div>

@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 export async function POST(req) {
   const { username, password } = await req.json();
 
-  const res = await fetch("https://spare2app.com/wp-json/jwt-auth/v1/token", {
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+  const res = await fetch(`${API_BASE}/wp-json/jwt-auth/v1/token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, password }),

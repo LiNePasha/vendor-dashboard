@@ -119,3 +119,87 @@ export const serviceTemplatesStorage = {
     await localforage.setItem('service-templates', []);
   }
 };
+
+// Products cache storage (Stale-While-Revalidate strategy)
+export const productsCacheStorage = {
+  async saveCache(products, categories = [], pagination = {}) {
+    const cache = {
+      products: products || [],
+      categories: categories || [],
+      pagination: pagination || {},
+      timestamp: Date.now(),
+      lastUpdated: new Date().toISOString()
+    };
+    await localforage.setItem('products-cache', cache);
+    return cache;
+  },
+
+  async getCache() {
+    const cache = await localforage.getItem('products-cache');
+    return cache || null;
+  },
+
+  async getCacheAge() {
+    const cache = await this.getCache();
+    if (!cache || !cache.timestamp) return Infinity;
+    return Date.now() - cache.timestamp; // milliseconds
+  },
+
+  async isCacheStale(maxAgeMs = 3 * 60 * 1000) { // تقليل لـ 3 دقائق (كان 5)
+    const age = await this.getCacheAge();
+    return age > maxAgeMs;
+  },
+
+  async invalidateCache() {
+    // مسح الـ timestamp عشان يتحدث في المرة الجاية
+    const cache = await this.getCache();
+    if (cache) {
+      cache.timestamp = 0; // قديم جداً
+      await localforage.setItem('products-cache', cache);
+    }
+  },
+
+  async updateProductInCache(productId, updates) {
+    const cache = await this.getCache();
+    if (!cache || !cache.products) return;
+
+    const updatedProducts = cache.products.map(p => 
+      p.id === productId ? { ...p, ...updates } : p
+    );
+
+    await this.saveCache(updatedProducts, cache.categories, cache.pagination);
+  },
+
+  async updateMultipleProductsInCache(updates) {
+    const cache = await this.getCache();
+    if (!cache || !cache.products) return;
+
+    const updatesMap = new Map(updates.map(u => [u.productId || u.id, u]));
+    const updatedProducts = cache.products.map(p => {
+      const update = updatesMap.get(p.id);
+      return update ? { ...p, ...update } : p;
+    });
+
+    await this.saveCache(updatedProducts, cache.categories, cache.pagination);
+  },
+
+  async addProductToCache(product) {
+    const cache = await this.getCache();
+    if (!cache) return;
+
+    const products = [product, ...(cache.products || [])];
+    await this.saveCache(products, cache.categories, cache.pagination);
+  },
+
+  async removeProductFromCache(productId) {
+    const cache = await this.getCache();
+    if (!cache || !cache.products) return;
+
+    const products = cache.products.filter(p => p.id !== productId);
+    await this.saveCache(products, cache.categories, cache.pagination);
+  },
+
+  async clearCache() {
+    await localforage.removeItem('products-cache');
+  }
+};

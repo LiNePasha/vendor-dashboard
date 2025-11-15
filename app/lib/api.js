@@ -6,7 +6,8 @@ export async function apiFetch(endpoint, options = {}) {
 
   if (!token) throw new Error("Unauthorized: No token found in cookies");
 
-  const res = await fetch(`https://spare2app.com/wp-json/${endpoint}`, {
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+  const res = await fetch(`${API_BASE}/wp-json/${endpoint}`, {
     ...options,
     headers: {
       ...(options.headers || {}),

@@ -40,7 +40,17 @@ export default function OrdersPage() {
       if (!res.ok) throw new Error("فشل تحميل الطلبات");
       
       const data = await res.json();
-      setOrders(Array.isArray(data) ? data : []);
+      
+      // دعم الـ format القديم والجديد
+      if (data.orders && Array.isArray(data.orders)) {
+        // Format جديد: { orders: [], total: 0 }
+        setOrders(data.orders);
+      } else if (Array.isArray(data)) {
+        // Format قديم: []
+        setOrders(data);
+      } else {
+        setOrders([]);
+      }
     } catch (err) {
       showToast("فشل جلب الطلبات", "error");
       setOrders([]);
@@ -276,76 +286,309 @@ export default function OrdersPage() {
           filteredOrders.map((order) => {
             const statusObj = STATUS_OPTIONS.find((s) => s.value === order.status);
             const isNew = order.status === "on-hold";
+            const items = order.line_items || [];
+            const itemsCount = items.length;
+
+            // استخراج الصور من المنتجات - WooCommerce بيحطها في meta_data أو product
+            const getProductImages = () => {
+              return items.map((item, idx) => {
+                // محاولة الحصول على الصورة من أماكن مختلفة
+                let imageUrl = null;
+                
+                // Debug: طباعة البيانات
+                if (idx === 0) {
+                  console.log('🖼️ Item structure:', {
+                    name: item.name,
+                    image: item.image,
+                    image_url: item.image_url,
+                    has_meta: !!item.meta_data
+                  });
+                }
+                
+                // من الـ image object (الطريقة الصحيحة في WooCommerce REST API)
+                if (item.image?.src) {
+                  imageUrl = item.image.src;
+                }
+                // من image_url مباشرة
+                else if (item.image_url) {
+                  imageUrl = item.image_url;
+                }
+                // من الـ meta_data
+                else if (item.meta_data) {
+                  const imageMeta = item.meta_data.find(m => m.key === '_thumbnail_id' || m.key === 'image');
+                  if (imageMeta?.value) imageUrl = imageMeta.value;
+                }
+                
+                // Fallback للـ placeholder
+                if (!imageUrl || imageUrl === '') {
+                  imageUrl = '/icons/placeholder.webp';
+                }
+                
+                return {
+                  ...item,
+                  imageUrl: imageUrl
+                };
+              });
+            };
+
+            const itemsWithImages = getProductImages();
+
+            // تحديد layout الصور حسب العدد (زي Facebook)
+            const getImageLayout = () => {
+              if (itemsCount === 0) return null;
+              if (itemsCount === 1) return "single";
+              if (itemsCount === 2) return "double";
+              if (itemsCount === 3) return "triple";
+              if (itemsCount === 4) return "quad";
+              return "grid"; // 5+
+            };
+
+            const layout = getImageLayout();
 
             return (
               <div
                 key={order.id}
-                className={`bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow p-5 border-2 ${
-                  isNew ? "border-yellow-400" : "border-gray-100"
+                className={`group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 border-2 cursor-pointer transform hover:-translate-y-2 ${
+                  isNew 
+                    ? "border-yellow-400 ring-4 ring-yellow-100 shadow-yellow-200/50" 
+                    : "border-gray-100 hover:border-blue-300"
                 }`}
+                onClick={() => setSelectedOrder(order)}
               >
-                {/* Header */}
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h2 className="font-bold text-lg text-gray-800">#{order.id}</h2>
-                    {isNew && (
-                      <span className="inline-block bg-red-500 text-white text-xs px-2 py-0.5 rounded mt-1">
-                        🔔 طلب جديد
-                      </span>
+                <div className="p-4">
+                  {/* Header - Order Number & Status */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-gray-800 text-lg">#{order.id}</span>
+                      {isNew && (
+                        <span className="inline-flex items-center gap-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">
+                          <span className="relative">🔔 جديد</span>
+                        </span>
+                      )}
+                    </div>
+                    <span
+                      className={`px-3 py-1.5 rounded-full text-white text-xs font-bold shadow-md ${
+                        statusObj?.color || "bg-gray-500"
+                      }`}
+                    >
+                      {statusObj?.label || order.status}
+                    </span>
+                  </div>
+
+                {/* Products Images Grid - Facebook Style */}
+                {items.length > 0 && (
+                  <div className="mb-3 rounded-xl overflow-hidden bg-gray-50">
+                    {/* Single Image - Full Width */}
+                    {layout === "single" && (
+                      <div className="w-full aspect-[16/10] relative group bg-white">
+                        <img
+                          src={itemsWithImages[0].imageUrl}
+                          alt={itemsWithImages[0].name}
+                          className="w-full h-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
+                          onError={(e) => {
+                            e.target.src = "/icons/placeholder.webp";
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Two Images - Side by Side */}
+                    {layout === "double" && (
+                      <div className="grid grid-cols-2 gap-1 aspect-[16/10]">
+                        {itemsWithImages.slice(0, 2).map((item, idx) => (
+                          <div key={idx} className="relative group bg-white overflow-hidden">
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              className="w-full h-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
+                              onError={(e) => {
+                                e.target.src = "/icons/placeholder.webp";
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Three Images - Facebook Style (1 big left, 2 small right) */}
+                    {layout === "triple" && (
+                      <div className="grid grid-cols-2 gap-1 aspect-[16/10]">
+                        <div className="row-span-2 bg-white overflow-hidden relative group">
+                          <img
+                            src={itemsWithImages[0].imageUrl}
+                            alt={itemsWithImages[0].name}
+                            className="w-full h-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              e.target.src = "/icons/placeholder.webp";
+                            }}
+                          />
+                        </div>
+                        {itemsWithImages.slice(1, 3).map((item, idx) => (
+                          <div key={idx} className="bg-white overflow-hidden relative group">
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              className="w-full h-full object-contain p-1 transition-transform duration-300 group-hover:scale-105"
+                              onError={(e) => {
+                                e.target.src = "/icons/placeholder.webp";
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Four Images - Facebook Style (2x2 Grid) */}
+                    {layout === "quad" && (
+                      <div className="grid grid-cols-2 gap-1 aspect-[16/10]">
+                        {itemsWithImages.slice(0, 4).map((item, idx) => (
+                          <div key={idx} className="bg-white overflow-hidden relative group">
+                            <img
+                              src={item.imageUrl}
+                              alt={item.name}
+                              className="w-full h-full object-contain p-1 transition-transform duration-300 group-hover:scale-105"
+                              onError={(e) => {
+                                e.target.src = "/icons/placeholder.webp";
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Five or More Images - Facebook Style (with +X overlay) */}
+                    {layout === "grid" && (
+                      <div className="grid grid-cols-2 gap-1 aspect-[16/10]">
+                        {/* First large image */}
+                        <div className="row-span-2 bg-white overflow-hidden relative group">
+                          <img
+                            src={itemsWithImages[0].imageUrl}
+                            alt={itemsWithImages[0].name}
+                            className="w-full h-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
+                            onError={(e) => {
+                              e.target.src = "/icons/placeholder.webp";
+                            }}
+                          />
+                        </div>
+                        
+                        {/* Next 3 images */}
+                        {itemsWithImages.slice(1, 4).map((item, idx) => {
+                          const isLast = idx === 2 && itemsCount > 4;
+                          return (
+                            <div key={idx} className="bg-white overflow-hidden relative group">
+                              <img
+                                src={item.imageUrl}
+                                alt={item.name}
+                                className={`w-full h-full object-contain p-1 transition-all duration-300 ${
+                                  isLast ? 'brightness-50 group-hover:brightness-40' : 'group-hover:scale-105'
+                                }`}
+                                onError={(e) => {
+                                  e.target.src = "/icons/placeholder.webp";
+                                }}
+                              />
+                              {isLast && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                                  <span className="text-white font-bold text-3xl drop-shadow-lg">
+                                    +{itemsCount - 4}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
-                  <span
-                    className={`px-3 py-1 rounded-full text-white text-sm font-medium ${
-                      statusObj?.color || "bg-gray-500"
-                    }`}
-                  >
-                    {statusObj?.label || order.status}
-                  </span>
+                )}
+
+                {/* Products Summary - Enhanced */}
+                <div className="mb-3 bg-white border border-gray-200 rounded-lg p-3 shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0">
+                      <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg w-12 h-12 flex items-center justify-center shadow-md">
+                        <div className="text-center">
+                          <div className="text-lg font-bold leading-none">{itemsCount}</div>
+                          <div className="text-[9px] leading-none mt-0.5">منتج</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-800 mb-1 line-clamp-1">
+                        {items[0]?.name}
+                      </div>
+                      {itemsCount > 1 && (
+                        <div className="text-xs text-gray-500 line-clamp-1">
+                          {items.slice(1, 3).map(item => item.name).join(" • ")}
+                          {itemsCount > 3 && ` وأخرى...`}
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 mt-2">
+                        {items.slice(0, Math.min(3, itemsCount)).map((item, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded-full"
+                          >
+                            <span className="font-medium">×{item.quantity}</span>
+                          </span>
+                        ))}
+                        {itemsCount > 3 && (
+                          <span className="text-xs text-gray-400">+{itemsCount - 3} أخرى</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Info */}
-                <div className="space-y-2 mb-4 text-sm">
-                  <p className="text-gray-700">
-                    <span className="font-medium">العميل:</span>{" "}
-                    {order.billing?.first_name} {order.billing?.last_name}
-                  </p>
-                  <p className="text-gray-600">
-                    💳 {order.payment_method_title}
-                  </p>
-                  <p className="text-gray-900 font-bold text-lg">
-                    {order.total} {order.currency}
-                  </p>
-                </div>
+                  {/* Customer Info */}
+                  <div className="space-y-2 mb-4 text-sm px-1">
+                    <p className="text-gray-700 flex items-center gap-2">
+                      <span className="text-gray-400">👤</span>
+                      <span className="font-medium">
+                        {order.billing?.first_name} {order.billing?.last_name}
+                      </span>
+                    </p>
+                    <p className="text-gray-600 flex items-center gap-2">
+                      <span className="text-gray-400">💳</span>
+                      {order.payment_method_title}
+                    </p>
+                    <p className="text-gray-900 font-bold text-xl flex items-center gap-2">
+                      <span className="text-gray-400 text-base">💰</span>
+                      {order.total} {order.currency}
+                    </p>
+                  </div>
 
-                {/* Actions */}
-                <div className="flex gap-3">
-                  <button
-                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors font-medium"
-                    onClick={() => setSelectedOrder(order)}
-                  >
-                    📄 التفاصيل
-                  </button>
-                  {order.status === "processing" && (
+                  {/* Actions */}
+                  <div className="flex gap-2 px-1" onClick={(e) => e.stopPropagation()}>
                     <button
-                      className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors font-medium flex items-center gap-2"
-                      onClick={() => handleRegisterInvoice(order)}
-                      disabled={registeringInvoice}
+                      className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-2.5 rounded-lg transition-all font-medium text-sm shadow-md hover:shadow-lg"
+                      onClick={() => setSelectedOrder(order)}
                     >
-                      {registeringInvoice ? "⏳" : "🧾"} تسجيل فاتورة
+                      📄 التفاصيل
                     </button>
-                  )}
-                  <select
-                    disabled={updatingStatus}
-                    className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white hover:border-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    value={order.status}
-                    onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                  >
-                    {STATUS_OPTIONS.map((status) => (
-                      <option key={status.value} value={status.value}>
-                        {status.label}
-                      </option>
-                    ))}
-                  </select>
+                    {order.status === "processing" && (
+                      <button
+                        className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2.5 rounded-lg transition-all font-medium text-sm shadow-md hover:shadow-lg"
+                        onClick={() => handleRegisterInvoice(order)}
+                        disabled={registeringInvoice}
+                        title="تسجيل فاتورة"
+                      >
+                        {registeringInvoice ? "⏳" : "🧾"}
+                      </button>
+                    )}
+                    <select
+                      disabled={updatingStatus}
+                      className="border-2 border-gray-200 rounded-lg px-2 py-2 text-xs bg-white hover:border-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                      value={order.status}
+                      onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {STATUS_OPTIONS.map((status) => (
+                        <option key={status.value} value={status.value}>
+                          {status.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             );

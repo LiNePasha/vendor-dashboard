@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { invoiceStorage, cartStorage, wholesalePriceStorage, serviceTemplatesStorage } from '@/app/lib/localforage';
+import { invoiceStorage, cartStorage, wholesalePriceStorage, serviceTemplatesStorage, productsCacheStorage } from '@/app/lib/localforage';
+import { warehouseStorage } from '@/app/lib/warehouse-storage';
 
 // --- Lightweight de-duplication guards (handle StrictMode double effects in dev) ---
 let __pos_lastProductsFetchKey = '';
@@ -73,12 +74,12 @@ const usePOSStore = create(persist((set, get) => ({
   },
 
   // Service Actions
-  addService: () => {
+  addService: (id = null, description = '', amount = 0) => {
     const { services } = get();
     const newService = {
-      id: Date.now().toString(),
-      description: '',
-      amount: 0
+      id: id || Date.now().toString(),
+      description: description,
+      amount: amount
     };
     set({ services: [...services, newService] });
   },
@@ -112,11 +113,36 @@ const usePOSStore = create(persist((set, get) => ({
       __pos_lastProductsFetchKey = key;
       __pos_lastProductsFetchAt = now;
 
-      set({ loading: true });
+      // 🚀 Stale-While-Revalidate Strategy
+      // 1️⃣ عرض الـ cache أولاً (إذا متاح)
+      if (!append && !query.search && query.category === 'all') {
+        const cache = await productsCacheStorage.getCache();
+        if (cache && cache.products && cache.products.length > 0) {
+          // عرض البيانات من الـ cache فوراً
+          set({
+            products: cache.products,
+            categories: cache.categories || [],
+            hasMore: false, // الـ cache يحتوي كل المنتجات
+            loading: false // ✅ أوقف اللودر
+          });
+          
+          // فحص: هل الـ cache حديث؟
+          const isStale = await productsCacheStorage.isCacheStale(3 * 60 * 1000); // 3 دقائق
+          if (!isStale) {
+            // الـ cache حديث - لا داعي للتحديث
+            return { success: true, cached: true, fresh: true };
+          }
+          // الـ cache قديم - التحديث في الخلفية (بدون لودر)
+        } else {
+          set({ loading: true }); // فقط لو مفيش cache
+        }
+      } else {
+        set({ loading: true }); // عند البحث أو الفلترة
+      }
       
       const params = {
         page: query.page?.toString() || '1',
-        per_page: '12',
+        per_page: query.search || query.category !== 'all' ? '12' : '100', // Get all if no filters
         search: query.search || ''
       };
       
@@ -134,10 +160,19 @@ const usePOSStore = create(persist((set, get) => ({
       const data = await res.json();
       
       if (!res.ok) {
-        // Return empty result on error instead of throwing
         return { error: data.error || 'فشل تحميل المنتجات' };
       }
+
+      // 3️⃣ Update cache (only if no filters - we cache the full list)
+      if (!query.search && query.category === 'all' && !append) {
+        await productsCacheStorage.saveCache(
+          data.products || [],
+          data.categories || [],
+          data.pagination || {}
+        );
+      }
       
+      // 4️⃣ Update state
       set(state => ({
         products: append ? [...state.products, ...(data.products || [])] : (data.products || []),
         categories: data.categories || state.categories,
@@ -168,16 +203,22 @@ const usePOSStore = create(persist((set, get) => ({
       const successCount = data.updated || 0;
       const failedUpdates = data.details?.filter(d => d.status === 'failed') || [];
 
-      // Update local product stock quantities optimistically
-      updates.forEach(update => {
-        set(state => ({
-          products: state.products.map(p =>
-            p.id === update.productId
-              ? { ...p, stock_quantity: update.newQuantity }
-              : p
-          )
-        }));
-      });
+      // Update local product stock quantities (both in state and cache)
+      const stockUpdates = updates.map(update => ({
+        id: update.productId,
+        stock_quantity: update.newQuantity
+      }));
+
+      // Update state
+      set(state => ({
+        products: state.products.map(p => {
+          const update = stockUpdates.find(u => u.id === p.id);
+          return update ? { ...p, stock_quantity: update.stock_quantity } : p;
+        })
+      }));
+
+      // Update cache
+      await productsCacheStorage.updateMultipleProductsInCache(stockUpdates);
 
       return { successCount, failedUpdates };
     } catch (error) {
@@ -196,8 +237,14 @@ const usePOSStore = create(persist((set, get) => ({
     try {
       set({ processing: true });
 
-      // Load wholesale prices
-      const wholesalePrices = await wholesalePriceStorage.getAllWholesalePrices();
+      // Load warehouse data (purchase prices)
+      const warehouseData = await warehouseStorage.getAllProductsData();
+      const purchasePricesMap = {};
+      warehouseData.forEach(item => {
+        if (item.purchasePrice > 0) {
+          purchasePricesMap[item.wooProductId] = item.purchasePrice;
+        }
+      });
 
       // Calculate products subtotal
       const productsSubtotal = cart.reduce((sum, item) => 
@@ -222,22 +269,22 @@ const usePOSStore = create(persist((set, get) => ({
         return { error: 'إجمالي الفاتورة لا يمكن أن يكون سالباً' };
       }
 
-      // Calculate profit for items with wholesale price
-      let totalProfit = 0;
+      // Calculate profit for items with purchase price
+      let totalProductsProfit = 0; // أرباح المنتجات فقط (قبل الخصم)
       const itemsWithProfit = [];
       
       const invoiceItems = cart.map(item => {
-        const wholesalePrice = wholesalePrices[item.id];
+        const purchasePrice = purchasePricesMap[item.id];
         let profit = 0;
         
-        if (wholesalePrice !== undefined && wholesalePrice !== null) {
-          // Calculate profit: (selling price - wholesale price) * quantity
-          profit = (Number(item.price) - Number(wholesalePrice)) * item.quantity;
-          totalProfit += profit;
+        if (purchasePrice !== undefined && purchasePrice !== null) {
+          // Calculate profit: (selling price - purchase price) * quantity
+          profit = (Number(item.price) - Number(purchasePrice)) * item.quantity;
+          totalProductsProfit += profit;
           itemsWithProfit.push({
             id: item.id,
             name: item.name,
-            wholesalePrice: Number(wholesalePrice),
+            purchasePrice: Number(purchasePrice),
             sellingPrice: Number(item.price),
             quantity: item.quantity,
             profit: profit
@@ -251,7 +298,7 @@ const usePOSStore = create(persist((set, get) => ({
           quantity: item.quantity,
           totalPrice: Number(item.price) * item.quantity,
           stock_quantity: item.stock_quantity,
-          wholesalePrice: wholesalePrice || null,
+          purchasePrice: purchasePrice || null,
           profit: profit || null
         };
       });
@@ -264,6 +311,21 @@ const usePOSStore = create(persist((set, get) => ({
           description: s.description.trim(),
           amount: Number(s.amount)
         }));
+
+      // 💰 حساب الربح النهائي (مع الخصم والرسوم)
+      
+      // حصة المنتجات من الخصم (نسبة من الخصم الكلي)
+      const productsRatio = subtotal > 0 ? (productsSubtotal / subtotal) : 0;
+      const discountOnProducts = discountAmount * productsRatio;
+      
+      // الربح النهائي للمنتجات بعد الخصم
+      const finalProductsProfit = Math.max(0, totalProductsProfit - discountOnProducts);
+      
+      // الربح الكلي:
+      // - ربح المنتجات (بعد الخصم)
+      // - الرسوم الإضافية (إيراد كامل)
+      // - إيرادات الخدمات (إيراد كامل)
+      const totalProfit = finalProductsProfit + Number(paymentDetails.extraFee) + servicesTotal;
 
       // Create invoice
       const invoice = {
@@ -282,7 +344,10 @@ const usePOSStore = create(persist((set, get) => ({
           },
           extraFee: Number(paymentDetails.extraFee),
           total: finalTotal,
-          totalProfit: totalProfit,
+          totalProfit: totalProfit, // الربح الكلي (مع الخصم والرسوم)
+          productsProfit: totalProductsProfit, // ربح المنتجات الأصلي (قبل الخصم)
+          finalProductsProfit: finalProductsProfit, // ربح المنتجات بعد الخصم
+          discountOnProducts: discountOnProducts, // حصة المنتجات من الخصم
           profitItemsCount: itemsWithProfit.length
         },
         profitDetails: itemsWithProfit,
@@ -297,64 +362,30 @@ const usePOSStore = create(persist((set, get) => ({
       await clearCart();
       clearServices();
 
-      // Process stock updates in background (only if there are products)
+      // Process stock updates immediately (only if there are products)
       if (cart.length > 0) {
         const updates = cart.map(item => ({
           productId: item.id,
           newQuantity: Math.max(0, item.stock_quantity - item.quantity)
         }));
 
-        // Start background stock update (do not block UI)
-        processStockUpdates(updates).catch(() => {});
+        // Update stock and wait for response
+        const { successCount } = await processStockUpdates(updates);
 
-        // Schedule verification after 30 seconds. Only after verification we update UI / fetch products.
-        setTimeout(async () => {
-          try {
-            const res = await fetch('/api/pos/verify-update', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ updates }),
-            credentials: 'include'
-          });
-
-          const data = await res.json();
-
-          // If any items verified or mismatch detected, mark invoice synced and refresh as needed
-          if (data.verified > 0) {
-            await invoiceStorage.markInvoiceAsSynced(invoice.id);
-          }
-
-          let shouldFetch = false;
-          if (Array.isArray(data.details)) {
-            data.details.forEach(detail => {
-              if (detail.status === 'mismatch') {
-                shouldFetch = true;
-                // update mismatched product quantities to current stock from server
-                set(state => ({
-                  products: state.products.map(p =>
-                    p.id === detail.productId
-                      ? { ...p, stock_quantity: detail.currentStock }
-                      : p
-                  )
-                }));
-              }
-            });
-          }
-
-          if (shouldFetch || data.verified > 0) {
-            const { fetchProducts } = get();
-            fetchProducts({ page: 1 });
-          }
-        } catch (error) {
-          // Silently handle verification error
+        // Mark invoice as synced if update was successful
+        if (successCount > 0) {
+          await invoiceStorage.markInvoiceAsSynced(invoice.id);
         }
-      }, 15000);
+
+        // Refresh products list to get updated stock quantities
+        const { fetchProducts } = get();
+        fetchProducts({ page: 1 });
       }
 
-      // Return success with invoice immediately
+      // Return success with invoice
       return {
         success: true,
-        message: 'تم إنشاء الفاتورة',
+        message: 'تم إنشاء الفاتورة وتحديث المخزون',
         invoice
       };
 
@@ -381,6 +412,7 @@ const usePOSStore = create(persist((set, get) => ({
     await invoiceStorage.clearAll();
     await wholesalePriceStorage.clearAll();
     await serviceTemplatesStorage.clearAll();
+    await productsCacheStorage.clearCache(); // Clear products cache on logout
     set({
       products: [],
       cart: [],

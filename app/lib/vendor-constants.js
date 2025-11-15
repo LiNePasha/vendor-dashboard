@@ -9,14 +9,16 @@ export const VENDOR_LOGOS = {
   9: '/logos/9.png',
   // أضف باقي الـ vendors هنا
   27: '/logos/27.png',
+  20: '/logos/20.webp',
   // 11: '/logos/11.png',
 };
 
 export const VENDOR_STORE_LINKS = {
-  9: 'spare2app.com/store/diesel',
+  9: 'https://www.spare2app.com/stores/diesel363',
+  27: 'https://www.spare2app.com/stores/aboyousef',
+  20: 'https://www.spare2app.com/stores/ashrafhelmy55',
   // أضف باقي الـ vendors هنا
-  27: 'spare2app.com/store/aboyousef',
-  // 11: 'spare2app.com/store/another-vendor',
+  // 11: 'https://www.spare2app.com/stores/another-vendor',
 };
 
 /**
@@ -31,8 +33,8 @@ export function getVendorLogo(vendorId) {
 /**
  * Get vendor store link by ID
  * @param {number|string} vendorId - The vendor ID
- * @returns {string} Store link or default
+ * @returns {string|null} Store link or null
  */
 export function getVendorStoreLink(vendorId) {
-  return VENDOR_STORE_LINKS[vendorId] || 'spare2app.com';
+  return VENDOR_STORE_LINKS[vendorId] || null;
 }

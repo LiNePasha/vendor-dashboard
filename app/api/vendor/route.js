@@ -29,9 +29,11 @@ export async function GET() {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
+    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+
     // Get vendor details from WCFM API
     const vendorRes = await fetch(
-      `https://spare2app.com/wp-json/wcfmmp/v1/settings/id/${vendorId}`,
+      `${API_BASE}/wp-json/wcfmmp/v1/settings/id/${vendorId}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -43,7 +45,7 @@ export async function GET() {
     if (!vendorRes.ok) {
       // Fallback to basic user info
       const userRes = await fetch(
-        `https://spare2app.com/wp-json/wp/v2/users/${vendorId}`,
+        `${API_BASE}/wp-json/wp/v2/users/${vendorId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -66,6 +68,11 @@ export async function GET() {
     }
 
     const vendorData = await vendorRes.json();
+    
+    // 🔍 Debug: طباعة بيانات الـ vendor
+    console.log('===== VENDOR DATA =====');
+    console.log(JSON.stringify(vendorData, null, 2));
+    console.log('=======================');
 
     // Get actual logo URL if logo is an ID
     let logoUrl = null;
@@ -77,7 +84,7 @@ export async function GET() {
         // Fetch the actual image URL from media endpoint
         try {
           const mediaRes = await fetch(
-            `https://spare2app.com/wp-json/wp/v2/media/${vendorData.logo}`,
+            `${API_BASE}/wp-json/wp/v2/media/${vendorData.logo}`,
             {
               headers: {
                 Authorization: `Bearer ${token}`,
