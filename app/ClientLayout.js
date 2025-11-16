@@ -7,24 +7,28 @@ import { useState } from "react";
 import NotificationSidebar from "@/components/NotificationSidebar";
 import Sidebar from "@/components/Sidebar";
 import usePOSStore from "@/app/stores/pos-store";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 export default function ClientLayout({ children }) {
   const router = useRouter();
+  const pathname = usePathname();
   const vendorInfo = usePOSStore((s) => s.vendorInfo);
   const getVendorInfo = usePOSStore((s) => s.getVendorInfo);
 
   useEffect(() => {
     // Avoid fetching vendor info on the login page to prevent unnecessary 401s
-    const isLogin = typeof window !== 'undefined' && window.location.pathname === '/login';
-    if (!isLogin && !vendorInfo) {
+    const isLogin = pathname === '/login';
+    const isPrint = pathname?.includes('/print');
+    if (!isLogin && !isPrint && !vendorInfo) {
       getVendorInfo();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vendorInfo]);
+  }, [vendorInfo, pathname]);
 
-  // إخفاء الـ navbar في صفحة اللوجين
-  const isLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
+  // إخفاء الـ navbar في صفحة اللوجين وصفحة الطباعة
+  const isLoginPage = pathname === '/login';
+  const isPrintPage = pathname?.includes('/print');
+  const shouldHideLayout = isLoginPage || isPrintPage;
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -39,7 +43,7 @@ export default function ClientLayout({ children }) {
   
   // Keyboard shortcut: Ctrl+N to toggle notifications
   useEffect(() => {
-    if (isLoginPage) return;
+    if (shouldHideLayout) return;
     
     const handleKeyboard = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
@@ -50,7 +54,7 @@ export default function ClientLayout({ children }) {
     
     window.addEventListener('keydown', handleKeyboard);
     return () => window.removeEventListener('keydown', handleKeyboard);
-  }, [isLoginPage]);
+  }, [shouldHideLayout]);
   
   // Handle sidebar quick actions
   const handleSidebarAction = (action) => {
@@ -68,7 +72,7 @@ export default function ClientLayout({ children }) {
 
   return (
     <>
-      {!isLoginPage && (
+      {!shouldHideLayout && (
         <>
           {/* Sidebar Navigation */}
           <Sidebar 
@@ -108,7 +112,7 @@ export default function ClientLayout({ children }) {
           />
         </>
       )}
-      <main className="print:p-0" style={{ marginRight: isLoginPage ? '0' : (isCollapsed ? '80px' : '288px'), marginTop: isLoginPage ? '0' : '80px', padding: isLoginPage ? '0' : '0' }}>
+      <main className="print:p-0" style={{ marginRight: shouldHideLayout ? '0' : (isCollapsed ? '80px' : '288px'), marginTop: shouldHideLayout ? '0' : '80px', padding: shouldHideLayout ? '0' : '0' }}>
         {children}
       </main>
     </>

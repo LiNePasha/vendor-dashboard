@@ -725,11 +725,22 @@ export default function OrdersPage() {
 
               {/* Total */}
               <section className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-5">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-xl text-gray-800">المجموع الكلي</h3>
-                  <p className="text-3xl font-bold text-blue-600">
-                    {selectedOrder.total} {selectedOrder.currency}
-                  </p>
+                <div className="space-y-3">
+                  {/* Shipping */}
+                  {selectedOrder.shipping_total && parseFloat(selectedOrder.shipping_total) > 0 && (
+                    <div className="flex justify-between items-center text-gray-700">
+                      <span className="font-medium">🚚 الشحن</span>
+                      <span className="font-semibold">{selectedOrder.shipping_total} {selectedOrder.currency}</span>
+                    </div>
+                  )}
+                  
+                  {/* Total */}
+                  <div className="flex justify-between items-center pt-3 border-t-2 border-blue-200">
+                    <h3 className="font-bold text-xl text-gray-800">المجموع الكلي</h3>
+                    <p className="text-3xl font-bold text-blue-600">
+                      {selectedOrder.total} {selectedOrder.currency}
+                    </p>
+                  </div>
                 </div>
               </section>
 

@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { getVendorStoreLink } from "@/app/lib/vendor-constants";
+import { getVendorStoreLink,getVendorLogo } from "@/app/lib/vendor-constants";
 import usePOSStore from "@/app/stores/pos-store";
+import Image from "next/image";
 
 const menuItems = [
   {
@@ -74,6 +75,7 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
   const pathname = usePathname();
   const vendorInfo = usePOSStore((s) => s.vendorInfo);
   const storeUrl = getVendorStoreLink(vendorInfo?.id);
+  const storeLogo = getVendorLogo(vendorInfo?.id);
 
   return (
     <aside
@@ -87,7 +89,11 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
           {!isCollapsed && (
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-xl">{storeUrl ? '🏪' : '⚡'}</span>
+                {storeLogo ? (
+                  <Image src={storeLogo} alt="Logo" width={40} height={40} className="w-10 h-10 rounded-xl object-cover" />
+                ) : (
+                  <span className="text-xl">{storeUrl ? '🏪' : '⚡'}</span>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 {storeUrl ? (
@@ -118,7 +124,7 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
             onClick={() => onToggleCollapse?.(!isCollapsed)}
             className="w-8 h-8 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg flex items-center justify-center transition-all"
           >
-            <span className="text-sm">{isCollapsed ? "→" : "←"}</span>
+            <span className="text-sm">{isCollapsed ? "←" : "→"}</span>
           </button>
         </div>
       </div>

@@ -5,16 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import { invoiceStorage } from '@/app/lib/localforage';
 import { getVendorLogo, getVendorStoreLink } from '@/app/lib/vendor-constants';
 import usePOSStore from '@/app/stores/pos-store';
-import { Suspense } from 'react';
-
-// Wrap the client content that uses useSearchParams in a Suspense boundary
-export default function PrintInvoicePage() {
-  return (
-    <Suspense fallback={<div style={{ padding: 16, textAlign: 'center' }}>جاري التحميل...</div>}>
-      <PrintInvoiceContent />
-    </Suspense>
-  );
-}
 
 function PrintInvoiceContent() {
   const searchParams = useSearchParams();
@@ -24,20 +14,35 @@ function PrintInvoiceContent() {
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const vendorInfo = usePOSStore((state) => state.vendorInfo);
+  const getVendorInfo = usePOSStore((state) => state.getVendorInfo);
+
+  // Load vendor info if not available
+  useEffect(() => {
+    console.log('👤 Vendor Info:', vendorInfo);
+    if (!vendorInfo) {
+      console.log('⚠️ No vendor info, fetching...');
+      getVendorInfo();
+    }
+  }, [vendorInfo, getVendorInfo]);
 
   useEffect(() => {
     async function load() {
       try {
+        console.log('🔍 Loading invoice:', invoiceId);
         let inv = null;
         if (invoiceStorage?.getInvoice) {
           inv = await invoiceStorage.getInvoice(invoiceId);
+          console.log('📄 Invoice from getInvoice:', inv);
         }
         if (!inv) {
           const all = await invoiceStorage.getAllInvoices();
+          console.log('📦 All invoices:', all);
           inv = all.find((i) => String(i.id) === String(invoiceId)) || null;
+          console.log('✅ Found invoice:', inv);
         }
         setInvoice(inv || null);
-      } catch (_) {
+      } catch (err) {
+        console.error('❌ Error loading invoice:', err);
         setInvoice(null);
       } finally {
         setLoading(false);
@@ -64,14 +69,17 @@ function PrintInvoiceContent() {
   }, [invoice, vendorInfo]);
 
   if (!invoiceId) {
+    console.log('❌ No invoice ID');
     return <div style={{ padding: 16 }}>لا يوجد معرف فاتورة للطباعة</div>;
   }
-  if (loading || !invoice) {
+  if (loading || !invoice || !vendorInfo) {
+    console.log('⏳ Loading state:', { loading, hasInvoice: !!invoice, hasVendor: !!vendorInfo });
     return (
       <div style={{ padding: 16, textAlign: 'center' }}>
         <div style={{ marginBottom: 8 }}>جاري التحميل...</div>
         <div style={{ fontSize: 12, color: '#666' }}>
           {!invoice && 'تحميل الفاتورة...'}
+          {!vendorInfo && 'تحميل بيانات المتجر...'}
         </div>
       </div>
     );
@@ -95,6 +103,18 @@ function PrintInvoiceContent() {
     <>
       <style jsx global>{`
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        /* Force hide all layout elements on print page */
+        body > div > aside,
+        body > div > div[class*="fixed"],
+        nav, header {
+          display: none !important;
+        }
+        
+        body {
+          margin: 0 !important;
+          padding: 0 !important;
+        }
         
         @media print {
           @page { 
@@ -294,3 +314,5 @@ function PrintInvoiceContent() {
     </>
   );
 }
+
+export default PrintInvoiceContent;

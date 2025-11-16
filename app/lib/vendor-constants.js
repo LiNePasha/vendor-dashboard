@@ -7,18 +7,16 @@
 
 export const VENDOR_LOGOS = {
   9: '/logos/9.png',
-  // أضف باقي الـ vendors هنا
   27: '/logos/27.png',
   20: '/logos/20.webp',
-  // 11: '/logos/11.png',
+  19: '/logos/19.webp',
 };
 
 export const VENDOR_STORE_LINKS = {
   9: 'https://www.spare2app.com/stores/diesel363',
   27: 'https://www.spare2app.com/stores/aboyousef',
   20: 'https://www.spare2app.com/stores/ashrafhelmy55',
-  // أضف باقي الـ vendors هنا
-  // 11: 'https://www.spare2app.com/stores/another-vendor',
+  19: 'https://www.spare2app.com/stores/samerpepo1',
 };
 
 /**
