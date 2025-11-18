@@ -10,6 +10,7 @@ export const VENDOR_LOGOS = {
   27: '/logos/27.png',
   20: '/logos/20.webp',
   19: '/logos/19.webp',
+  22: '/logos/22.webp',
 };
 
 export const VENDOR_STORE_LINKS = {
@@ -17,6 +18,7 @@ export const VENDOR_STORE_LINKS = {
   27: 'https://www.spare2app.com/stores/aboyousef',
   20: 'https://www.spare2app.com/stores/ashrafhelmy55',
   19: 'https://www.spare2app.com/stores/samerpepo1',
+  22: 'https://abosh3ban.com/',
 };
 
 /**
