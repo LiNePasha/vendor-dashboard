@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { invoiceStorage } from '@/app/lib/localforage';
 import { getVendorLogo, getVendorStoreLink } from '@/app/lib/vendor-constants';
@@ -315,4 +315,17 @@ function PrintInvoiceContent() {
   );
 }
 
-export default PrintInvoiceContent;
+export default function PrintInvoicePage() {
+  return (
+    <Suspense fallback={
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '24px', marginBottom: '10px' }}>⏳</div>
+          <div>جاري التحميل...</div>
+        </div>
+      </div>
+    }>
+      <PrintInvoiceContent />
+    </Suspense>
+  );
+}
