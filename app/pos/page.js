@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ProductGrid } from '@/components/pos/ProductGrid';
 import { Cart } from '@/components/pos/Cart';
 import { Toast } from '@/components/Toast';
+import QuickAddProductModal from '@/components/QuickAddProductModal';
 import usePOSStore from '@/app/stores/pos-store';
 import InvoiceModal from './InvoiceModal';
 import EmployeeSelector from '@/components/EmployeeSelector';
@@ -22,6 +23,7 @@ export default function POSPage() {
   const [initialized, setInitialized] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employees, setEmployees] = useState([]);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   const {
     products = [],
@@ -64,6 +66,16 @@ export default function POSPage() {
       const activeEmployees = allEmployees.filter(emp => emp.isActive !== false);
       setEmployees(activeEmployees);
       console.log('Loaded employees:', activeEmployees.length);
+      
+      // 🆕 تحميل الموظف المحفوظ
+      const savedEmployeeId = localStorage.getItem('selectedPOSEmployee');
+      if (savedEmployeeId) {
+        const savedEmp = activeEmployees.find(emp => emp.id === savedEmployeeId);
+        if (savedEmp) {
+          setSelectedEmployee(savedEmp);
+          console.log('تم تحميل الموظف المحفوظ:', savedEmp.name);
+        }
+      }
     } catch (error) {
       console.error('Error loading employees:', error);
     }
@@ -92,6 +104,11 @@ export default function POSPage() {
   const handleAddToCart = async (p) => {
     const res = await addToCart(p);
     if (res?.error) setToast({ message: res.error, type: 'error' });
+  };
+
+  const handleQuickAddSuccess = async () => {
+    // تحديث قائمة المنتجات
+    await fetchProducts({ page: 1, search, category });
   };
 
   const handleUpdateQuantity = async (id, qty) => {
@@ -188,6 +205,14 @@ export default function POSPage() {
                 <span className={loading ? 'animate-spin' : ''}>🔄</span>
                 <span className="hidden sm:inline">تحديث</span>
               </button>
+              <button
+                onClick={() => setShowQuickAdd(true)}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors"
+                title="إضافة منتج سريع"
+              >
+                <span>⚡</span>
+                <span className="hidden sm:inline">+ منتج</span>
+              </button>
             </div>
           </div>
 
@@ -210,7 +235,15 @@ export default function POSPage() {
             <EmployeeSelector
               employees={employees}
               selectedEmployee={selectedEmployee}
-              onChange={setSelectedEmployee}
+              onChange={(employee) => {
+                setSelectedEmployee(employee);
+                // 🆕 حفظ الموظف في localStorage
+                if (employee) {
+                  localStorage.setItem('selectedPOSEmployee', employee.id);
+                } else {
+                  localStorage.removeItem('selectedPOSEmployee');
+                }
+              }}
               required={true}
             />
           </div>
@@ -238,6 +271,15 @@ export default function POSPage() {
 
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </div>
+
+      {/* Quick Add Modal */}
+      <QuickAddProductModal
+        isOpen={showQuickAdd}
+        onClose={() => setShowQuickAdd(false)}
+        onSuccess={handleQuickAddSuccess}
+        setToast={setToast}
+      />
+
       <InvoiceModal
         invoice={lastInvoice}
         open={showInvoice}

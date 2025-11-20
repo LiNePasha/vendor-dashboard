@@ -156,21 +156,27 @@ useEffect(() => {
 
           {!isWholesale ? (
             <>
-              <input
-                type="number"
-                placeholder="السعر الأساسي"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="border w-full px-3 py-2 rounded-lg focus:ring focus:ring-green-300"
-              />
-
-              <input
-                type="number"
-                placeholder="سعر العرض (اختياري)"
-                value={salePrice}
-                onChange={(e) => setSalePrice(e.target.value)}
-                className="border w-full px-3 py-2 rounded-lg focus:ring focus:ring-green-300"
-              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <input
+                    type="number"
+                    placeholder="السعر الأساسي"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    className="border w-full px-3 py-2 rounded-lg focus:ring focus:ring-green-300"
+                  />
+                </div>
+                
+                <div>
+                  <input
+                    type="number"
+                    placeholder="سعر العرض (اختياري)"
+                    value={salePrice}
+                    onChange={(e) => setSalePrice(e.target.value)}
+                    className="border w-full px-3 py-2 rounded-lg focus:ring focus:ring-green-300"
+                  />
+                </div>
+              </div>
 
               {/* إدارة المخزون */}
               <div className="space-y-2">
@@ -186,7 +192,7 @@ useEffect(() => {
 
                 {manageStock && (
                   <div>
-                    <label className="block mb-1">الكمية المتوفرة:</label>
+                    <label className="block mb-1 text-sm text-gray-600">الكمية المتوفرة:</label>
                     <input
                       type="number"
                       min="0"

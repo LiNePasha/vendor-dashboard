@@ -45,8 +45,8 @@ const menuItems = [
     badge: null,
   },
   {
-    title: "نقاط البيع",
-    icon: "🧾",
+    title: "الكاشير",
+    icon: "🛒",
     href: "/pos",
     badge: null,
   },

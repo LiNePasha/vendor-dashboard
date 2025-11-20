@@ -319,10 +319,10 @@ export default function InvoicesPage() {
                 <span className="text-pink-100">🔧 إيرادات الخدمات</span>
                 <span className="font-bold">{formatPrice(stats.totalServices)} ج.م</span>
               </div>
-              <div className="flex items-center justify-between">
+              {/* <div className="flex items-center justify-between">
                 <span className="text-pink-100">➕ رسوم إضافية</span>
                 <span className="font-bold">{formatPrice(invoices.reduce((sum, inv) => sum + (inv.summary?.extraFee || 0), 0))} ج.م</span>
-              </div>
+              </div> */}
               <div className="flex items-center justify-between pt-1 border-t border-pink-400 border-opacity-20">
                 <span className="text-pink-100">من {stats.profitInvoicesCount} فاتورة</span>
               </div>

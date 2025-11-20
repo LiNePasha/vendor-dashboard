@@ -66,6 +66,14 @@ export default function EmployeeSalesPage() {
     const totalInvoices = invoices.length;
     const averageInvoiceValue = totalInvoices > 0 ? totalSales / totalInvoices : 0;
     
+    // 💰 حساب الأرباح
+    const totalProfit = invoices.reduce((sum, inv) => sum + (inv.summary?.totalProfit || 0), 0);
+    const productsProfit = invoices.reduce((sum, inv) => sum + (inv.summary?.finalProductsProfit || inv.summary?.productsProfit || 0), 0);
+    const servicesProfit = invoices.reduce((sum, inv) => sum + (inv.summary?.servicesTotal || 0), 0);
+    
+    // عدد المنتجات اللي عليها ربح
+    const profitableItemsCount = invoices.reduce((sum, inv) => sum + (inv.summary?.profitItemsCount || 0), 0);
+    
     // حساب المبيعات حسب طريقة الدفع
     const cashSales = invoices
       .filter(inv => inv.paymentMethod === 'cash')
@@ -114,6 +122,11 @@ export default function EmployeeSalesPage() {
       totalSales,
       totalInvoices,
       averageInvoiceValue,
+      totalProfit,
+      productsProfit,
+      servicesProfit,
+      profitableItemsCount,
+      profitMargin: totalSales > 0 ? (totalProfit / totalSales) * 100 : 0,
       cashSales,
       cardSales,
       otherSales,
@@ -226,6 +239,9 @@ export default function EmployeeSalesPage() {
           <div className="text-3xl font-bold">
             {salesData?.stats.totalSales.toLocaleString('ar-EG')} <span className="text-xl">ج.م</span>
           </div>
+          <div className="text-xs opacity-75 mt-1">
+            💰 ربح: {salesData?.stats.totalProfit.toLocaleString('ar-EG')} ج.م
+          </div>
         </div>
         
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-transform">
@@ -239,11 +255,12 @@ export default function EmployeeSalesPage() {
         </div>
         
         <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-transform">
-          <div className="text-sm opacity-90 mb-1">متوسط الفاتورة</div>
+          <div className="text-sm opacity-90 mb-1">هامش الربح</div>
           <div className="text-3xl font-bold">
-            {salesData?.stats.averageInvoiceValue.toLocaleString('ar-EG', {
-              maximumFractionDigits: 0
-            })} <span className="text-xl">ج.م</span>
+            {salesData?.stats.profitMargin.toFixed(1)}%
+          </div>
+          <div className="text-xs opacity-75 mt-1">
+            {salesData?.stats.profitableItemsCount} منتج بربح
           </div>
         </div>
         
@@ -306,6 +323,53 @@ export default function EmployeeSalesPage() {
         </div>
       </div>
 
+      {/* 💰 تفاصيل الأرباح */}
+      <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-2 border-yellow-300 rounded-xl p-6 mb-6">
+        <h3 className="text-xl font-bold text-yellow-900 mb-4 flex items-center gap-2">
+          <span>💰</span>
+          <span>تحليل الأرباح</span>
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border border-yellow-200">
+            <div className="text-sm text-gray-600 mb-1">إجمالي الأرباح</div>
+            <div className="text-2xl font-bold text-green-700">
+              {salesData?.stats.totalProfit.toLocaleString('ar-EG')} ج.م
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              هامش: {salesData?.stats.profitMargin.toFixed(1)}%
+            </div>
+          </div>
+          
+          <div className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border border-yellow-200">
+            <div className="text-sm text-gray-600 mb-1">ربح المنتجات</div>
+            <div className="text-2xl font-bold text-blue-700">
+              {salesData?.stats.productsProfit.toLocaleString('ar-EG')} ج.م
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              {salesData?.stats.profitableItemsCount} منتج
+            </div>
+          </div>
+          
+          <div className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border border-yellow-200">
+            <div className="text-sm text-gray-600 mb-1">ربح الخدمات</div>
+            <div className="text-2xl font-bold text-purple-700">
+              {salesData?.stats.servicesProfit.toLocaleString('ar-EG')} ج.م
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              إيراد كامل
+            </div>
+          </div>
+        </div>
+        
+        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <p className="text-xs text-blue-800 leading-relaxed">
+            <strong>💡 ملاحظة:</strong> الأرباح تُحسب فقط للمنتجات اللي محدد لها سعر شراء في النظام. 
+            الخدمات تُحسب كإيراد كامل لأنها مش بضاعة.
+          </p>
+        </div>
+      </div>
+
       {/* قائمة الفواتير */}
       <div className="bg-white rounded-lg shadow border">
         <div className="p-6 border-b flex justify-between items-center">
@@ -325,6 +389,7 @@ export default function EmployeeSalesPage() {
                   <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600">الوقت</th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600">المنتجات</th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600">الإجمالي</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600">الربح</th>
                   <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600">طريقة الدفع</th>
                 </tr>
               </thead>
@@ -332,12 +397,14 @@ export default function EmployeeSalesPage() {
                 {salesData?.invoices.map(invoice => {
                   const date = new Date(invoice.date || invoice.createdAt);
                   const total = invoice.summary?.total || invoice.total || 0;
+                  const profit = invoice.summary?.totalProfit || 0;
                   const itemsCount = invoice.items?.length || 0;
+                  const profitItemsCount = invoice.summary?.profitItemsCount || 0;
                   
                   return (
                     <tr key={invoice.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 text-sm font-mono text-gray-900">
-                        {invoice.id}
+                        {invoice.id.substring(0, 12)}...
                       </td>
                       <td className="px-6 py-4 text-sm">
                         {date.toLocaleDateString('ar-EG')}
@@ -351,12 +418,29 @@ export default function EmployeeSalesPage() {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         {itemsCount} منتج
+                        {profitItemsCount > 0 && (
+                          <span className="text-xs text-green-600 mr-1">
+                            ({profitItemsCount} بربح)
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-green-600">
                         {total.toLocaleString('ar-EG')} ج.م
                       </td>
+                      <td className="px-6 py-4 text-sm font-bold">
+                        {profit > 0 ? (
+                          <span className="text-yellow-700">
+                            💰 {profit.toLocaleString('ar-EG')} ج.م
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-sm">
-                        {invoice.paymentMethod === 'cash' ? '💵 نقدي' : '💳 بطاقة'}
+                        {invoice.paymentMethod === 'cash' ? '💵 نقدي' : 
+                         invoice.paymentMethod === 'wallet' ? '👛 محفظة' :
+                         invoice.paymentMethod === 'instapay' ? '📱 انستا باي' :
+                         '💳 أخرى'}
                       </td>
                     </tr>
                   );

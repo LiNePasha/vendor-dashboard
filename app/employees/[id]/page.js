@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import useEmployeesStore from "@/app/stores/employees-store";
 import { uploadToCloudinary } from "@/app/lib/cloudinary";
 import { employeesStorage } from "@/app/lib/employees-storage";
+import { formatMinutesToArabic } from "@/app/lib/time-helpers";
 import AddDeductionModal from "@/components/AddDeductionModal";
 
 export default function EmployeeDetailsPage() {
@@ -25,6 +26,8 @@ export default function EmployeeDetailsPage() {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [showAddDeductionModal, setShowAddDeductionModal] = useState(false);
   const [openWeeks, setOpenWeeks] = useState({});
+  const [editingNote, setEditingNote] = useState(null);
+  const [noteText, setNoteText] = useState('');
 
   // Form data (for edit mode)
   const [formData, setFormData] = useState({
@@ -749,7 +752,7 @@ export default function EmployeeDetailsPage() {
                                             <span className="font-bold text-blue-600">{checkInDisplay}</span>
                                             {record.checkIn.late && (
                                               <span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full font-semibold">
-                                                تأخير {record.checkIn.lateMinutes} د
+                                                تأخير {formatMinutesToArabic(record.checkIn.lateMinutes)}
                                               </span>
                                             )}
                                             {record.checkIn.gracePeriodUsed && (
@@ -767,16 +770,40 @@ export default function EmployeeDetailsPage() {
                                             <span className="font-bold text-green-600">{checkOutDisplay || '-'}</span>
                                             {record.checkOut?.early && (
                                               <span className="bg-orange-100 text-orange-600 text-xs px-2 py-0.5 rounded-full font-semibold">
-                                                مبكر {record.checkOut.earlyMinutes} د
+                                                مبكر {formatMinutesToArabic(record.checkOut.earlyMinutes)}
                                               </span>
                                             )}
                                             {record.checkOut?.overtime && (
                                               <span className="bg-purple-100 text-purple-600 text-xs px-2 py-0.5 rounded-full font-semibold">
-                                                إضافي {record.checkOut.overtimeMinutes} د
+                                                إضافي {formatMinutesToArabic(record.checkOut.overtimeMinutes)}
                                               </span>
                                             )}
                                           </div>
                                         </div>
+                                      </div>
+
+                                      {/* Admin Notes Section */}
+                                      {record.adminNotes && (
+                                        <div className="mt-2 pt-2 border-t border-gray-200">
+                                          <div className="text-xs">
+                                            <span className="text-gray-500">ملاحظات:</span>{' '}
+                                            <span className="text-gray-700">{record.adminNotes}</span>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Add/Edit Note Button */}
+                                      <div className="mt-2 pt-2 border-t border-gray-200">
+                                        <button
+                                          onClick={() => {
+                                            setEditingNote(record.id);
+                                            setNoteText(record.adminNotes || '');
+                                          }}
+                                          className="text-xs text-blue-500 hover:text-blue-600 font-semibold flex items-center gap-1"
+                                        >
+                                          <span>📝</span>
+                                          <span>{record.adminNotes ? 'تعديل الملاحظات' : 'إضافة ملاحظات'}</span>
+                                        </button>
                                       </div>
 
                                       {(record.checkIn.note || record.checkOut?.note) && (
@@ -1140,6 +1167,61 @@ export default function EmployeeDetailsPage() {
         onClose={() => setShowAddDeductionModal(false)}
         onSuccess={handleDeductionAdded}
       />
+
+      {/* Notes Modal */}
+      {editingNote && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">📝 الملاحظات الإدارية</h3>
+            
+            <textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="أضف ملاحظاتك هنا..."
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] resize-none"
+            />
+            
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={async () => {
+                  try {
+                    // Update attendance record with note
+                    const record = attendanceRecords.find(r => r.id === editingNote);
+                    if (record) {
+                      const updated = { ...record, adminNotes: noteText };
+                      await employeesStorage.saveAttendance(updated);
+                      
+                      // Reload attendance records
+                      const records = await employeesStorage.getAllAttendance();
+                      const employeeRecords = records.filter(r => r.employeeId === employeeId);
+                      setAttendanceRecords(employeeRecords);
+                      
+                      showToast('✅ تم حفظ الملاحظات بنجاح!');
+                    }
+                    setEditingNote(null);
+                    setNoteText('');
+                  } catch (error) {
+                    console.error('Error saving note:', error);
+                    showToast('❌ حدث خطأ أثناء حفظ الملاحظات', 'error');
+                  }
+                }}
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-bold transition-colors"
+              >
+                حفظ
+              </button>
+              <button
+                onClick={() => {
+                  setEditingNote(null);
+                  setNoteText('');
+                }}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 rounded-lg font-bold transition-colors"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

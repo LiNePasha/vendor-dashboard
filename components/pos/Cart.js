@@ -15,11 +15,9 @@ export function Cart({
   processing,
   discount = 0,
   discountType = 'amount', // 'amount' or 'percentage'
-  extraFee = 0,
   paymentMethod = 'cash',
   onDiscountChange,
   onDiscountTypeChange,
-  onExtraFeeChange,
   onPaymentMethodChange
 }) {
   const productsSubtotal = items.reduce(
@@ -39,7 +37,7 @@ export function Cart({
     : discount;
 
   // Calculate final total
-  const total = subtotal - discountAmount + Number(extraFee);
+  const total = subtotal - discountAmount;
 
   // Load saved services from LocalForage
   const [savedServices, setSavedServices] = useState([]);
@@ -231,8 +229,8 @@ export function Cart({
       </div>
 
       <div className="border-t p-4 bg-white space-y-3">
-        {/* Payment Method, Discount, and Extra Fee */}
-        <div className="grid grid-cols-3 gap-2">
+        {/* Payment Method and Discount */}
+        <div className="grid grid-cols-2 gap-2">
           {/* Payment Method */}
           <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-200">
             <label className="block text-[10px] font-semibold text-gray-700 mb-1.5">
@@ -275,22 +273,6 @@ export function Cart({
               placeholder="0"
             />
           </div>
-
-          {/* Extra Fee */}
-          <div className="bg-gray-50 p-2.5 rounded-lg border border-gray-200">
-            <label className="block text-[10px] font-semibold text-gray-700 mb-1.5">
-              ➕ رسوم إضافية
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={extraFee}
-              onChange={(e) => onExtraFeeChange(Math.max(0, e.target.value))}
-              className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded text-xs 
-                focus:ring-2 focus:ring-green-500 focus:border-green-500"
-              placeholder="0"
-            />
-          </div>
         </div>
 
         {/* Totals */}
@@ -324,13 +306,6 @@ export function Cart({
                   : `${discount} ج.م`}):
               </span>
               <span className="font-medium">- {discountAmount.toFixed(2)} ج.م</span>
-            </div>
-          )}
-          
-          {extraFee > 0 && (
-            <div className="flex justify-between text-sm text-green-600">
-              <span>رسوم إضافية:</span>
-              <span className="font-medium">+ {Number(extraFee).toFixed(2)} ج.م</span>
             </div>
           )}
           

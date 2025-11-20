@@ -386,6 +386,27 @@ export function getTimeAgo(dateString) {
   return formatEgyptTime(egyptDate, 'dd/MM/yyyy');
 }
 
+/**
+ * Convert minutes to hours and minutes format in Arabic
+ * @param {number} totalMinutes - Total minutes
+ * @returns {string} - Formatted string (e.g., "ساعة و10 دقائق" or "70 دقيقة")
+ */
+export function formatMinutesToArabic(totalMinutes) {
+  if (!totalMinutes || totalMinutes < 60) {
+    return `${totalMinutes || 0} دقيقة`;
+  }
+  
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  
+  if (minutes === 0) {
+    return hours === 1 ? 'ساعة' : `${hours} ساعة`;
+  }
+  
+  const hoursText = hours === 1 ? 'ساعة' : `${hours} ساعة`;
+  return `${hoursText} و${minutes} دقيقة`;
+}
+
 export default {
   // Time functions
   getCurrentEgyptTime,
@@ -420,6 +441,7 @@ export default {
   getArabicMonth,
   getTotalWorkDays,
   getTimeAgo,
+  formatMinutesToArabic,
   
   // Constants
   TIMEZONE

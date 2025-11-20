@@ -114,7 +114,7 @@ export default function ServicesPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">إدارة الخدمات</h1>
         <p className="text-gray-600 dark:text-gray-300">
-          أضف وحفظ الخدمات التي تقدمها لاستخدامها بسرعة في نقاط البيع
+          أضف وحفظ الخدمات التي تقدمها لاستخدامها بسرعة في الكاشير
         </p>
       </div>
 
@@ -292,7 +292,7 @@ export default function ServicesPage() {
           <div>
             <h4 className="font-semibold text-blue-900 mb-1">نصيحة</h4>
             <p className="text-blue-800 text-sm">
-              الخدمات المحفوظة هنا ستظهر تلقائيًا في صفحة نقاط البيع (POS) لسهولة الاختيار السريع.
+              الخدمات المحفوظة هنا ستظهر تلقائيًا في صفحة الكاشير (POS) لسهولة الاختيار السريع.
               يمكنك إضافة خدمات مثل: التركيب، الصيانة، التوصيل، الضمان، وغيرها.
             </p>
           </div>

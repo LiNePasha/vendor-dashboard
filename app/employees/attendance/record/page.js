@@ -3,13 +3,16 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import useEmployeesStore from "@/app/stores/employees-store";
+import { employeesStorage } from "@/app/lib/employees-storage";
 import {
   getCurrentEgyptTime,
   getTodayEgypt,
   formatEgyptTime,
   formatArabicTime,
-  getTimeAgo
+  getTimeAgo,
+  generateAttendanceId
 } from "@/app/lib/time-helpers";
+import { format } from "date-fns";
 
 export default function AttendanceRecordPage() {
   const router = useRouter();
@@ -17,8 +20,6 @@ export default function AttendanceRecordPage() {
   const employees = useEmployeesStore((state) => state.employees);
   const getActiveEmployees = useEmployeesStore((state) => state.getActiveEmployees);
   const loadEmployees = useEmployeesStore((state) => state.loadEmployees);
-  const clockIn = useEmployeesStore((state) => state.clockIn);
-  const clockOut = useEmployeesStore((state) => state.clockOut);
   const loadTodayAttendance = useEmployeesStore((state) => state.loadTodayAttendance);
   const todayAttendance = useEmployeesStore((state) => state.todayAttendance);
   
@@ -29,6 +30,10 @@ export default function AttendanceRecordPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  
+  // 🆕 Manual time selection
+  const [selectedDate, setSelectedDate] = useState(formatEgyptTime(new Date(), 'yyyy-MM-dd'));
+  const [selectedTime, setSelectedTime] = useState(formatEgyptTime(new Date(), 'HH:mm'));
 
   // Update current time every second
   useEffect(() => {
@@ -80,20 +85,20 @@ export default function AttendanceRecordPage() {
     return { status: 'not-checked-in', record: null };
   };
 
-  // Calculate late warning
-  const getLateWarning = (employee) => {
-    if (!employee || !currentTime) return null;
+  // Calculate late warning based on selected time
+  const getLateWarning = (employee, customDateTime) => {
+    if (!employee || !customDateTime) return null;
     
     const workStartTime = employee.workSchedule?.startTime || '09:00';
     const gracePeriod = employee.workSchedule?.gracePeriod || 15;
     
     const [hours, minutes] = workStartTime.split(':');
-    const today = formatEgyptTime(currentTime, 'yyyy-MM-dd');
-    const scheduledStart = new Date(`${today}T${hours}:${minutes}:00+02:00`);
+    const date = formatEgyptTime(customDateTime, 'yyyy-MM-dd');
+    const scheduledStart = new Date(`${date}T${hours}:${minutes}:00+02:00`);
     const graceEnd = new Date(scheduledStart.getTime() + gracePeriod * 60000);
     
-    if (currentTime > graceEnd) {
-      const lateMinutes = Math.floor((currentTime - scheduledStart) / 60000);
+    if (customDateTime > graceEnd) {
+      const lateMinutes = Math.floor((customDateTime - scheduledStart) / 60000);
       return {
         late: true,
         lateMinutes,
@@ -101,8 +106,8 @@ export default function AttendanceRecordPage() {
       };
     }
     
-    if (currentTime > scheduledStart) {
-      const usedMinutes = Math.floor((currentTime - scheduledStart) / 60000);
+    if (customDateTime > scheduledStart) {
+      const usedMinutes = Math.floor((customDateTime - scheduledStart) / 60000);
       return {
         late: false,
         withinGrace: true,
@@ -115,6 +120,22 @@ export default function AttendanceRecordPage() {
       onTime: true,
       message: `✅ في الموعد`
     };
+  };
+  
+  // Format time to 12-hour format with Arabic AM/PM
+  const formatTimeTo12Hour = (time24) => {
+    if (!time24) return '';
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours);
+    const period = hour >= 12 ? 'م' : 'ص';
+    const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+    return `${displayHour}:${minutes} ${period}`;
+  };
+  
+  // Get combined date-time object
+  const getSelectedDateTime = () => {
+    if (!selectedDate || !selectedTime) return null;
+    return new Date(`${selectedDate}T${selectedTime}:00+02:00`);
   };
 
   // Handle employee selection
@@ -131,21 +152,180 @@ export default function AttendanceRecordPage() {
     }
   };
 
-  // Handle record attendance
+  // Handle record attendance (manual time)
   const handleRecord = async () => {
     if (!selectedEmployee) {
       showToast('الرجاء اختيار موظف', 'error');
+      return;
+    }
+    
+    if (!selectedDate || !selectedTime) {
+      showToast('الرجاء اختيار التاريخ والوقت', 'error');
       return;
     }
 
     setLoading(true);
     
     try {
+      const customDateTime = getSelectedDateTime();
+      const date = selectedDate;
+      const timeOnly = selectedTime;
+      
+      // Check if employee already has attendance record for this date
+      const existingRecords = await employeesStorage.getAttendanceByDate(date, selectedEmployee.id);
+      
       if (actionType === 'check-in') {
-        await clockIn(selectedEmployee.id, note);
+        // Prevent duplicate check-in
+        if (existingRecords && existingRecords.length > 0) {
+          const existing = existingRecords[0];
+          if (existing.checkIn) {
+            showToast('⚠️ تم تسجيل حضور هذا الموظف مسبقاً في هذا التاريخ!', 'error');
+            setLoading(false);
+            return;
+          }
+        }
+        
+        // Calculate late status
+        const { late, lateMinutes, gracePeriodUsed } = calculateLateMinutes(
+          selectedEmployee.workSchedule?.startTime || '09:00',
+          customDateTime,
+          selectedEmployee.workSchedule?.gracePeriod || 15
+        );
+        
+        // Create check-in record
+        const attendance = {
+          id: generateAttendanceId(date),
+          employeeId: selectedEmployee.id,
+          date,
+          dayName: format(customDateTime, 'EEEE').toLowerCase(),
+          isWorkDay: true,
+          
+          checkIn: {
+            time: timeOnly,
+            timestamp: customDateTime.toISOString(),
+            localTime: formatEgyptTime(customDateTime, 'HH:mm:ss'),
+            late,
+            lateMinutes,
+            gracePeriodUsed,
+            note,
+            recordedBy: 'manual',
+            method: 'manual'
+          },
+          
+          checkOut: null,
+          calculations: null,
+          status: 'present',
+          permissionDetails: null,
+          adminNotes: '',
+          
+          flags: {
+            missingCheckOut: false,
+            manualEntry: true,
+            edited: false,
+            disputed: false
+          },
+          
+          timezone: 'Africa/Cairo',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          createdBy: 'admin',
+          updatedBy: null
+        };
+        
+        await employeesStorage.saveAttendance(attendance);
+        
+        // Log in audit
+        try {
+          const { logAttendanceRecorded } = await import('@/app/lib/audit-logger');
+          await logAttendanceRecorded({
+            ...attendance,
+            employeeName: selectedEmployee.name
+          });
+        } catch (err) {
+          console.error('Failed to log attendance:', err);
+        }
+        
         showToast(`✅ تم تسجيل حضور ${selectedEmployee.name} بنجاح!`);
+        
       } else if (actionType === 'check-out') {
-        await clockOut(selectedEmployee.id, note);
+        // Use existing records already fetched above
+        const existing = existingRecords[0];
+        
+        if (!existing || !existing.checkIn) {
+          showToast('⚠️ يجب تسجيل الحضور أولاً قبل تسجيل الانصراف!', 'error');
+          setLoading(false);
+          return;
+        }
+        
+        if (existing.checkOut) {
+          showToast('⚠️ تم تسجيل انصراف هذا الموظف مسبقاً!', 'error');
+          setLoading(false);
+          return;
+        }
+        
+        // Validate check-out time is after check-in time
+        const checkInDateTime = new Date(existing.checkIn.timestamp);
+        if (customDateTime <= checkInDateTime) {
+          showToast('⚠️ وقت الانصراف يجب أن يكون بعد وقت الحضور!', 'error');
+          setLoading(false);
+          return;
+        }
+        
+        // Calculate early leave
+        const workEndTime = selectedEmployee.workSchedule?.endTime || '17:00';
+        const [endHours, endMinutes] = workEndTime.split(':');
+        const scheduledEnd = new Date(`${date}T${endHours}:${endMinutes}:00+02:00`);
+        
+        const early = customDateTime < scheduledEnd;
+        const earlyMinutes = early ? Math.floor((scheduledEnd - customDateTime) / 60000) : 0;
+        
+        // Calculate overtime
+        const overtimeMinutes = !early ? Math.floor((customDateTime - scheduledEnd) / 60000) : 0;
+        
+        // Calculate work hours
+        const totalMinutes = Math.floor((customDateTime - checkInDateTime) / 60000);
+        const totalHours = parseFloat((totalMinutes / 60).toFixed(2));
+        
+        // Update record
+        const updated = {
+          ...existing,
+          checkOut: {
+            time: timeOnly,
+            timestamp: customDateTime.toISOString(),
+            localTime: formatEgyptTime(customDateTime, 'HH:mm:ss'),
+            early,
+            earlyMinutes,
+            note,
+            recordedBy: 'manual',
+            method: 'manual'
+          },
+          
+          calculations: {
+            totalMinutes,
+            totalHours,
+            regularHours: totalHours,
+            overtimeMinutes,
+            overtimeHours: parseFloat((overtimeMinutes / 60).toFixed(2)),
+            breakMinutes: 0,
+            actualWorkMinutes: totalMinutes
+          },
+          
+          updatedAt: new Date().toISOString()
+        };
+        
+        await employeesStorage.saveAttendance(updated);
+        
+        // Log in audit
+        try {
+          const { logAttendanceRecorded } = await import('@/app/lib/audit-logger');
+          await logAttendanceRecorded({
+            ...updated,
+            employeeName: selectedEmployee.name
+          });
+        } catch (err) {
+          console.error('Failed to log attendance:', err);
+        }
+        
         showToast(`✅ تم تسجيل انصراف ${selectedEmployee.name} بنجاح!`);
       }
       
@@ -156,12 +336,34 @@ export default function AttendanceRecordPage() {
       setSelectedEmployee(null);
       setNote('');
       setActionType('check-in');
+      setSelectedDate(formatEgyptTime(new Date(), 'yyyy-MM-dd'));
+      setSelectedTime(formatEgyptTime(new Date(), 'HH:mm'));
       
     } catch (error) {
       showToast(error.message || 'حدث خطأ أثناء التسجيل', 'error');
     } finally {
       setLoading(false);
     }
+  };
+  
+  // Helper function to calculate late minutes
+  const calculateLateMinutes = (startTime, arrivalTime, gracePeriod) => {
+    const [hours, minutes] = startTime.split(':');
+    const date = formatEgyptTime(arrivalTime, 'yyyy-MM-dd');
+    const scheduledStart = new Date(`${date}T${hours}:${minutes}:00+02:00`);
+    const graceEnd = new Date(scheduledStart.getTime() + gracePeriod * 60000);
+    
+    if (arrivalTime <= scheduledStart) {
+      return { late: false, lateMinutes: 0, gracePeriodUsed: false };
+    }
+    
+    if (arrivalTime <= graceEnd) {
+      const usedMinutes = Math.floor((arrivalTime - scheduledStart) / 60000);
+      return { late: false, lateMinutes: 0, gracePeriodUsed: true, gracePeriodMinutes: usedMinutes };
+    }
+    
+    const lateMinutes = Math.floor((arrivalTime - scheduledStart) / 60000);
+    return { late: true, lateMinutes, gracePeriodUsed: true };
   };
 
   // Filter employees by search
@@ -173,7 +375,8 @@ export default function AttendanceRecordPage() {
       )
     : activeEmployees;
 
-  const lateWarning = selectedEmployee ? getLateWarning(selectedEmployee) : null;
+  const selectedDateTime = getSelectedDateTime();
+  const lateWarning = selectedEmployee && selectedDateTime ? getLateWarning(selectedEmployee, selectedDateTime) : null;
   const employeeStatus = selectedEmployee ? getEmployeeAttendanceStatus(selectedEmployee.id) : null;
 
   return (
@@ -193,35 +396,20 @@ export default function AttendanceRecordPage() {
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800">⏰ تسجيل الحضور والانصراف</h1>
-            <p className="text-gray-500 mt-1">
-              {currentTime ? formatArabicTime(currentTime, 'PPPP') : ''}
+            <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
+              <span>⏰</span>
+              <span>تسجيل الحضور والانصراف</span>
+            </h1>
+            <p className="text-gray-500 mt-2">
+              سجل حضور وانصراف الموظفين بمرونة كاملة - اختر الموظف والتاريخ والوقت
             </p>
           </div>
           <button
             onClick={() => router.push('/employees')}
-            className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg transition-colors"
+            className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg transition-colors font-semibold"
           >
             ← رجوع
           </button>
-        </div>
-      </div>
-
-      {/* Current Time Display */}
-      <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-6 text-white mb-6 shadow-xl">
-        <div className="text-center">
-          <div className="text-sm opacity-90 mb-2">📅 {formatEgyptTime(currentTime, 'EEEE، dd MMMM yyyy')}</div>
-          <div className="text-6xl font-bold mb-2">
-            {currentTime ? (
-              <>
-                {formatEgyptTime(currentTime, 'hh:mm:ss')}
-                <span className="text-3xl ml-2">
-                  {parseInt(formatEgyptTime(currentTime, 'HH')) >= 12 ? 'مساءً' : 'صباحاً'}
-                </span>
-              </>
-            ) : '--:--:--'}
-          </div>
-          <div className="text-sm opacity-90">توقيت القاهرة (Africa/Cairo)</div>
         </div>
       </div>
 
@@ -315,13 +503,13 @@ export default function AttendanceRecordPage() {
                     <div>
                       <div className="text-gray-500 text-xs">⏰ البدء</div>
                       <div className="font-semibold text-gray-800">
-                        {selectedEmployee.workSchedule?.startTime || '09:00'}
+                        {formatTimeTo12Hour(selectedEmployee.workSchedule?.startTime || '09:00')}
                       </div>
                     </div>
                     <div>
                       <div className="text-gray-500 text-xs">🏁 الانتهاء</div>
                       <div className="font-semibold text-gray-800">
-                        {selectedEmployee.workSchedule?.endTime || '17:00'}
+                        {formatTimeTo12Hour(selectedEmployee.workSchedule?.endTime || '17:00')}
                       </div>
                     </div>
                     <div>
@@ -406,24 +594,57 @@ export default function AttendanceRecordPage() {
                 </div>
               </div>
 
-              {/* Time Display */}
+              {/* Date & Time Selection */}
               <div className="mb-6">
-                <label className="block text-gray-700 font-semibold mb-2">
-                  ⏰ الوقت المسجل
+                <label className="block text-gray-700 font-semibold mb-3">
+                  📅 التاريخ والوقت
                 </label>
-                <div className="bg-gray-100 rounded-lg p-4 text-center">
-                  <div className="text-3xl font-bold text-gray-800">
-                    {currentTime ? (
-                      <>
-                        {formatEgyptTime(currentTime, 'hh:mm:ss')}
-                        <span className="text-lg ml-2">
-                          {parseInt(formatEgyptTime(currentTime, 'HH')) >= 12 ? 'مساءً' : 'صباحاً'}
-                        </span>
-                      </>
-                    ) : '--:--:--'}
+                
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  {/* Date */}
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-2">التاريخ</label>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
                   </div>
-                  <div className="text-sm text-gray-500 mt-1">(تلقائي)</div>
+                  
+                  {/* Time */}
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-2">الوقت</label>
+                    <input
+                      type="time"
+                      value={selectedTime}
+                      onChange={(e) => setSelectedTime(e.target.value)}
+                      className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
                 </div>
+                
+                {/* Preview */}
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-4 text-white shadow-lg">
+                  <div className="text-center">
+                    <div className="text-sm opacity-90 mb-1">⏰ الوقت المحدد</div>
+                    <div className="text-3xl font-bold">
+                      {selectedTime ? formatTimeTo12Hour(selectedTime) : '--:--'}
+                    </div>
+                    <div className="text-sm opacity-90 mt-1">
+                      {selectedDate ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('ar-EG', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      }) : 'اختر التاريخ'}
+                    </div>
+                  </div>
+                </div>
+                
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  ص = صباحاً (AM) | م = مساءً (PM)
+                </p>
               </div>
 
               {/* Note */}
@@ -441,34 +662,47 @@ export default function AttendanceRecordPage() {
               </div>
 
               {/* Summary */}
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                <div className="font-semibold text-yellow-800 mb-2">⚠️ سيتم تسجيل:</div>
-                <ul className="text-sm text-yellow-700 space-y-1">
-                  <li>
-                    • نوع التسجيل: <strong>{actionType === 'check-in' ? 'حضور' : 'انصراف'}</strong>
-                  </li>
-                  <li>
-                    • الوقت: <strong>
-                      {currentTime ? (
-                        <>
-                          {formatEgyptTime(currentTime, 'hh:mm:ss')}
-                          {' '}
-                          {parseInt(formatEgyptTime(currentTime, 'HH')) >= 12 ? 'مساءً' : 'صباحاً'}
-                        </>
-                      ) : '--:--:--'}
+              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl p-5 mb-6 shadow-md">
+                <div className="font-bold text-yellow-900 mb-3 flex items-center gap-2 text-lg">
+                  <span>📋</span>
+                  <span>ملخص التسجيل</span>
+                </div>
+                <div className="space-y-2 text-sm text-yellow-800">
+                  <div className="flex items-center justify-between bg-white/50 rounded-lg p-2">
+                    <span className="font-medium">نوع التسجيل:</span>
+                    <strong className={actionType === 'check-in' ? 'text-blue-700' : 'text-green-700'}>
+                      {actionType === 'check-in' ? '✅ حضور' : '🏁 انصراف'}
                     </strong>
-                  </li>
+                  </div>
+                  <div className="flex items-center justify-between bg-white/50 rounded-lg p-2">
+                    <span className="font-medium">التاريخ:</span>
+                    <strong className="text-gray-900">
+                      {selectedDate ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('ar-EG', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                      }) : '-'}
+                    </strong>
+                  </div>
+                  <div className="flex items-center justify-between bg-white/50 rounded-lg p-2">
+                    <span className="font-medium">الوقت:</span>
+                    <strong className="text-purple-700 text-lg">
+                      {selectedTime ? formatTimeTo12Hour(selectedTime) : '--:--'}
+                    </strong>
+                  </div>
                   {actionType === 'check-in' && lateWarning?.late && (
-                    <li className="text-red-600">
-                      • التأخير: <strong>{lateWarning.lateMinutes} دقيقة</strong> (بعد فترة السماح)
-                    </li>
+                    <div className="flex items-center justify-between bg-red-100 border border-red-300 rounded-lg p-2">
+                      <span className="font-medium text-red-700">⚠️ التأخير:</span>
+                      <strong className="text-red-800">{lateWarning.lateMinutes} دقيقة</strong>
+                    </div>
                   )}
                   {note && (
-                    <li>
-                      • الملاحظة: <strong>{note}</strong>
-                    </li>
+                    <div className="bg-white/50 rounded-lg p-2">
+                      <span className="font-medium">💬 الملاحظة:</span>
+                      <p className="text-gray-700 mt-1">{note}</p>
+                    </div>
                   )}
-                </ul>
+                </div>
               </div>
 
               {/* Action Buttons */}
@@ -548,11 +782,11 @@ export default function AttendanceRecordPage() {
                           <span className="text-gray-600">✅ حضور:</span>
                           <span className="font-semibold text-gray-800">
                             {(() => {
-                              const [hours, minutes, seconds] = record.checkIn.time.split(':');
+                              const [hours, minutes] = record.checkIn.time.split(':');
                               const hour = parseInt(hours);
                               const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
                               const period = hour >= 12 ? 'مساءً' : 'صباحاً';
-                              return `${hour12}:${minutes}:${seconds} ${period}`;
+                              return `${hour12}:${minutes} ${period}`;
                             })()}
                             {record.checkIn.late && (
                               <span className="text-red-600 ml-2 text-xs">
@@ -567,11 +801,11 @@ export default function AttendanceRecordPage() {
                           <span className="text-gray-600">🏁 انصراف:</span>
                           <span className="font-semibold text-gray-800">
                             {(() => {
-                              const [hours, minutes, seconds] = record.checkOut.time.split(':');
+                              const [hours, minutes] = record.checkOut.time.split(':');
                               const hour = parseInt(hours);
                               const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
                               const period = hour >= 12 ? 'مساءً' : 'صباحاً';
-                              return `${hour12}:${minutes}:${seconds} ${period}`;
+                              return `${hour12}:${minutes} ${period}`;
                             })()}
                           </span>
                         </div>
