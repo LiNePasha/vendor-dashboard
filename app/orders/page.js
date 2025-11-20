@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { invoiceStorage } from "@/app/lib/localforage";
+import usePOSStore from "@/app/stores/pos-store";
 
 const STATUS_OPTIONS = [
   { value: "on-hold", label: "معلق", color: "bg-yellow-500" },
@@ -15,8 +16,13 @@ const STATUS_OPTIONS = [
 
 export default function OrdersPage() {
   const router = useRouter();
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // 🔥 استخدام Global State
+  const orders = usePOSStore((state) => state.orders);
+  const ordersLoading = usePOSStore((state) => state.ordersLoading);
+  const fetchOrders = usePOSStore((state) => state.fetchOrders);
+  const updateOrderStatus = usePOSStore((state) => state.updateOrderStatus);
+  
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [registeringInvoice, setRegisteringInvoice] = useState(false);
@@ -27,37 +33,16 @@ export default function OrdersPage() {
 
   // Fetch orders on mount
   useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  const fetchOrders = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/orders", {
-        credentials: "include",
-      });
-      
-      if (!res.ok) throw new Error("فشل تحميل الطلبات");
-      
-      const data = await res.json();
-      
-      // دعم الـ format القديم والجديد
-      if (data.orders && Array.isArray(data.orders)) {
-        // Format جديد: { orders: [], total: 0 }
-        setOrders(data.orders);
-      } else if (Array.isArray(data)) {
-        // Format قديم: []
-        setOrders(data);
-      } else {
-        setOrders([]);
-      }
-    } catch (err) {
-      showToast("فشل جلب الطلبات", "error");
-      setOrders([]);
-    } finally {
-      setLoading(false);
+    // جلب كل الطلبات أول مرة بس
+    if (orders.length === 0) {
+      fetchOrders();
     }
-  };
+  }, []);
+  
+  // 🔥 تحديث تلقائي لما orders يتغير في Global State
+  useEffect(() => {
+    console.log('📦 Orders updated in Global State:', orders.length);
+  }, [orders]);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -78,11 +63,8 @@ export default function OrdersPage() {
 
       const updatedOrder = await res.json();
 
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === orderId ? { ...o, status: updatedOrder.status } : o
-        )
-      );
+      // 🔥 تحديث Global State
+      updateOrderStatus(orderId, updatedOrder.status);
 
       if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: updatedOrder.status });
@@ -110,9 +92,9 @@ export default function OrdersPage() {
       
       if (alreadyRegistered) {
         showToast("هذا الطلب مسجل بالفعل في الفواتير!", "error");
-        setTimeout(() => {
-          router.push('/pos/invoices');
-        }, 1500);
+        // setTimeout(() => {
+        //   router.push('/pos/invoices');
+        // }, 1500);
         return;
       }
 
@@ -198,7 +180,7 @@ export default function OrdersPage() {
       {/* Toast */}
       {toast && (
         <div
-          className={`fixed top-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg text-white z-50 shadow-lg ${
+          className={`fixed top-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg text-white z-[100000000000] shadow-lg ${
             toast.type === "error" ? "bg-red-500" : "bg-green-500"
           }`}
         >
@@ -210,7 +192,7 @@ export default function OrdersPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-800">📦 الطلبات</h1>
         <p className="text-gray-500 mt-1">
-          {loading ? 'جاري التحميل...' : `${orders.length} طلب`}
+          {ordersLoading ? 'جاري التحميل...' : `${orders.length} طلب`}
         </p>
       </div>
 
@@ -241,7 +223,7 @@ export default function OrdersPage() {
 
       {/* Orders Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {loading ? (
+        {ordersLoading ? (
           // Loading Skeletons
           Array.from({ length: 6 }).map((_, idx) => (
             <div
@@ -344,6 +326,21 @@ export default function OrdersPage() {
             };
 
             const layout = getImageLayout();
+            
+            // حساب الوقت مع تصحيح التوقيت
+            const getTimeAgo = (dateString) => {
+              const date = new Date(dateString);
+              date.setHours(date.getHours() + 2); // توقيت مصر UTC+2
+              const now = new Date();
+              const seconds = Math.floor((now - date) / 1000);
+              
+              if (seconds < 60) return 'الآن';
+              if (seconds < 3600) return `منذ ${Math.floor(seconds / 60)} دقيقة`;
+              if (seconds < 86400) return `منذ ${Math.floor(seconds / 3600)} ساعة`;
+              if (seconds < 604800) return `منذ ${Math.floor(seconds / 86400)} يوم`;
+              
+              return date.toLocaleDateString('ar-EG');
+            };
 
             return (
               <div
@@ -366,13 +363,18 @@ export default function OrdersPage() {
                         </span>
                       )}
                     </div>
-                    <span
-                      className={`px-3 py-1.5 rounded-full text-white text-xs font-bold shadow-md ${
-                        statusObj?.color || "bg-gray-500"
-                      }`}
-                    >
-                      {statusObj?.label || order.status}
-                    </span>
+                    <div className="text-right">
+                      <span
+                        className={`px-3 py-1.5 rounded-full text-white text-xs font-bold shadow-md ${
+                          statusObj?.color || "bg-gray-500"
+                        }`}
+                      >
+                        {statusObj?.label || order.status}
+                      </span>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {getTimeAgo(order.date_created)}
+                      </p>
+                    </div>
                   </div>
 
                 {/* Products Images Grid - Facebook Style */}
@@ -613,7 +615,11 @@ export default function OrdersPage() {
                 <div>
                   <h2 className="text-2xl font-bold">الطلب #{selectedOrder.id}</h2>
                   <p className="text-blue-100 text-sm mt-1">
-                    {new Date(selectedOrder.date_created).toLocaleString('ar-EG')}
+                    {(() => {
+                      const orderDate = new Date(selectedOrder.date_created);
+                      orderDate.setHours(orderDate.getHours() + 2); // توقيت مصر UTC+2
+                      return orderDate.toLocaleString('ar-EG');
+                    })()}
                   </p>
                 </div>
                 <button

@@ -18,6 +18,10 @@ const usePOSStore = create(persist((set, get) => ({
   processing: false,
   pendingUpdates: [], // For tracking pending stock updates
   vendorInfo: null, // Store vendor info (logo, name, phone, email, address)
+  orders: [], // 🔥 كل الطلبات
+  processingOrders: [], // 🔥 الطلبات قيد التجهيز فقط
+  ordersLoading: false,
+  lastOrdersFetch: null,
 
   // Cart Actions
   addToCart: async (product) => {
@@ -352,11 +356,22 @@ const usePOSStore = create(persist((set, get) => ({
         },
         profitDetails: itemsWithProfit,
         paymentMethod: paymentDetails.paymentMethod,
+        // 🆕 إضافة معلومات البائع
+        soldBy: paymentDetails.soldBy || null,
         synced: false
       };
 
       // Save invoice first
       await invoiceStorage.saveInvoice(invoice);
+      
+      // 🆕 تسجيل في Audit Log
+      try {
+        const { logSaleRecorded } = await import('@/app/lib/audit-logger');
+        await logSaleRecorded(invoice);
+      } catch (error) {
+        console.error('Failed to log sale in audit:', error);
+        // لا نوقف العملية لو فشل التسجيل
+      }
       
       // Clear cart and services immediately
       await clearCart();
@@ -414,14 +429,17 @@ const usePOSStore = create(persist((set, get) => ({
     await serviceTemplatesStorage.clearAll();
     await productsCacheStorage.clearCache(); // Clear products cache on logout
     set({
-      products: [],
+      orders: [],
       cart: [],
       services: [],
       categories: [],
       loading: false,
       processing: false,
       pendingUpdates: [],
-      vendorInfo: null
+      vendorInfo: null,
+      processingOrders: [],
+      ordersLoading: false,
+      lastOrdersFetch: null
     });
   },
 
@@ -455,6 +473,63 @@ const usePOSStore = create(persist((set, get) => ({
     }
     
     return null;
+  },
+
+  // 🔥 Fetch Orders (Global State)
+  fetchOrders: async (filters = {}) => {
+    try {
+      set({ ordersLoading: true });
+      
+      const params = new URLSearchParams();
+      if (filters.status) params.append('status', filters.status);
+      if (filters.per_page) params.append('per_page', filters.per_page);
+      
+      const res = await fetch(`/api/orders?${params}`, {
+        credentials: 'include',
+      });
+      
+      if (!res.ok) throw new Error('Failed to fetch orders');
+      
+      const data = await res.json();
+      const fetchedOrders = data.orders || data || [];
+      
+      // 🔥 تحديث حسب الفلتر
+      if (filters.status === 'processing') {
+        // تحديث الطلبات قيد التجهيز فقط
+        set({ 
+          processingOrders: fetchedOrders,
+          lastOrdersFetch: Date.now()
+        });
+      } else {
+        // تحديث كل الطلبات
+        set({ 
+          orders: fetchedOrders,
+          processingOrders: fetchedOrders.filter(o => o.status === 'processing'),
+          lastOrdersFetch: Date.now()
+        });
+      }
+      
+      return { success: true, orders: fetchedOrders };
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      return { error: error.message };
+    } finally {
+      set({ ordersLoading: false });
+    }
+  },
+
+  // Update order status in global state
+  updateOrderStatus: (orderId, newStatus) => {
+    set(state => {
+      const updatedOrders = state.orders.map(order =>
+        order.id === orderId ? { ...order, status: newStatus } : order
+      );
+      
+      return {
+        orders: updatedOrders,
+        processingOrders: updatedOrders.filter(o => o.status === 'processing')
+      };
+    });
   }
 }), {
   name: 'pos-store',

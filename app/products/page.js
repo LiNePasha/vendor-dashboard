@@ -12,7 +12,7 @@ let __products_fetch_in_flight = false;
 function Toast({ message, type, onClose }) {
   return (
     <div
-      className={`fixed px-5 py-3 rounded-xl shadow-2xl text-white z-50 transition-all animate-slideUp backdrop-blur-sm font-semibold flex items-center gap-3 ${
+      className={`fixed px-5 py-3 rounded-xl shadow-2xl text-white z-[100000000000] transition-all animate-slideUp backdrop-blur-sm font-semibold flex items-center gap-3 ${
         type === "success"
           ? "bg-gradient-to-r from-green-500 to-green-600 bottom-5 left-1/2 -translate-x-1/2"
           : "bg-gradient-to-r from-red-500 to-red-600 top-12 left-1/2 -translate-x-1/2"

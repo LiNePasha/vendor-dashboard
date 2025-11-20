@@ -3,7 +3,7 @@
 export function Toast({ message, type, onClose }) {
   return (
     <div
-      className={`fixed px-4 py-2 rounded shadow text-white z-50 transition-all 
+      className={`fixed px-4 py-2 rounded shadow text-white z-[100000000000] transition-all 
         ${
           type === "success"
             ? "bg-green-500 bottom-5 left-1/2 -translate-x-1/2"

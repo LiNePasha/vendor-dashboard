@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import usePOSStore from "@/app/stores/pos-store";
 
 const SOUND_SRC = "/sounds/notify.mp3"; // ضع ملف الصوت هنا: public/sounds/notify.mp3
 
@@ -9,6 +10,10 @@ export default function NotificationBell({ onToggleSidebar, onOpenSidebar, sound
   const audioContextRef = useRef(null);
   const audioElRef = useRef(null);
   const lastCountRef = useRef(0);
+  
+  // 🔥 استخدام Global State
+  const fetchOrders = usePOSStore((state) => state.fetchOrders);
+  const processingOrders = usePOSStore((state) => state.processingOrders);
 
   // Initialize Audio Context and Audio Element
   useEffect(() => {
@@ -96,32 +101,30 @@ export default function NotificationBell({ onToggleSidebar, onOpenSidebar, sound
   // Fetch processing orders
   const fetchProcessingOrders = async () => {
     try {
-      const res = await fetch('/api/orders?status=processing', {
-        credentials: 'include',
-      });
-      
-      if (!res.ok) throw new Error('Failed to fetch orders');
-      
-      const data = await res.json();
-      const processingOrders = data.orders || data || [];
-      
-      setNotificationCount(processingOrders.length);
-
-      // Play STRONG sound and auto-open sidebar if count increased (not on first load)
-      if (processingOrders.length > lastCountRef.current && lastCountRef.current > 0) {
-        if (soundEnabled) {
-          playNotificationSound();
-        }
-        if (typeof onOpenSidebar === 'function') {
-          onOpenSidebar();
-        }
-      }
-      
-      lastCountRef.current = processingOrders.length;
+      // 🔥 جلب كل الطلبات عشان نحدث Global State كامل
+      await fetchOrders(); // بدون فلتر = كل الطلبات
     } catch (error) {
       console.error('Error fetching orders:', error);
     }
   };
+  
+  // 🔥 تحديث العداد لما processingOrders يتغير
+  useEffect(() => {
+    const count = processingOrders.length;
+    setNotificationCount(count);
+    
+    // Play sound if count increased
+    if (count > lastCountRef.current && lastCountRef.current > 0) {
+      if (soundEnabled) {
+        playNotificationSound();
+      }
+      if (typeof onOpenSidebar === 'function') {
+        onOpenSidebar();
+      }
+    }
+    
+    lastCountRef.current = count;
+  }, [processingOrders]);
 
   // Poll for new orders every 60 seconds
   useEffect(() => {

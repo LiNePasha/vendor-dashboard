@@ -6,6 +6,7 @@ import { Cart } from '@/components/pos/Cart';
 import { Toast } from '@/components/Toast';
 import usePOSStore from '@/app/stores/pos-store';
 import InvoiceModal from './InvoiceModal';
+import EmployeeSelector from '@/components/EmployeeSelector';
 
 export default function POSPage() {
   const [search, setSearch] = useState('');
@@ -19,6 +20,8 @@ export default function POSPage() {
   const [showInvoice, setShowInvoice] = useState(false);
   const [lastInvoice, setLastInvoice] = useState(null);
   const [initialized, setInitialized] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [employees, setEmployees] = useState([]);
 
   const {
     products = [],
@@ -47,10 +50,24 @@ export default function POSPage() {
           setToast({ message: result.error, type: 'error' });
         }
       });
+      // تحميل الموظفين النشطين
+      loadEmployees();
       setInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const loadEmployees = async () => {
+    try {
+      const { employeesStorage } = await import('@/app/lib/employees-storage');
+      const allEmployees = await employeesStorage.getAllEmployees();
+      const activeEmployees = allEmployees.filter(emp => emp.isActive !== false);
+      setEmployees(activeEmployees);
+      console.log('Loaded employees:', activeEmployees.length);
+    } catch (error) {
+      console.error('Error loading employees:', error);
+    }
+  };
 
   useEffect(() => {
     if (!initialized) return; // Don't fetch on initial mount
@@ -86,10 +103,31 @@ export default function POSPage() {
     if ((!cart || cart.length === 0) && (!services || services.length === 0)) {
       return setToast({ message: 'السلة فارغة - أضف منتجات أو خدمات', type: 'error' });
     }
+    
+    // 🆕 التحقق من اختيار الموظف البائع
+    if (!selectedEmployee) {
+      return setToast({ 
+        message: '⚠️ يرجى اختيار الموظف البائع أولاً', 
+        type: 'error' 
+      });
+    }
+    
     if (discountType === 'percentage' && discount > 100) return setToast({ message: 'نسبة الخصم لا يمكن أن تتجاوز 100%', type: 'error' });
     if (discount < 0 || extraFee < 0) return setToast({ message: 'قيمة غير صالحة', type: 'error' });
 
-    const result = await processCheckout({ discount, discountType, extraFee, paymentMethod });
+    const result = await processCheckout({ 
+      discount, 
+      discountType, 
+      extraFee, 
+      paymentMethod,
+      // 🆕 إرسال بيانات البائع
+      soldBy: {
+        employeeId: selectedEmployee.id,
+        employeeName: selectedEmployee.name,
+        employeeCode: selectedEmployee.employeeCode
+      }
+    });
+    
     if (result.success && result.invoice) {
       setLastInvoice(result.invoice);
       setShowInvoice(true);
@@ -166,7 +204,17 @@ export default function POSPage() {
           )}
         </div>
 
-        <div className="w-1/3 min-w-[400px] bg-white border-l sticky top-0 self-start">
+        <div className="w-1/3 min-w-[400px] bg-white border-l sticky top-0 self-start overflow-y-auto" style={{ maxHeight: '100vh' }}>
+          {/* 🆕 اختيار الموظف البائع */}
+          <div className="p-4 border-b bg-gray-50">
+            <EmployeeSelector
+              employees={employees}
+              selectedEmployee={selectedEmployee}
+              onChange={setSelectedEmployee}
+              required={true}
+            />
+          </div>
+          
           <Cart
             items={cart}
             services={services}

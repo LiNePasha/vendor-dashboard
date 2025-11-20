@@ -56,6 +56,18 @@ const menuItems = [
     href: "/pos/invoices",
     badge: null,
   },
+  {
+    title: "الموظفين",
+    icon: "👥",
+    href: "/employees",
+    badge: null,
+  },
+  {
+    title: "سجل التدقيق",
+    icon: "📝",
+    href: "/employees/audit",
+    badge: null,
+  },
 ];
 
 const quickActions = [
@@ -79,12 +91,12 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
 
   return (
     <aside
-      className={`fixed right-0 top-0 h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white transition-all duration-300 z-40 shadow-2xl print:hidden ${
+      className={`fixed right-0 top-0 h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white transition-all duration-300 z-40 shadow-2xl print:hidden flex flex-col ${
         isCollapsed ? "w-20" : "w-72"
       }`}
     >
-      {/* Header */}
-      <div className="p-6 border-b border-gray-700/50">
+      {/* Header - Fixed */}
+      <div className="p-6 border-b border-gray-700/50 flex-shrink-0">
         <div className="flex items-center justify-between">
           {!isCollapsed && (
             <div className="flex items-center gap-3">
@@ -129,8 +141,8 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="p-4 space-y-2">
+      {/* Navigation - Scrollable */}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-gray-500">
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
           return (

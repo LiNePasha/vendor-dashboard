@@ -368,7 +368,10 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
 
 // Helper function for time ago
 function getTimeAgo(dateString) {
+  // تحويل التاريخ من UTC لتوقيت مصر (UTC+2)
   const date = new Date(dateString);
+  date.setHours(date.getHours() + 2); // إضافة ساعتين لتوقيت مصر
+  
   const now = new Date();
   const seconds = Math.floor((now - date) / 1000);
   

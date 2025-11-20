@@ -8,6 +8,10 @@ export default function DashboardPage() {
   const router = useRouter();
   const { vendorInfo, getVendorInfo } = usePOSStore();
   
+  // 🔥 استخدام Global State للـ Orders
+  const orders = usePOSStore((state) => state.orders);
+  const fetchOrders = usePOSStore((state) => state.fetchOrders);
+  
   const [stats, setStats] = useState({
     totalOrders: 0,
     processingOrders: 0,
@@ -29,17 +33,20 @@ export default function DashboardPage() {
     }
     fetchDashboardStats();
   }, [vendorInfo, getVendorInfo]);
+  
+  // 🔥 تحديث Stats لما الـ Orders تتغير في Global State
+  useEffect(() => {
+    if (orders.length > 0) {
+      updateStatsFromOrders(orders);
+    }
+  }, [orders]);
 
   const fetchDashboardStats = async () => {
     try {
       setLoading(true);
       
-      // Fetch orders
-      const ordersRes = await fetch('/api/orders?per_page=100', {
-        credentials: 'include',
-      });
-      const ordersData = await ordersRes.json();
-      const orders = ordersData.orders || ordersData || [];
+      // 🔥 استخدام Global State بدل fetch مباشر
+      await fetchOrders({ per_page: 100 });
       
       // Fetch products
       const productsRes = await fetch('/api/products?per_page=1', {
@@ -73,28 +80,36 @@ export default function DashboardPage() {
         sum + (inv.summary?.extraFee || 0), 0
       );
       
-      // Calculate stats
-      const processingOrders = orders.filter(o => o.status === 'processing');
-      const totalRevenue = orders.reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
-      const recentOrders = orders.slice(0, 5);
-      
-      setStats({
-        totalOrders: orders.length,
-        processingOrders: processingOrders.length,
-        totalRevenue: totalRevenue,
-        productsCount: productsData.total || 0,
-        recentOrders: recentOrders,
+      setStats(prev => ({
+        ...prev,
+        productsCount: productsData.pagination?.total || 0,
         totalInvoices: invoices.length,
-        totalProfit: totalProfit,
-        productsProfit: productsProfit,
-        servicesRevenue: servicesRevenue,
-        extraFeesRevenue: extraFeesRevenue,
-      });
-    } catch (error) {
-      console.error('Failed to fetch dashboard stats:', error);
+        totalProfit,
+        productsProfit,
+        servicesRevenue,
+        extraFeesRevenue
+      }));
+      
+    } catch (err) {
+      console.error('Error fetching dashboard stats:', err);
     } finally {
       setLoading(false);
     }
+  };
+  
+  // 🔥 دالة منفصلة لتحديث الـ stats من الـ orders
+  const updateStatsFromOrders = (ordersData) => {
+    const processingOrders = ordersData.filter(o => o.status === 'processing');
+    const totalRevenue = ordersData.reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
+    const recentOrders = ordersData.slice(0, 5);
+    
+    setStats(prev => ({
+      ...prev,
+      totalOrders: ordersData.length,
+      processingOrders: processingOrders.length,
+      totalRevenue,
+      recentOrders
+    }));
   };
 
   const quickActions = [
@@ -332,6 +347,21 @@ export default function DashboardPage() {
                 'cancelled': 'ملغى',
               };
               
+              // حساب الوقت مع تصحيح التوقيت
+              const getTimeAgo = (dateString) => {
+                const date = new Date(dateString);
+                date.setHours(date.getHours() + 2); // توقيت مصر UTC+2
+                const now = new Date();
+                const seconds = Math.floor((now - date) / 1000);
+                
+                if (seconds < 60) return 'الآن';
+                if (seconds < 3600) return `منذ ${Math.floor(seconds / 60)} دقيقة`;
+                if (seconds < 86400) return `منذ ${Math.floor(seconds / 3600)} ساعة`;
+                if (seconds < 604800) return `منذ ${Math.floor(seconds / 86400)} يوم`;
+                
+                return date.toLocaleDateString('ar-EG');
+              };
+              
               return (
                 <div
                   key={order.id}
@@ -347,6 +377,9 @@ export default function DashboardPage() {
                     </p>
                     <p className="text-sm text-gray-500">
                       {order.line_items?.length || 0} منتج • {order.total} جنيه
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {getTimeAgo(order.date_created)}
                     </p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[order.status] || 'bg-gray-100 text-gray-700'}`}>
