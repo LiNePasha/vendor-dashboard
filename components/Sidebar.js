@@ -148,7 +148,7 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
               <div 
                 onClick={handleLogoClick}
                 className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform"
-                title="اضغط 3 مرات للوضع السري 🤫"
+                title="لوجو"
               >
                 {storeLogo ? (
                   <Image src={storeLogo} alt="Logo" width={40} height={40} className="w-10 h-10 rounded-xl object-cover" />
@@ -185,7 +185,7 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
             <div 
               onClick={handleLogoClick}
               className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform mx-auto"
-              title="اضغط 3 مرات للوضع السري 🤫"
+              title="لوجو"
             >
               {storeLogo ? (
                 <Image src={storeLogo} alt="Logo" width={40} height={40} className="w-10 h-10 rounded-xl object-cover" />
