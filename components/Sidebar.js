@@ -39,6 +39,12 @@ const menuItems = [
     badge: null,
   },
   {
+    title: "الدائنين",
+    icon: "💰",
+    href: "/creditors",
+    badge: null,
+  },
+  {
     title: "الخدمات",
     icon: "⚙️",
     href: "/services",

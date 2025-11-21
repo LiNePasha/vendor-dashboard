@@ -6,7 +6,7 @@ export default function EmployeeSelector({ employees, selectedEmployee, onChange
   const hasEmployees = employees && employees.length > 0;
   
   return (
-    <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl shadow-sm">
+    <div className="p-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl shadow-sm">
       <label className="text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
         <span className="text-2xl">👤</span>
         <span>البائع</span>
@@ -34,7 +34,7 @@ export default function EmployeeSelector({ employees, selectedEmployee, onChange
               const emp = employees.find(employee => employee.id === e.target.value);
               onChange(emp || null);
             }}
-            className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-base font-medium bg-white"
+            className="w-full px-4 py-1 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-base font-medium bg-white"
             required={required}
           >
             <option value="">-- اختر الموظف البائع --</option>
@@ -49,8 +49,8 @@ export default function EmployeeSelector({ employees, selectedEmployee, onChange
             <div className="mt-2 text-sm text-gray-600 flex items-center gap-2">
               <span className="font-medium">✅ تم اختيار:</span>
               <span className="font-bold text-blue-700">{selectedEmployee.name}</span>
-              <span className="text-gray-500">•</span>
-              <span className="text-gray-500">الراتب: {selectedEmployee.basicSalary?.toLocaleString('ar-EG')} ج.م</span>
+              {/* <span className="text-gray-500">•</span> */}
+              {/* <span className="text-gray-500">الراتب: {selectedEmployee.basicSalary?.toLocaleString('ar-EG')} ج.م</span> */}
             </div>
           )}
           

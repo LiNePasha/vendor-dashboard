@@ -5,6 +5,8 @@ import EditProductModal from "@/components/EditProductModal";
 import QuickAddProductModal from "@/components/QuickAddProductModal";
 import Link from "next/link";
 import { productsCacheStorage } from "@/app/lib/localforage";
+import { getVendorLogo } from "@/app/lib/vendor-constants";
+import usePOSStore from "@/app/stores/pos-store";
 
 // Simple in-module dedupe to prevent duplicate network calls (e.g., React StrictMode double-mount in dev)
 let __products_fetch_in_flight = false;
@@ -89,6 +91,10 @@ export default function ProductsPage() {
   const [imageModal, setImageModal] = useState(null);
   const [initialized, setInitialized] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+
+  // Get vendor info for logo fallback
+  const vendorInfo = usePOSStore((s) => s.vendorInfo);
+  const vendorLogo = getVendorLogo(vendorInfo?.id);
 
   // Debounce للبحث
   const [debouncedSearch, setDebouncedSearch] = useState(search);
@@ -421,7 +427,7 @@ export default function ProductsPage() {
                 {/* Image Container */}
                 <div className="relative w-full h-44 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 cursor-pointer">
                   <img
-                    src={product.images[0]?.src || "/placeholder.webp"}
+                    src={product.images[0]?.src || vendorLogo || "/placeholder.webp"}
                     alt={product.name}
                     className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-110"
                     loading="lazy"

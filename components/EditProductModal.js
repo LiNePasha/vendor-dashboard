@@ -103,7 +103,7 @@ export default function EditProductModal({
 
         {/* إدارة المخزون */}
         <div className="mb-4 space-y-2">
-          <label className="flex items-center gap-2">
+          {/* <label className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={manageStock}
@@ -111,7 +111,7 @@ export default function EditProductModal({
               className="rounded"
             />
             <span>تفعيل إدارة المخزون</span>
-          </label>
+          </label> */}
 
           {manageStock && (
             <div>

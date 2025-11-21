@@ -12,6 +12,8 @@ export default function WarehousePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -33,45 +35,53 @@ export default function WarehousePage() {
   const [transferring, setTransferring] = useState(false);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadData(currentPage);
+  }, [currentPage]);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (pageNum = 1) => {
     try {
-      // 🚀 Stale-While-Revalidate: جلب الـ cache أولاً
-      const cache = await productsCacheStorage.getCache();
-      if (cache && cache.products && cache.products.length > 0) {
-        // عرض المنتجات من الـ cache فوراً
-        const cachedProducts = cache.products;
-        const whData = await warehouseStorage.getAllProductsData();
-        const suppliersData = await suppliersStorage.getAllSuppliers();
-        
-        const whMap = {};
-        whData.forEach(item => {
-          whMap[item.wooProductId] = item;
-        });
-        
-        setProducts(cachedProducts);
-        setWarehouseData(whMap);
-        setSuppliers(suppliersData);
-        setLoading(false); // ✅ أوقف اللودر - الـ cache ظاهر
+      // 🚀 Stale-While-Revalidate: جلب الـ cache أولاً (للصفحة الأولى فقط)
+      if (pageNum === 1) {
+        const cache = await productsCacheStorage.getCache();
+        if (cache && cache.products && cache.products.length > 0) {
+          // عرض المنتجات من الـ cache فوراً
+          const cachedProducts = cache.products;
+          const whData = await warehouseStorage.getAllProductsData();
+          const suppliersData = await suppliersStorage.getAllSuppliers();
+          
+          const whMap = {};
+          whData.forEach(item => {
+            whMap[item.wooProductId] = item;
+          });
+          
+          setProducts(cachedProducts);
+          setWarehouseData(whMap);
+          setSuppliers(suppliersData);
+          if (cache.pagination?.totalPages) {
+            setTotalPages(cache.pagination.totalPages);
+          }
+          setLoading(false); // ✅ أوقف اللودر - الـ cache ظاهر
 
-        // التحديث في الخلفية (بدون لودر)
-        const isStale = await productsCacheStorage.isCacheStale(3 * 60 * 1000); // 3 دقائق
-        if (!isStale) {
-          return; // الـ cache حديث، مفيش داعي للتحديث
+          // التحديث في الخلفية (بدون لودر)
+          const isStale = await productsCacheStorage.isCacheStale(3 * 60 * 1000); // 3 دقائق
+          if (!isStale) {
+            return; // الـ cache حديث، مفيش داعي للتحديث
+          }
         }
+      } else {
+        setLoading(true); // عرض لودر للصفحات الأخرى
       }
 
-      // جلب من API (في الخلفية أو أول مرة)
-      const response = await fetch('/api/products?per_page=100');
+      // جلب من API (في الخلفية أو أول مرة أو صفحات أخرى)
+      const response = await fetch(`/api/products?per_page=100&page=${pageNum}`);
       if (response.ok) {
         const data = await response.json();
         const apiProducts = data.products || [];
         
-        // تحديث الـ cache
-        await productsCacheStorage.saveCache(apiProducts, data.categories, data.pagination);
+        // تحديث الـ cache (للصفحة الأولى فقط)
+        if (pageNum === 1) {
+          await productsCacheStorage.saveCache(apiProducts, data.categories, data.pagination);
+        }
         
         // جلب البيانات المحلية
         const whData = await warehouseStorage.getAllProductsData();
@@ -86,6 +96,9 @@ export default function WarehousePage() {
         setProducts(apiProducts);
         setWarehouseData(whMap);
         setSuppliers(suppliersData);
+        if (data.pagination?.totalPages) {
+          setTotalPages(data.pagination.totalPages);
+        }
       }
     } catch (error) {
       console.error('Error:', error);
@@ -564,7 +577,8 @@ export default function WarehousePage() {
               {/* Warning */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
-                  <strong>⚠️ ملاحظة مهمة:</strong> عند البيع من POS، سيتم الخصم من مخزون API فقط. المخزون المحلي للتسجيل فقط.
+                  <strong>⚠️ ملاحظة مهمة:</strong>
+                  المخزون المحلي ملهوش دعوة بالي بيتعرض في الكاشير دا المخزن فقط.
                 </p>
               </div>
             </div>
@@ -680,6 +694,29 @@ export default function WarehousePage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-8 mb-4">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+            className="px-6 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-all font-semibold text-gray-700 dark:text-gray-200 shadow-sm"
+          >
+            ← السابق
+          </button>
+          <div className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg font-bold shadow-md">
+            {currentPage} / {totalPages}
+          </div>
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+            className="px-6 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700 transition-all font-semibold text-gray-700 dark:text-gray-200 shadow-sm"
+          >
+            التالي →
+          </button>
         </div>
       )}
     </div>

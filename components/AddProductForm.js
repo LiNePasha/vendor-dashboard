@@ -180,7 +180,7 @@ useEffect(() => {
 
               {/* إدارة المخزون */}
               <div className="space-y-2">
-                <label className="flex items-center gap-2">
+                {/* <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={manageStock}
@@ -188,7 +188,7 @@ useEffect(() => {
                     className="rounded"
                   />
                   <span>تفعيل إدارة المخزون</span>
-                </label>
+                </label> */}
 
                 {manageStock && (
                   <div>

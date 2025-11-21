@@ -120,8 +120,8 @@ export default function DashboardPage() {
       action: () => router.push('/products'),
     },
     {
-      title: 'فواتير جديدة',
-      icon: '🧾',
+      title: 'الكاشير',
+      icon: '🛒',
       color: 'from-green-500 to-green-600',
       action: () => router.push('/pos'),
     },

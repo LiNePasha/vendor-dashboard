@@ -184,13 +184,13 @@ export default function AuditLogPage() {
           </div>
           
           <div className="flex gap-2">
-            <button
+            {/* <button
               onClick={testAuditLog}
               className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
             >
               <span>🧪</span>
               <span>اختبار</span>
-            </button>
+            </button> */}
             <button
               onClick={() => setShowFilters(!showFilters)}
               className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold transition-colors flex items-center gap-2"
