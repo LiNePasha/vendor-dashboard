@@ -1,10 +1,10 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
 import usePOSStore from "./stores/pos-store";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { invoiceStorage } from "./lib/localforage";
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { vendorInfo, getVendorInfo } = usePOSStore();
@@ -417,5 +417,20 @@ export default function DashboardPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">جاري التحميل...</p>
+        </div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
