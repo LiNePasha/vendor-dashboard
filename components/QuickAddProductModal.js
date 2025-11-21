@@ -5,6 +5,45 @@ import { useState } from "react";
 export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setToast }) {
   const [quickAddForm, setQuickAddForm] = useState({ name: '', price: '', stock: 0 });
   const [quickAddLoading, setQuickAddLoading] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [imageBase64, setImageBase64] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // التحقق من نوع الملف
+      if (!file.type.startsWith('image/')) {
+        setToast({ message: '⚠️ يرجى اختيار صورة فقط', type: 'error' });
+        setTimeout(() => setToast(null), 2500);
+        return;
+      }
+
+      // التحقق من حجم الملف (أقل من 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setToast({ message: '⚠️ حجم الصورة يجب أن يكون أقل من 5 ميجابايت', type: 'error' });
+        setTimeout(() => setToast(null), 2500);
+        return;
+      }
+
+      setImageFile(file);
+      
+      // إنشاء معاينة للصورة + تحويلها لـ base64
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+        setImageBase64(reader.result); // حفظ الـ base64
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setImageBase64(null);
+  };
 
   const handleQuickAdd = async (e) => {
     e.preventDefault();
@@ -15,7 +54,9 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
     }
 
     setQuickAddLoading(true);
+    
     try {
+      // إنشاء المنتج مباشرة (الصورة هتترفع من السيرفر)
       const response = await fetch('/api/warehouse/create-product', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -26,7 +67,8 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
           stock: parseInt(quickAddForm.stock) || 0,
           category: '',
           sku: '',
-          imageBase64: null
+          imageBase64: imageBase64, // إرسال الصورة كـ base64
+          imageUrl: null
         })
       });
 
@@ -46,6 +88,9 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
       
       // Reset and close
       setQuickAddForm({ name: '', price: '', stock: 0 });
+      setImageFile(null);
+      setImagePreview(null);
+      setImageBase64(null);
       onClose();
     } catch (error) {
       console.error('Error adding product:', error);
@@ -75,6 +120,70 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
         </div>
 
         <form onSubmit={handleQuickAdd} className="p-5 space-y-4">
+          {/* Image Upload Section */}
+          <div>
+            <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+              📸 صورة المنتج (اختياري)
+            </label>
+            
+            {!imagePreview ? (
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                  id="product-image-upload"
+                  disabled={quickAddLoading}
+                />
+                <label
+                  htmlFor="product-image-upload"
+                  className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 transition-all group"
+                >
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <svg
+                      className="w-10 h-10 mb-3 text-gray-400 group-hover:text-gray-500 transition-colors"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                    <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+                      <span className="font-semibold">اضغط لرفع صورة</span>
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      PNG, JPG, WEBP (أقل من 5MB)
+                    </p>
+                  </div>
+                </label>
+              </div>
+            ) : (
+              <div className="relative group">
+                <img
+                  src={imagePreview}
+                  alt="معاينة"
+                  className="w-full h-40 object-contain rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700"
+                />
+                <button
+                  type="button"
+                  onClick={removeImage}
+                  disabled={quickAddLoading}
+                  className="absolute top-2 left-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-2 shadow-lg transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
               اسم المنتج *
@@ -87,6 +196,7 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
               placeholder="مثال: مساعد هيدروليك أمامي"
               required
               autoFocus
+              disabled={quickAddLoading}
             />
           </div>
 
@@ -104,6 +214,7 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
                 className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder="450"
                 required
+                disabled={quickAddLoading}
               />
             </div>
 
@@ -118,6 +229,7 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
                 onChange={(e) => setQuickAddForm({ ...quickAddForm, stock: e.target.value })}
                 className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder="0"
+                disabled={quickAddLoading}
               />
             </div>
           </div>
@@ -128,7 +240,7 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
 
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
             <p className="text-xs text-blue-800 dark:text-blue-300">
-              💡 <strong>ملاحظة:</strong> سيتم إنشاء المنتج بالاسم والسعر والمخزون. يمكنك تعديل باقي التفاصيل (الصورة، الفئة) لاحقاً من صفحة المنتجات أو المخزن.
+              💡 <strong>ملاحظة:</strong> {imagePreview ? 'سيتم رفع الصورة على Cloudinary تلقائياً.' : 'يمكنك إضافة صورة لاحقاً من صفحة المنتجات أو المخزن.'}
             </p>
           </div>
 
