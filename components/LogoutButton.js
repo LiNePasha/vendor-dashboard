@@ -1,6 +1,7 @@
 "use client";
 
 import usePOSStore from '@/app/stores/pos-store';
+import localforage from 'localforage';
 
 export default function LogoutButton() {
   const clearAll = usePOSStore((state) => state.clearAll);
@@ -16,21 +17,24 @@ export default function LogoutButton() {
       // Clear all localStorage (including Zustand persist)
       localStorage.clear();
       
-      // Clear all IndexedDB stores (localforage - cart, invoices, wholesale prices)
-      if (window.indexedDB) {
-        try {
-          const databases = await window.indexedDB.databases();
-          databases.forEach(db => {
-            if (db.name) {
-              window.indexedDB.deleteDatabase(db.name);
-            }
-          });
-        } catch (e) {
-          // Silently handle error
-        }
+      // ✅ امسح بس البيانات المؤقتة (العربة + cache المنتجات فقط)
+      // ❌ لا تمسح: suppliers, creditors, warehouse-products, savedServices, wholesale-prices
+      // ❌ لا تمسح: employees, attendance, payroll, advances, leaves, deductions, invoices
+      try {
+        await localforage.removeItem('current-cart');      // العربة المؤقتة
+        await localforage.removeItem('products-cache');    // cache المنتجات (هيترفرش)
+        
+        // ✅ Keep all persistent data:
+        // - suppliers, creditors, warehouse-products (warehouse-storage.js)
+        // - savedServices (services/page.js)
+        // - wholesale-prices (أسعار الجملة - localforage.js)
+        // - employees, attendance, payroll, advances, leaves, deductions (employees-storage.js)
+        // - invoices (localforage.js)
+      } catch (e) {
+        console.error('Error clearing temporary data:', e);
       }
     } catch (error) {
-      // Silently handle error
+      console.error('Logout error:', error);
     } finally {
       // Always redirect to login
       window.location.href = "/login";

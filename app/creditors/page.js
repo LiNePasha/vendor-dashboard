@@ -268,7 +268,7 @@ export default function CreditorsPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <span className={`font-bold ${txn.type === 'debt' ? 'text-red-600' : 'text-green-600'}`}>
-                              {txn.type === 'debt' ? '+' : '-'}{txn.amount.toFixed(2)} ج.م
+                              {txn.type === 'debt' ? '+' : '-'}{parseFloat(txn.amount).toFixed(2)} ج.م
                             </span>
                             <span className="text-gray-400">{new Date(txn.date).toLocaleDateString('ar-EG')}</span>
                           </div>
