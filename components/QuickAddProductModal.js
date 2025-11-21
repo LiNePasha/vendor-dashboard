@@ -238,11 +238,11 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
             💡 المخزون = الكمية المتاحة للبيع من الكاشير
           </p>
 
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+          {/* <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
             <p className="text-xs text-blue-800 dark:text-blue-300">
               💡 <strong>ملاحظة:</strong> {imagePreview ? 'سيتم رفع الصورة على Cloudinary تلقائياً.' : 'يمكنك إضافة صورة لاحقاً من صفحة المنتجات أو المخزن.'}
             </p>
-          </div>
+          </div> */}
 
           <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
