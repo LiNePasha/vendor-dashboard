@@ -428,7 +428,7 @@ export default function WarehousePage() {
                     <button 
                       onClick={() => openTransferModal(product, data)}
                       className="px-3 bg-purple-600 text-white text-sm py-2.5 rounded-lg hover:bg-purple-700 font-semibold shadow-md transition-colors"
-                      title="نقل مخزون للـ API"
+                      title="نقل مخزون للـكاشير "
                     >
                       ↗️
                     </button>
@@ -607,7 +607,7 @@ export default function WarehousePage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl w-full max-w-md shadow-2xl">
             <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-5 rounded-t-xl">
-              <h2 className="text-xl font-bold">↗️ نقل مخزون للـ API</h2>
+              <h2 className="text-xl font-bold">↗️ نقل مخزون للـكاشير </h2>
               <p className="text-sm text-purple-100 mt-1">{transferForm.product.name}</p>
             </div>
 
@@ -670,7 +670,7 @@ export default function WarehousePage() {
                 </p>
                 <ul className="text-sm text-orange-700 mt-2 mr-4 space-y-1">
                   <li>• تخصم من المخزون المحلي</li>
-                  <li>• تضيف للمخزون في WooCommerce API</li>
+                  <li>• تضيف للمخزون في الكاشير</li>
                   <li>• لا يمكن التراجع عنها</li>
                 </ul>
               </div>

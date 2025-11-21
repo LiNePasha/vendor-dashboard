@@ -169,7 +169,7 @@ export default function EmployeesPage() {
             إجمالي: {employees.length} • نشط: {activeCount} • غير نشط: {inactiveCount}
           </p>
           <div className="flex items-center gap-3">
-            {employees.length === 0 && (
+            {/* {employees.length === 0 && (
               <button
                 onClick={() => router.push('/employees/demo/advanced')}
                 className="text-green-600 hover:text-green-700 text-sm font-semibold flex items-center gap-1"
@@ -177,7 +177,7 @@ export default function EmployeesPage() {
                 <span>🎲</span>
                 <span>بيانات تجريبية متقدمة</span>
               </button>
-            )}
+            )} */}
             {employees.length > 0 && (
               <button
                 onClick={() => setShowClearAllConfirm(true)}
@@ -247,12 +247,12 @@ export default function EmployeesPage() {
           </button>
           
           {/* Quick Actions */}
-          <button
+          {/* <button
             onClick={() => router.push('/employees/demo')}
             className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-2.5 rounded-lg font-semibold transition-colors whitespace-nowrap"
           >
             🎭 بيانات تجريبية
-          </button>
+          </button> */}
           <button
             onClick={() => router.push('/employees/attendance/record')}
             className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2.5 rounded-lg font-semibold transition-colors whitespace-nowrap"
@@ -400,12 +400,12 @@ export default function EmployeesPage() {
                   >
                     📋 التفاصيل
                   </button>
-                  <button
+                  {/* <button
                     onClick={() => router.push(`/employees/${employee.id}/edit`)}
                     className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
                   >
                     ✏️
-                  </button>
+                  </button> */}
                   {employee.status === 'active' && (
                     <button
                       onClick={() => {

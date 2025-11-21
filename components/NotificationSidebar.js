@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import OrderDetailsModal from "./OrderDetailsModal";
 
 export default function NotificationSidebar({ isOpen, onClose, soundEnabled = true, onSoundToggle }) {
   const router = useRouter();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [readNotifications, setReadNotifications] = useState(new Set());
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [toast, setToast] = useState(null);
   const sidebarRef = useRef(null);
 
   // Load read notifications from localStorage
@@ -17,6 +20,11 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
       setReadNotifications(new Set(JSON.parse(saved)));
     }
   }, []);
+  
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
   
   // Toggle sound
   const toggleSound = () => {
@@ -87,10 +95,23 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
   };
 
   // Navigate to order details
-  const handleOrderClick = (orderId) => {
-    markAsRead(orderId);
-    router.push(`/orders#${orderId}`);
-    onClose();
+  const handleOrderClick = (order) => {
+    markAsRead(order.id);
+    setSelectedOrder(order);
+  };
+  
+  // Handle status change from modal
+  const handleStatusChange = (orderId, newStatus) => {
+    setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    
+    if (selectedOrder && selectedOrder.id === orderId) {
+      setSelectedOrder({ ...selectedOrder, status: newStatus });
+    }
+    
+    // Refresh orders if status changed from processing
+    if (newStatus !== 'processing') {
+      fetchProcessingOrders();
+    }
   };
 
   // Get product images with fallback
@@ -324,7 +345,7 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleOrderClick(order.id);
+                          handleOrderClick(order);
                         }}
                         className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-xs py-2 px-3 rounded-lg font-medium transition-all"
                       >
@@ -362,6 +383,26 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
           </button>
         </div>
       </div>
+
+      {/* Order Details Modal */}
+      <OrderDetailsModal
+        order={selectedOrder}
+        isOpen={!!selectedOrder}
+        onClose={() => setSelectedOrder(null)}
+        onStatusChange={handleStatusChange}
+        showToast={showToast}
+      />
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className={`fixed top-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg text-white z-[70] shadow-lg ${
+            toast.type === "error" ? "bg-red-500" : "bg-green-500"
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
     </>
   );
 }

@@ -1,11 +1,12 @@
 "use client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import usePOSStore from "./stores/pos-store";
 import { useEffect, useState } from "react";
 import { invoiceStorage } from "./lib/localforage";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { vendorInfo, getVendorInfo } = usePOSStore();
   
   // 🔥 استخدام Global State للـ Orders
@@ -26,13 +27,20 @@ export default function DashboardPage() {
     extraFeesRevenue: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [showBlockedAlert, setShowBlockedAlert] = useState(false);
 
   useEffect(() => {
     if (!vendorInfo) {
       getVendorInfo();
     }
     fetchDashboardStats();
-  }, [vendorInfo, getVendorInfo]);
+    
+    // فحص لو في محاولة دخول لصفحة ممنوعة
+    if (searchParams.get('blocked') === 'true') {
+      setShowBlockedAlert(true);
+      setTimeout(() => setShowBlockedAlert(false), 5000);
+    }
+  }, [vendorInfo, getVendorInfo, searchParams]);
   
   // 🔥 تحديث Stats لما الـ Orders تتغير في Global State
   useEffect(() => {
@@ -126,10 +134,10 @@ export default function DashboardPage() {
       action: () => router.push('/pos'),
     },
     {
-      title: 'عرض الطلبات',
+      title: ' المخزن',
       icon: '📦',
       color: 'from-purple-500 to-purple-600',
-      action: () => router.push('/orders'),
+      action: () => router.push('/warehouse'),
     },
     {
       title: 'إدارة الفواتير',
@@ -141,6 +149,23 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Blocked Page Alert */}
+      {showBlockedAlert && (
+        <div className="bg-red-500 text-white px-6 py-4 rounded-xl shadow-lg flex items-center gap-3 animate-bounce">
+          <span className="text-2xl">⛔</span>
+          <div className="flex-1">
+            <p className="font-bold">غير مصرح بالدخول!</p>
+            <p className="text-sm text-red-100">أنت في وضع الكاشير - هذه الصفحة غير متاحة</p>
+          </div>
+          <button 
+            onClick={() => setShowBlockedAlert(false)}
+            className="text-white hover:text-red-200"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      
       {/* Welcome Header */}
       <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-xl">
         <div className="flex items-center justify-between">
@@ -206,12 +231,12 @@ export default function DashboardPage() {
             )}
           </div>
           <h3 className="text-gray-600 font-medium">قيد التجهيز</h3>
-          <button
+          {/* <button
             onClick={() => router.push('/orders')}
             className="text-yellow-600 text-sm mt-2 hover:underline"
           >
             معالجة الآن →
-          </button>
+          </button> */}
         </div>
 
         {/* Total Revenue */}

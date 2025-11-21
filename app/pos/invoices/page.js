@@ -119,22 +119,65 @@ export default function InvoicesPage() {
   const exportToExcel = async () => {
     setExporting(true);
     try {
-      // Create CSV content
-      let csv = 'رقم الفاتورة,التاريخ,الحالة,طريقة الدفع,المجموع,الخصم,الرسوم,الإجمالي,عدد المنتجات\n';
+      // Create detailed CSV with all invoice information
+      let csv = '';
+      
+      // Header row - كل التفاصيل
+      csv += 'رقم الفاتورة,التاريخ,الحالة,المصدر,رقم الطلب,طريقة الدفع,';
+      csv += 'مجموع المنتجات,مجموع الخدمات,المجموع الفرعي,نوع الخصم,قيمة الخصم,مبلغ الخصم,الرسوم الإضافية,الإجمالي النهائي,';
+      csv += 'ربح المنتجات,خصم على الأرباح,صافي ربح المنتجات,صافي الربح الكلي,';
+      csv += 'عدد المنتجات,عدد الخدمات,تفاصيل المنتجات,تفاصيل الخدمات,اسم الموظف,رقم الموظف\n';
       
       filteredInvoices.forEach(invoice => {
         const date = new Date(invoice.date).toLocaleString('ar-EG');
         const status = invoice.synced ? 'تمت المزامنة' : 'في انتظار المزامنة';
+        const source = invoice.source === 'order' ? 'أونلاين من الستور' : 'POS محلي';
+        const orderId = invoice.orderId || '-';
+        
         const paymentMethod = invoice.paymentMethod === 'cash' ? 'كاش' :
                              invoice.paymentMethod === 'wallet' ? 'محفظة' :
                              invoice.paymentMethod === 'instapay' ? 'انستا باي' : 'أخرى';
-        const subtotal = invoice.summary?.subtotal?.toFixed(2) || 0;
-        const discount = invoice.summary?.discount?.amount?.toFixed(2) || 0;
-        const extraFee = invoice.summary?.extraFee?.toFixed(2) || 0;
-        const total = invoice.summary?.total?.toFixed(2) || 0;
-        const itemsCount = invoice.items?.length || 0;
         
-        csv += `${invoice.id},"${date}",${status},${paymentMethod},${subtotal},${discount},${extraFee},${total},${itemsCount}\n`;
+        // Financial details
+        const productsSubtotal = invoice.summary?.productsSubtotal || 0;
+        const servicesTotal = invoice.summary?.servicesTotal || 0;
+        const subtotal = invoice.summary?.subtotal || 0;
+        const discountType = invoice.summary?.discount?.type === 'percentage' ? 'نسبة مئوية' : 
+                            invoice.summary?.discount?.type === 'fixed' ? 'مبلغ ثابت' : '-';
+        const discountValue = invoice.summary?.discount?.value || 0;
+        const discountAmount = invoice.summary?.discount?.amount || 0;
+        const extraFee = invoice.summary?.extraFee || 0;
+        const total = invoice.summary?.total || 0;
+        
+        // Profit details
+        const productsProfit = invoice.summary?.productsProfit || 0;
+        const discountOnProducts = invoice.summary?.discountOnProducts || 0;
+        const finalProductsProfit = invoice.summary?.finalProductsProfit || productsProfit;
+        const totalProfit = invoice.summary?.totalProfit || (finalProductsProfit + servicesTotal + extraFee);
+        
+        // Counts
+        const itemsCount = invoice.items?.length || 0;
+        const servicesCount = invoice.services?.length || 0;
+        
+        // Product details (formatted as: "الاسم × الكمية × السعر = الإجمالي | ...")
+        const productDetails = invoice.items?.map(item => 
+          `${item.name} × ${item.quantity} × ${formatPrice(item.price)} ج.م = ${formatPrice(Number(item.price) * item.quantity)} ج.م`
+        ).join(' | ') || '-';
+        
+        // Service details (formatted as: "الوصف = المبلغ | ...")
+        const serviceDetails = invoice.services?.map(service => 
+          `${service.description} = ${formatPrice(service.amount)} ج.م`
+        ).join(' | ') || '-';
+        
+        // Employee info
+        const employeeName = invoice.employeeName || '-';
+        const employeeId = invoice.employeeId || '-';
+        
+        // Build CSV row
+        csv += `${invoice.id},"${date}",${status},${source},${orderId},${paymentMethod},`;
+        csv += `${productsSubtotal},${servicesTotal},${subtotal},${discountType},${discountValue},${discountAmount},${extraFee},${total},`;
+        csv += `${productsProfit},${discountOnProducts},${finalProductsProfit},${totalProfit},`;
+        csv += `${itemsCount},${servicesCount},"${productDetails}","${serviceDetails}",${employeeName},${employeeId}\n`;
       });
 
       // Create and download file
@@ -142,13 +185,13 @@ export default function InvoicesPage() {
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `invoices_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `invoices_detailed_${new Date().toISOString().split('T')[0]}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
-      setToast({ message: 'تم تصدير الفواتير بنجاح', type: 'success' });
+      setToast({ message: `تم تصدير ${filteredInvoices.length} فاتورة بكل التفاصيل بنجاح`, type: 'success' });
     } catch (error) {
       setToast({ message: 'فشل تصدير الفواتير', type: 'error' });
     } finally {

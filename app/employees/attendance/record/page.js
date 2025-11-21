@@ -34,6 +34,9 @@ export default function AttendanceRecordPage() {
   // 🆕 Manual time selection
   const [selectedDate, setSelectedDate] = useState(formatEgyptTime(new Date(), 'yyyy-MM-dd'));
   const [selectedTime, setSelectedTime] = useState(formatEgyptTime(new Date(), 'HH:mm'));
+  
+  // Get today's date in Egypt timezone (for max date restriction)
+  const todayDate = formatEgyptTime(new Date(), 'yyyy-MM-dd');
 
   // Update current time every second
   useEffect(() => {
@@ -607,9 +610,14 @@ export default function AttendanceRecordPage() {
                     <input
                       type="date"
                       value={selectedDate}
+                      min={todayDate}
+                      max={todayDate}
                       onChange={(e) => setSelectedDate(e.target.value)}
                       className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      🔒 النهاردة بس - مينفعش امبارح أو بكرة
+                    </p>
                   </div>
                   
                   {/* Time */}

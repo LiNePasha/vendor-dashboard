@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { getVendorStoreLink,getVendorLogo } from "@/app/lib/vendor-constants";
 import usePOSStore from "@/app/stores/pos-store";
 import Image from "next/image";
+import { filterMenuItemsForRole, isCashierMode, toggleCashierMode } from "@/app/lib/roles-permissions";
 
 const menuItems = [
   {
@@ -39,7 +40,7 @@ const menuItems = [
     badge: null,
   },
   {
-    title: "الدائنين",
+    title: "مدينون",
     icon: "💰",
     href: "/creditors",
     badge: null,
@@ -94,6 +95,44 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
   const vendorInfo = usePOSStore((s) => s.vendorInfo);
   const storeUrl = getVendorStoreLink(vendorInfo?.id);
   const storeLogo = getVendorLogo(vendorInfo?.id);
+  
+  // Secret Mode State
+  const [logoClickCount, setLogoClickCount] = useState(0);
+  const [showSecretMode, setShowSecretMode] = useState(false);
+  const [cashierMode, setCashierMode] = useState(false);
+  
+  // تحميل حالة الكاشير من localStorage
+  useEffect(() => {
+    setCashierMode(isCashierMode());
+  }, []);
+  
+  // عداد الضغطات على اللوجو (3 مرات)
+  const handleLogoClick = () => {
+    const newCount = logoClickCount + 1;
+    setLogoClickCount(newCount);
+    
+    if (newCount === 3) {
+      setShowSecretMode(true);
+      setLogoClickCount(0); // إعادة تعيين العداد
+    }
+    
+    // إعادة تعيين العداد بعد ثانيتين
+    setTimeout(() => setLogoClickCount(0), 2000);
+  };
+  
+  // تبديل وضع الكاشير
+  const handleToggleCashierMode = (e) => {
+    const enabled = e.target.checked;
+    const success = toggleCashierMode(enabled);
+    
+    if (!success) {
+      // لو فشل، نرجع الـ checkbox لوضعه الأصلي
+      e.target.checked = !enabled;
+    }
+  };
+  
+  // فلترة القائمة حسب الدور
+  const filteredMenuItems = filterMenuItemsForRole(menuItems);
 
   return (
     <aside
@@ -105,8 +144,12 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
       <div className="p-6 border-b border-gray-700/50 flex-shrink-0">
         <div className="flex items-center justify-between">
           {!isCollapsed && (
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+            <div className="flex items-center gap-3 flex-1">
+              <div 
+                onClick={handleLogoClick}
+                className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform"
+                title="اضغط 3 مرات للوضع السري 🤫"
+              >
                 {storeLogo ? (
                   <Image src={storeLogo} alt="Logo" width={40} height={40} className="w-10 h-10 rounded-xl object-cover" />
                 ) : (
@@ -138,18 +181,65 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
               </div>
             </div>
           )}
-          <button
-            onClick={() => onToggleCollapse?.(!isCollapsed)}
-            className="w-8 h-8 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg flex items-center justify-center transition-all"
-          >
-            <span className="text-sm">{isCollapsed ? "←" : "→"}</span>
-          </button>
+          {isCollapsed && (
+            <div 
+              onClick={handleLogoClick}
+              className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform mx-auto"
+              title="اضغط 3 مرات للوضع السري 🤫"
+            >
+              {storeLogo ? (
+                <Image src={storeLogo} alt="Logo" width={40} height={40} className="w-10 h-10 rounded-xl object-cover" />
+              ) : (
+                <span className="text-xl">{storeUrl ? '🏪' : '⚡'}</span>
+              )}
+            </div>
+          )}
+          {!isCollapsed && (
+            <button
+              onClick={() => onToggleCollapse?.(!isCollapsed)}
+              className="w-8 h-8 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg flex items-center justify-center transition-all"
+            >
+              <span className="text-sm">→</span>
+            </button>
+          )}
+          {isCollapsed && (
+            <button
+              onClick={() => onToggleCollapse?.(!isCollapsed)}
+              className="w-8 h-8 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg flex items-center justify-center transition-all absolute left-2 top-6"
+            >
+              <span className="text-sm">←</span>
+            </button>
+          )}
         </div>
+        
+        {/* Secret Mode - Cashier Toggle */}
+        {showSecretMode && !isCollapsed && (
+          <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg animate-pulse">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="cashierMode"
+                checked={cashierMode}
+                onChange={handleToggleCashierMode}
+                className="w-4 h-4 accent-yellow-500 cursor-pointer"
+              />
+              <label htmlFor="cashierMode" className="text-xs text-yellow-400 cursor-pointer select-none">
+                {cashierMode ? '🔓 وضع الكاشير مفعّل' : '🔒 تفعيل وضع الكاشير'}
+              </label>
+              <button
+                onClick={() => setShowSecretMode(false)}
+                className="mr-auto text-gray-400 hover:text-white text-xs"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Navigation - Scrollable */}
       <nav className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-2 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-gray-500">
-        {menuItems.map((item) => {
+        {filteredMenuItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link

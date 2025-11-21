@@ -219,7 +219,7 @@ export default function AddProductPage() {
               className="w-full px-4 py-2 border rounded-lg"
               placeholder="0"
             />
-            <p className="text-xs text-gray-500 mt-1">💡 الكمية التي ستكون متاحة للبيع من POS</p>
+            <p className="text-xs text-gray-500 mt-1">💡 الكمية التي ستكون متاحة للبيع من الكاشير</p>
           </div>
 
           {/* الكمية في المخزن المحلي */}
