@@ -233,7 +233,7 @@ export default function EmployeeSalesPage() {
       </div>
 
       {/* الإحصائيات السريعة */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-transform">
           <div className="text-sm opacity-90 mb-1">إجمالي المبيعات</div>
           <div className="text-3xl font-bold">
@@ -276,7 +276,7 @@ export default function EmployeeSalesPage() {
       </div>
 
       {/* مبيعات حسب طريقة الدفع */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white p-6 rounded-lg shadow border">
           <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <span>💵</span>

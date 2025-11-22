@@ -192,7 +192,7 @@ export default function EmployeesPage() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
           <div className="text-3xl font-bold mb-1">{employees.length}</div>
           <div className="text-sm opacity-90">إجمالي الموظفين</div>

@@ -154,7 +154,7 @@ export default function SuppliersPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-sm">
           <div className="text-sm text-blue-600 font-medium">إجمالي الموردين</div>
           <div className="text-3xl font-bold text-blue-900 mt-1">{stats.total}</div>

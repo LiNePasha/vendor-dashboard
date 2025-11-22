@@ -296,7 +296,7 @@ export default function WarehousePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-blue-200 dark:border-blue-700 shadow-sm">
           <div className="text-blue-600 dark:text-blue-400 text-sm font-medium">إجمالي المنتجات</div>
           <div className="text-3xl font-bold text-blue-900 dark:text-blue-300 mt-1">{stats.total}</div>
@@ -355,7 +355,7 @@ export default function WarehousePage() {
           <p className="text-gray-600 dark:text-gray-400">جرب تغيير البحث أو الفلتر</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {filteredProducts.map((product) => {
             const data = warehouseData[product.id] || {};
             const apiStock = product.stock_quantity || 0;

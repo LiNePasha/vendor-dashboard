@@ -24,6 +24,7 @@ export default function POSPage() {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showMobileCart, setShowMobileCart] = useState(false); // 🆕 Mobile cart visibility
 
   const {
     products = [],
@@ -174,19 +175,24 @@ export default function POSPage() {
 
   return (
     <>
-      <div className="flex bg-gray-100">
-        <div className="flex-1 p-6 overflow-y-auto">
-          <div className="mb-4 space-y-4">
-            <div className="flex gap-4">
-              <input
-                type="text"
-                placeholder="ابحث عن منتج..."
-                className="flex-1 px-4 py-2 rounded-lg border"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+      <div className="flex flex-col md:flex-row bg-gray-100 min-h-screen">
+        {/* Products Section */}
+        <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+          {/* Search & Filters */}
+          <div className="mb-4 space-y-3">
+            {/* Search - Full width on mobile */}
+            <input
+              type="text"
+              placeholder="ابحث عن منتج..."
+              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            
+            {/* Filters Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <select
-                className="px-4 py-2 rounded-lg border"
+                className="px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 disabled={loading}
@@ -199,19 +205,19 @@ export default function POSPage() {
               <button
                 onClick={() => fetchProducts({ page: 1, search: '', category: 'all' })}
                 disabled={loading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                className="px-3 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors text-sm font-medium"
                 title="تحديث المنتجات من السيرفر"
               >
                 <span className={loading ? 'animate-spin' : ''}>🔄</span>
-                <span className="hidden sm:inline">تحديث</span>
+                <span>تحديث</span>
               </button>
               <button
                 onClick={() => setShowQuickAdd(true)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors"
+                className="col-span-2 md:col-span-1 px-3 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 transition-colors text-sm font-medium"
                 title="إضافة منتج سريع"
               >
                 <span>⚡</span>
-                <span className="hidden sm:inline">+ منتج</span>
+                <span>إضافة منتج</span>
               </button>
             </div>
           </div>
@@ -219,9 +225,9 @@ export default function POSPage() {
           <ProductGrid products={products} loading={loading} onAddToCart={handleAddToCart} />
 
           {!loading && Array.isArray(products) && products.length > 0 && (
-            <div className="mt-6 text-center">
+            <div className="mt-6 text-center pb-20 md:pb-6">
               {hasMore ? (
-                <button onClick={loadMore} className="px-6 py-2 bg-blue-600 text-white rounded-lg">تحميل المزيد</button>
+                <button onClick={loadMore} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">تحميل المزيد</button>
               ) : (
                 <p className="text-gray-500">لا يوجد المزيد من المنتجات</p>
               )}
@@ -229,7 +235,8 @@ export default function POSPage() {
           )}
         </div>
 
-        <div className="w-1/3 min-w-[400px] bg-white border-l sticky top-0 self-start overflow-y-auto" style={{ maxHeight: '100vh' }}>
+        {/* Cart Section - Desktop Sidebar */}
+        <div className="hidden md:block w-1/3 min-w-[400px] bg-white border-l sticky top-0 self-start overflow-y-auto" style={{ maxHeight: '100vh' }}>
           {/* 🆕 اختيار الموظف البائع */}
           <div className="p-4 border-b bg-gray-50">
             <EmployeeSelector
@@ -267,6 +274,88 @@ export default function POSPage() {
             onExtraFeeChange={(v) => setExtraFee(Number(v))}
             onPaymentMethodChange={(v) => setPaymentMethod(v)}
           />
+        </div>
+
+        {/* Mobile Cart - Bottom Sheet */}
+        <div className="md:hidden">
+          {/* Floating Cart Button */}
+          <button
+            onClick={() => setShowMobileCart(true)}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-4 rounded-full shadow-2xl hover:shadow-3xl transition-all z-40 flex items-center gap-3 font-bold text-lg"
+          >
+            <span className="text-2xl">🛒</span>
+            <span>السلة ({(cart?.length || 0) + (services?.length || 0)})</span>
+            {((cart?.length || 0) + (services?.length || 0)) > 0 && (
+              <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
+                {(cart?.length || 0) + (services?.length || 0)}
+              </span>
+            )}
+          </button>
+
+          {/* Mobile Cart Modal */}
+          {showMobileCart && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn">
+              <div className="absolute inset-0" onClick={() => setShowMobileCart(false)} />
+              <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl md:max-h-[90vh] md:overflow-hidden animate-slideUp">
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <span>🛒</span>
+                    <span>السلة</span>
+                  </h2>
+                  <button
+                    onClick={() => setShowMobileCart(false)}
+                    className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
+                  >
+                    <span className="text-2xl">×</span>
+                  </button>
+                </div>
+
+                {/* Employee Selector */}
+                <div className="p-4 border-b bg-gray-50">
+                  <EmployeeSelector
+                    employees={employees}
+                    selectedEmployee={selectedEmployee}
+                    onChange={(employee) => {
+                      setSelectedEmployee(employee);
+                      if (employee) {
+                        localStorage.setItem('selectedPOSEmployee', employee.id);
+                      } else {
+                        localStorage.removeItem('selectedPOSEmployee');
+                      }
+                    }}
+                    required={true}
+                  />
+                </div>
+
+                {/* Cart Content */}
+                <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
+                  <Cart
+                    items={cart}
+                    services={services}
+                    onUpdateQuantity={handleUpdateQuantity}
+                    onRemoveItem={removeFromCart}
+                    onAddService={addService}
+                    onUpdateService={updateService}
+                    onRemoveService={removeService}
+                    onCheckout={() => {
+                      handleCheckout();
+                      setShowMobileCart(false);
+                    }}
+                    processing={processing}
+                    discount={discount}
+                    discountType={discountType}
+                    extraFee={extraFee}
+                    paymentMethod={paymentMethod}
+                    onDiscountChange={(v) => setDiscount(Number(v))}
+                    onDiscountTypeChange={(v) => setDiscountType(v)}
+                    onExtraFeeChange={(v) => setExtraFee(Number(v))}
+                    onPaymentMethodChange={(v) => setPaymentMethod(v)}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

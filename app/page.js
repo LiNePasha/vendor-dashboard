@@ -165,9 +165,28 @@ function DashboardContent() {
           </button>
         </div>
       )}
+
+      {/* Quick Actions - Mobile First */}
+      <div className="bg-white rounded-xl p-6 shadow-md md:order-3">
+        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <span>⚡</span> إجراءات سريعة
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {quickActions.map((action, idx) => (
+            <button
+              key={idx}
+              onClick={action.action}
+              className={`bg-gradient-to-r ${action.color} text-white rounded-xl p-4 hover:scale-105 transition-all shadow-md hover:shadow-lg`}
+            >
+              <div className="text-4xl mb-2">{action.icon}</div>
+              <p className="font-medium text-sm">{action.title}</p>
+            </button>
+          ))}
+        </div>
+      </div>
       
       {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-xl">
+      <div className="bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 rounded-2xl p-8 text-white shadow-xl md:order-1">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold mb-2">مرحباً بك 👋</h1>
@@ -192,7 +211,7 @@ function DashboardContent() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:order-2">
         {/* Total Orders */}
         <div className="bg-white rounded-xl p-6 shadow-md hover:shadow-xl transition-all border-t-4 border-blue-500">
           <div className="flex items-center justify-between mb-4">
@@ -305,27 +324,8 @@ function DashboardContent() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white rounded-xl p-6 shadow-md">
-        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-          <span>⚡</span> إجراءات سريعة
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {quickActions.map((action, idx) => (
-            <button
-              key={idx}
-              onClick={action.action}
-              className={`bg-gradient-to-r ${action.color} text-white rounded-xl p-4 hover:scale-105 transition-all shadow-md hover:shadow-lg`}
-            >
-              <div className="text-4xl mb-2">{action.icon}</div>
-              <p className="font-medium text-sm">{action.title}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Recent Orders */}
-      <div className="bg-white rounded-xl p-6 shadow-md">
+      <div className="bg-white rounded-xl p-6 shadow-md md:order-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
             <span>🕒</span> آخر الطلبات

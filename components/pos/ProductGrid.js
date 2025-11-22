@@ -13,7 +13,7 @@ function ProductSkeleton() {
 export function ProductGrid({ products, loading, onAddToCart }) {
   if (loading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
         {Array.from({ length: 8 }).map((_, i) => (
           <ProductSkeleton key={i} />
         ))}
@@ -21,47 +21,59 @@ export function ProductGrid({ products, loading, onAddToCart }) {
     );
   }
 
+  if (!products || products.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">📦</div>
+        <p className="text-gray-500 text-lg">لا توجد منتجات</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
       {products.map((product) => (
-        <div key={product.id} className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition">
-          <div className="relative h-40 mb-4">
+        <div key={product.id} className="bg-white rounded-lg shadow hover:shadow-xl transition-all duration-300 overflow-hidden group">
+          <div className="relative h-36 md:h-40 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100">
             <img
               src={product.images[0]?.src || '/placeholder.webp'}
               alt={product.name}
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-110"
             />
-            <span className={`absolute top-2 right-2 px-2 py-1 rounded text-sm font-medium
+            <span className={`absolute top-2 right-2 px-2 py-1 rounded-full text-[10px] md:text-xs font-bold shadow-md
               ${product.stock_quantity > 5 
-                ? 'bg-green-100 text-green-800'
+                ? 'bg-green-500 text-white'
                 : product.stock_quantity > 0
-                  ? 'bg-yellow-100 text-yellow-800'
-                  : 'bg-red-100 text-red-800'
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-red-500 text-white'
               }`}
             >
-              المخزون: {product.stock_quantity}
+              {product.stock_quantity > 0 ? `📦 ${product.stock_quantity}` : 'نفذ'}
             </span>
           </div>
           
-          <h3 className="font-medium text-gray-900 mb-1 truncate">
-            {product.name}
-          </h3>
-          
-          <div className="flex items-center justify-between">
-            <span className="text-lg font-bold text-gray-900">
-              {product.regular_price || product.price} ج.م
-            </span>
-            <button
-              onClick={() => onAddToCart(product)}
-              disabled={product.stock_quantity === 0}
-              className={`px-3 py-1 rounded-lg text-sm font-medium
-                ${product.stock_quantity > 0
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          <div className="p-3 md:p-4">
+            <h3 className="font-semibold text-gray-900 mb-2 text-sm md:text-base line-clamp-2 min-h-[2.5rem]" title={product.name}>
+              {product.name}
+            </h3>
+            
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-base md:text-lg font-bold text-gray-900">
+                {product.regular_price || product.price}
+                <span className="text-xs text-gray-500 mr-1">ج.م</span>
+              </span>
+              <button
+                onClick={() => onAddToCart(product)}
+                disabled={product.stock_quantity === 0}
+                className={`px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-semibold transition-all
+                  ${product.stock_quantity > 0
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-md hover:shadow-lg'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }`}
-            >
-              إضافة
-            </button>
+              >
+                {product.stock_quantity > 0 ? '+ إضافة' : 'نفذ'}
+              </button>
+            </div>
           </div>
         </div>
       ))}

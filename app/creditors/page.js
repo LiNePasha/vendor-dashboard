@@ -146,7 +146,7 @@ export default function CreditorsPage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white p-6 rounded-xl border border-blue-200 shadow-md">
           <div className="text-sm text-blue-600 font-medium">إجمالي الدائنين</div>
           <div className="text-4xl font-bold text-blue-900 mt-1">{creditors.length}</div>

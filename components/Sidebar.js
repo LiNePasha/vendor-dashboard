@@ -90,7 +90,7 @@ const quickActions = [
   },
 ];
 
-export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
+export default function Sidebar({ onAction, isCollapsed, onToggleCollapse, isMobileOpen, onMobileClose }) {
   const pathname = usePathname();
   const vendorInfo = usePOSStore((s) => s.vendorInfo);
   const storeUrl = getVendorStoreLink(vendorInfo?.id);
@@ -135,13 +135,32 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
   const filteredMenuItems = filterMenuItemsForRole(menuItems);
 
   return (
-    <aside
-      className={`fixed right-0 top-0 h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white transition-all duration-300 z-40 shadow-2xl print:hidden flex flex-col ${
-        isCollapsed ? "w-20" : "w-72"
-      }`}
-    >
+    <>
+      {/* Mobile Overlay */}
+      {isMobileOpen && (
+        <div 
+          onClick={onMobileClose}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 md:hidden animate-fadeIn"
+        />
+      )}
+      
+      <aside
+        className={`fixed right-0 top-0 h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white transition-all duration-300 z-40 shadow-2xl print:hidden flex flex-col ${
+          isCollapsed ? "w-20" : "w-72"
+        } ${
+          isMobileOpen ? 'translate-x-0' : 'translate-x-full'
+        } md:translate-x-0`}
+      >
       {/* Header - Fixed */}
       <div className="p-6 border-b border-gray-700/50 flex-shrink-0">
+        {/* Mobile Close Button */}
+        <button
+          onClick={onMobileClose}
+          className="md:hidden absolute top-4 left-4 w-8 h-8 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg flex items-center justify-center transition-all text-white z-10"
+        >
+          <span className="text-lg">×</span>
+        </button>
+        
         <div className="flex items-center justify-between">
           {!isCollapsed && (
             <div className="flex items-center gap-3 flex-1">
@@ -245,6 +264,12 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => {
+                // Close mobile sidebar when clicking a link
+                if (isMobileOpen && onMobileClose) {
+                  onMobileClose();
+                }
+              }}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all group ${
                 isActive
                   ? "bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30"
@@ -286,7 +311,57 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
         </div>
       )} */}
 
-      {/* Footer - User Info */}
+      {/* Footer - Logout Button */}
+      <div className="p-4 border-t border-gray-700/50 bg-gray-900/50 backdrop-blur-sm flex-shrink-0">
+        {!isCollapsed ? (
+          <div className="space-y-3">
+            {/* <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center font-bold shadow-lg">
+                V
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm truncate">Vendor</p>
+                <p className="text-xs text-gray-400">مدير المتجر</p>
+              </div>
+            </div> */}
+            <button
+              onClick={async () => {
+                try {
+                  await fetch("/api/logout", { method: "POST" });
+                  localStorage.clear();
+                  window.location.href = "/login";
+                } catch (error) {
+                  console.error('Logout error:', error);
+                  window.location.href = "/login";
+                }
+              }}
+              className="w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg transition-all font-semibold text-sm flex items-center justify-center gap-2"
+            >
+              <span>🚪</span>
+              <span>تسجيل الخروج</span>
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={async () => {
+              try {
+                await fetch("/api/logout", { method: "POST" });
+                localStorage.clear();
+                window.location.href = "/login";
+              } catch (error) {
+                console.error('Logout error:', error);
+                window.location.href = "/login";
+              }
+            }}
+            className="w-10 h-10 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center mx-auto transition-all"
+            title="تسجيل الخروج"
+          >
+            <span>🚪</span>
+          </button>
+        )}
+      </div>
+
+      {/* Old Footer - User Info (Commented) */}
       {/* <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-700/50 bg-gray-900/50 backdrop-blur-sm">
         {!isCollapsed ? (
           <div className="flex items-center gap-3">
@@ -306,6 +381,7 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse }) {
           </div>
         )}
       </div> */}
-    </aside>
+      </aside>
+    </>
   );
 }

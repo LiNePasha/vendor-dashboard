@@ -340,8 +340,9 @@ export default function ProductsPage() {
 
         {/* Search & Filter */}
         <div className="mb-6 bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <div className="flex-1 relative">
+          <div className="flex flex-col gap-3">
+            {/* Search - Full width on mobile */}
+            <div className="w-full relative">
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
               <input
                 type="text"
@@ -351,51 +352,55 @@ export default function ProductsPage() {
                 className="border border-gray-200 rounded-lg px-4 pr-10 py-2.5 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
-            <select
-              className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white font-medium text-sm min-w-[140px]"
-              value={category}
-              onChange={(e) => {
-                setCategory(e.target.value);
-                setPage(1);
-              }}
-              disabled={loading}
-            >
-              <option value="all">{loading ? 'جاري التحميل...' : '🏷️ كل الفئات'}</option>
-              {Array.isArray(categories) && categories.map(c => (
-                <option key={c.id} value={c.id}>{c.name}{c.count ? ` (${c.count})` : ''}</option>
-              ))}
-            </select>
-            <select
-              className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white font-medium text-sm min-w-[140px]"
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-            >
-              <option value="all">📊 كل الحالات</option>
-              <option value="publish">✓ منشور</option>
-              <option value="draft">✎ مسودة</option>
-              <option value="pending">⏳ قيد المراجعة</option>
-            </select>
-            <button
-              onClick={() => {
-                setSearch('');
-                setCategory('all');
-                setFilterStatus('all');
-                setPage(1);
-                fetchProducts(1, perPage, '', 'all', 'all');
-              }}
-              disabled={loading}
-              className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 transition-all font-medium text-sm"
-              title="تحديث المنتجات من السيرفر"
-            >
-              <span className={loading ? 'animate-spin' : ''}>🔄</span>
-              <span>تحديث</span>
-            </button>
+            
+            {/* Filters Row - 2 selects + refresh button */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <select
+                className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white font-medium text-sm"
+                value={category}
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                  setPage(1);
+                }}
+                disabled={loading}
+              >
+                <option value="all">{loading ? 'جاري التحميل...' : '🏷️ كل الفئات'}</option>
+                {Array.isArray(categories) && categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}{c.count ? ` (${c.count})` : ''}</option>
+                ))}
+              </select>
+              <select
+                className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white font-medium text-sm"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+              >
+                <option value="all">📊 كل الحالات</option>
+                <option value="publish">✓ منشور</option>
+                <option value="draft">✎ مسودة</option>
+                <option value="pending">⏳ قيد المراجعة</option>
+              </select>
+              <button
+                onClick={() => {
+                  setSearch('');
+                  setCategory('all');
+                  setFilterStatus('all');
+                  setPage(1);
+                  fetchProducts(1, perPage, '', 'all', 'all');
+                }}
+                disabled={loading}
+                className="col-span-2 md:col-span-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all font-medium text-sm"
+                title="تحديث المنتجات من السيرفر"
+              >
+                <span className={loading ? 'animate-spin' : ''}>🔄</span>
+                <span>تحديث</span>
+              </button>
+            </div>
           </div>
         </div>
 
       {/* Products Grid */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {Array.from({ length: perPage }).map((_, idx) => (
             <SkeletonCard key={idx} />
           ))}
@@ -412,7 +417,7 @@ export default function ProductsPage() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {products.map((product) => {
             const stockQty = product.stock_quantity ?? 0;
             const manageStock = product.manage_stock;

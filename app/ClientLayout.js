@@ -1,7 +1,6 @@
 "use client";
 import { useEffect } from "react";
 import Link from "next/link";
-import LogoutButton from "../components/LogoutButton";
 import NotificationBell from "../components/NotificationBell";
 import { useState } from "react";
 import NotificationSidebar from "@/components/NotificationSidebar";
@@ -32,6 +31,7 @@ export default function ClientLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   // Load sound preference from localStorage
   useEffect(() => {
@@ -74,28 +74,42 @@ export default function ClientLayout({ children }) {
     <>
       {!shouldHideLayout && (
         <>
+          {/* Hamburger Menu Button - Mobile Only */}
+          <button
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="fixed top-4 right-4 z-50 md:hidden bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-3 rounded-xl shadow-lg hover:shadow-xl transition-all"
+            aria-label="فتح القائمة"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+
           {/* Sidebar Navigation */}
           <Sidebar 
             onAction={handleSidebarAction} 
             isCollapsed={isCollapsed}
             onToggleCollapse={setIsCollapsed}
+            isMobileOpen={isMobileSidebarOpen}
+            onMobileClose={() => setIsMobileSidebarOpen(false)}
           />
           
           {/* Top Bar */}
-          <div className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md shadow-sm z-30 print:hidden" style={{ marginRight: isCollapsed ? '80px' : '288px' }}>
-            <div className="px-6 py-4 flex items-center justify-between">
+          <div 
+            className={`fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md shadow-sm z-30 print:hidden md:left-auto transition-all duration-300 ${!shouldHideLayout ? (isCollapsed ? 'md:mr-20' : 'md:mr-72') : ''}`}
+          >
+            <div className="px-4 md:px-6 py-3 md:py-4 flex lg:gap-96 items-center justify-between">
               <div className="flex items-center gap-4">
-                <h2 className="text-lg font-semibold text-gray-800">
+                <h2 className="hidden md:block text-base md:text-lg font-semibold text-gray-800 truncate">
                   {vendorInfo?.name || 'لوحة التحكم'}
                 </h2>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 md:gap-3">
                 <NotificationBell 
                   onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                   onOpenSidebar={() => setIsSidebarOpen(true)}
                   soundEnabled={soundEnabled}
                 />
-                <LogoutButton />
               </div>
             </div>
           </div>
@@ -112,7 +126,13 @@ export default function ClientLayout({ children }) {
           />
         </>
       )}
-      <main className="print:p-0" style={{ marginRight: shouldHideLayout ? '0' : (isCollapsed ? '80px' : '288px'), marginTop: shouldHideLayout ? '0' : '80px', padding: shouldHideLayout ? '0' : '0' }}>
+      <main 
+        className={`print:p-0 transition-all duration-300 ${!shouldHideLayout ? (isCollapsed ? 'md:mr-20' : 'md:mr-72') : ''}`} 
+        style={{ 
+          marginTop: shouldHideLayout ? '0' : '72px',
+          padding: shouldHideLayout ? '0' : '0'
+        }}
+      >
         {children}
       </main>
     </>
