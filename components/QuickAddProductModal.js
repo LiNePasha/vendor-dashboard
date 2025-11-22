@@ -56,7 +56,27 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
     setQuickAddLoading(true);
     
     try {
-      // إنشاء المنتج مباشرة (الصورة هتترفع من السيرفر)
+      let uploadedImageUrl = null;
+
+      // 1. رفع الصورة أولاً لو موجودة
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append('file', imageFile);
+
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error('فشل رفع الصورة');
+        }
+
+        const uploadData = await uploadRes.json();
+        uploadedImageUrl = uploadData.url;
+      }
+
+      // 2. إنشاء المنتج مع رابط الصورة
       const response = await fetch('/api/warehouse/create-product', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,8 +87,7 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
           stock: parseInt(quickAddForm.stock) || 0,
           category: '',
           sku: '',
-          imageBase64: imageBase64, // إرسال الصورة كـ base64
-          imageUrl: null
+          imageUrl: uploadedImageUrl
         })
       });
 

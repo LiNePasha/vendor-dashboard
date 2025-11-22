@@ -44,29 +44,10 @@ export async function POST(req) {
     const vendorId = decoded?.data?.user?.id;
 
     const body = await req.json();
-    const { name, sku, sellingPrice, purchasePrice, stock, category, imageBase64, imageUrl } = body;
+    const { name, sku, sellingPrice, purchasePrice, stock, category, imageUrl } = body;
 
     if (!name || !sellingPrice) {
       return NextResponse.json({ error: 'Name and selling price are required' }, { status: 400 });
-    }
-
-    let finalImageUrl = imageUrl; // استخدام imageUrl المرسل مباشرة (من Cloudinary)
-
-    // 1. رفع الصورة لـ Cloudinary إذا كانت موجودة كـ base64 (للتوافق مع الكود القديم)
-    if (!finalImageUrl && imageBase64) {
-      try {
-        const result = await cloudinary.uploader.upload(imageBase64, {
-          folder: 'products',
-          transformation: [
-            { width: 800, height: 800, crop: 'limit' },
-            { quality: 'auto' }
-          ]
-        });
-        finalImageUrl = result.secure_url;
-      } catch (uploadError) {
-        console.error('Cloudinary upload error:', uploadError);
-        // نكمل بدون صورة بدل ما نفشل الطلب كله
-      }
     }
 
     // 2. إنشاء المنتج في WooCommerce API
@@ -92,8 +73,8 @@ export async function POST(req) {
     }
 
     // إضافة الصورة إذا تم رفعها
-    if (finalImageUrl) {
-      productPayload.images = [{ src: finalImageUrl }];
+    if (imageUrl) {
+      productPayload.images = [{ src: imageUrl }];
     }
 
     // إضافة التصنيف إذا كان موجود
@@ -157,7 +138,7 @@ export async function POST(req) {
     return NextResponse.json({
       success: true,
       product: newProduct,
-      imageUrl: finalImageUrl,
+      imageUrl,
     });
   } catch (error) {
     console.error('Create product error:', error);
