@@ -22,6 +22,12 @@ const menuItems = [
     badge: "new",
   },
   {
+    title: "العملاء",
+    icon: "👥",
+    href: "/customers",
+    badge: null,
+  },
+  {
     title: "المنتجات",
     icon: "🛍️",
     href: "/products",
@@ -64,8 +70,14 @@ const menuItems = [
     badge: null,
   },
   {
+    title: "بيانات Sheets",
+    icon: "📊",
+    href: "/sheet-data",
+    badge: null,
+  },
+  {
     title: "الموظفين",
-    icon: "👥",
+    icon: "👔",
     href: "/employees",
     badge: null,
   },

@@ -3,6 +3,14 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { invoiceStorage, cartStorage, wholesalePriceStorage, serviceTemplatesStorage, productsCacheStorage } from '@/app/lib/localforage';
 import { warehouseStorage } from '@/app/lib/warehouse-storage';
 
+// --- Helper function ---
+const getDaysSinceLastOrder = (dateString) => {
+  const lastOrder = new Date(dateString);
+  const now = new Date();
+  const diff = now - lastOrder;
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+};
+
 // --- Lightweight de-duplication guards (handle StrictMode double effects in dev) ---
 let __pos_lastProductsFetchKey = '';
 let __pos_lastProductsFetchAt = 0;
@@ -530,6 +538,92 @@ const usePOSStore = create(persist((set, get) => ({
         processingOrders: updatedOrders.filter(o => o.status === 'processing')
       };
     });
+  },
+
+  // 🔥 استخراج العملاء من الطلبات
+  getCustomers: () => {
+    const { orders } = get();
+    const customersMap = new Map();
+
+    orders.forEach(order => {
+      const billing = order.billing || {};
+      const customerKey = billing.email || billing.phone || `guest-${order.id}`;
+      
+      if (!customersMap.has(customerKey)) {
+        customersMap.set(customerKey, {
+          id: customerKey,
+          name: `${billing.first_name || ''} ${billing.last_name || ''}`.trim() || 'عميل',
+          email: billing.email || '',
+          phone: billing.phone || '',
+          address: `${billing.address_1 || ''} ${billing.address_2 || ''}`.trim(),
+          city: billing.city || '',
+          state: billing.state || '',
+          country: billing.country || '',
+          orders: [],
+          total_spent: 0,
+          orders_count: 0,
+          first_order_date: order.date_created,
+          last_order_date: order.date_created,
+        });
+      }
+
+      const customer = customersMap.get(customerKey);
+      
+      // 🔥 كل الطلبات تظهر في التاريخ
+      customer.orders.push({
+        id: order.id,
+        date: order.date_created,
+        status: order.status,
+        total: parseFloat(order.total || 0),
+        items_count: order.line_items?.length || 0,
+      });
+
+      // 🔥 بس completed و processing بس اللي يتحسبوا في الإنفاق
+      if (order.status === 'completed' || order.status === 'processing') {
+        customer.total_spent += parseFloat(order.total || 0);
+        customer.orders_count += 1;
+      }
+
+      // تحديث تواريخ أول وآخر طلب
+      if (new Date(order.date_created) < new Date(customer.first_order_date)) {
+        customer.first_order_date = order.date_created;
+      }
+      if (new Date(order.date_created) > new Date(customer.last_order_date)) {
+        customer.last_order_date = order.date_created;
+      }
+    });
+
+    // تحويل Map إلى Array وترتيب حسب الإنفاق
+    const customers = Array.from(customersMap.values())
+      .map(customer => ({
+        ...customer,
+        average_order: customer.orders_count > 0 
+          ? customer.total_spent / customer.orders_count 
+          : 0,
+        status: getDaysSinceLastOrder(customer.last_order_date) <= 30 
+          ? 'active' 
+          : 'inactive',
+        days_since_last_order: getDaysSinceLastOrder(customer.last_order_date),
+      }))
+      .sort((a, b) => b.total_spent - a.total_spent);
+
+    return customers;
+  },
+
+  // 🔥 احصائيات العملاء
+  getCustomersStats: () => {
+    const customers = get().getCustomers();
+    
+    return {
+      total: customers.length,
+      active: customers.filter(c => c.status === 'active').length,
+      inactive: customers.filter(c => c.status === 'inactive').length,
+      total_revenue: customers.reduce((sum, c) => sum + c.total_spent, 0),
+      average_order_value: customers.length > 0
+        ? customers.reduce((sum, c) => sum + c.average_order, 0) / customers.length
+        : 0,
+      top_customers: customers.slice(0, 5),
+    };
   }
 }), {
   name: 'pos-store',

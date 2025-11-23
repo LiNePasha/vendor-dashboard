@@ -96,11 +96,12 @@ export default function ClientLayout({ children }) {
           
           {/* Top Bar */}
           <div 
-            className={`fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md shadow-sm z-30 print:hidden md:left-auto transition-all duration-300 ${!shouldHideLayout ? (isCollapsed ? 'md:mr-20' : 'md:mr-72') : ''}`}
+            className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md shadow-sm z-30 print:hidden transition-all duration-300"
+            style={{ marginRight: !shouldHideLayout ? (isCollapsed ? '80px' : '288px') : '0' }}
           >
-            <div className="px-4 md:px-6 py-3 md:py-4 flex lg:gap-96 items-center justify-between">
-              <div className="flex items-center gap-4">
-                <h2 className="hidden md:block text-base md:text-lg font-semibold text-gray-800 truncate">
+            <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+              <div className="md:flex items-center gap-4 hidden">
+                <h2 className="text-base md:text-lg font-semibold text-gray-800 truncate">
                   {vendorInfo?.name || 'لوحة التحكم'}
                 </h2>
               </div>

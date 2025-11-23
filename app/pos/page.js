@@ -103,8 +103,21 @@ export default function POSPage() {
   };
 
   const handleAddToCart = async (p) => {
-    const res = await addToCart(p);
-    if (res?.error) setToast({ message: res.error, type: 'error' });
+    // Handle custom quantity set
+    if (p._setQuantity !== undefined) {
+      if (p._setQuantity === 0) {
+        // Remove from cart
+        await removeFromCart(p.id);
+      } else {
+        // Update to specific quantity
+        const res = await updateQuantity(p.id, p._setQuantity);
+        if (res?.error) setToast({ message: res.error, type: 'error' });
+      }
+    } else {
+      // Normal add to cart
+      const res = await addToCart(p);
+      if (res?.error) setToast({ message: res.error, type: 'error' });
+    }
   };
 
   const handleQuickAddSuccess = async () => {

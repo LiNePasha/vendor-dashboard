@@ -13,6 +13,7 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "formidable": "^3.5.4",
+    "googleapis": "^166.0.0",
     "localforage": "^1.10.0",
     "multer": "^2.0.2",
     "next": "15.5.4",
