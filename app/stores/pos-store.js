@@ -154,7 +154,7 @@ const usePOSStore = create(persist((set, get) => ({
       
       const params = {
         page: query.page?.toString() || '1',
-        per_page: query.search || query.category !== 'all' ? '12' : '100', // Get all if no filters
+        per_page: '20', // 🔥 عدد ثابت للصفحة الواحدة
         search: query.search || ''
       };
       
