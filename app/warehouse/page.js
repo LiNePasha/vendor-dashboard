@@ -221,7 +221,7 @@ export default function WarehousePage() {
         manage_stock: true
       });
 
-      alert(`✅ تم نقل ${qty} قطعة بنجاح!\n\nمخزون API القديم: ${result.oldStock}\nمخزون API الجديد: ${result.newStock}`);
+      alert(`✅ تم نقل ${qty} قطعة بنجاح!\n\nمخزون الكاشير القديم: ${result.oldStock}\nمخزون الكشاير الجديد: ${result.newStock}`);
       setShowTransferModal(false);
       await loadData(); // إعادة تحميل البيانات
     } catch (error) {
@@ -385,7 +385,7 @@ export default function WarehousePage() {
 
                 <div className="space-y-2 text-sm mb-4">
                   <div className="flex justify-between bg-blue-50 p-2 rounded-lg">
-                    <span className="text-blue-700 font-medium">مخزون API:</span>
+                    <span className="text-blue-700 font-medium">مخزون الكاشير:</span>
                     <span className="font-bold text-blue-900">{apiStock} قطعة</span>
                   </div>
                   
@@ -468,7 +468,7 @@ export default function WarehousePage() {
                   <div className="font-bold text-gray-900 dark:text-white">{selectedProduct.name}</div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">SKU: {selectedProduct.sku || 'N/A'}</div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">سعر البيع: {selectedProduct.regular_price} ج.م</div>
-                  <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">مخزون API: {selectedProduct.stock_quantity || 0} قطعة</div>
+                  <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">مخزون الكاشير: {selectedProduct.stock_quantity || 0} قطعة</div>
                 </div>
               </div>
 
@@ -619,7 +619,7 @@ export default function WarehousePage() {
                   <span className="font-bold text-purple-900 dark:text-purple-300">{transferForm.maxQuantity} قطعة</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">مخزون API الحالي:</span>
+                  <span className="text-gray-600 dark:text-gray-400">مخزون الكاشير الحالي:</span>
                   <span className="font-bold text-blue-900 dark:text-blue-300">{transferForm.product.stock_quantity || 0} قطعة</span>
                 </div>
               </div>
@@ -640,7 +640,7 @@ export default function WarehousePage() {
                   disabled={transferring}
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                  💡 سيتم خصم الكمية من المخزون المحلي وإضافتها لمخزون API
+                  💡 سيتم خصم الكمية من المخزون المحلي وإضافتها لمخزون الكاشير
                 </p>
               </div>
 
@@ -655,7 +655,7 @@ export default function WarehousePage() {
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-700">مخزون API جديد:</span>
+                    <span className="text-gray-700">مخزون الكاشير جديد:</span>
                     <span className="font-bold text-blue-900">
                       {(transferForm.product.stock_quantity || 0) + parseInt(transferForm.quantity)} قطعة
                     </span>
