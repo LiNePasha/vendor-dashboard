@@ -26,6 +26,7 @@ export default function POSPage() {
   const [employees, setEmployees] = useState([]);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showMobileCart, setShowMobileCart] = useState(false); // 🆕 Mobile cart visibility
+  const [barcodeInput, setBarcodeInput] = useState(''); // 🆕 Barcode scanner input
 
   const {
     products = [],
@@ -126,6 +127,64 @@ export default function POSPage() {
     await fetchProducts({ page: 1, search, category });
   };
 
+  // 🆕 دالة البحث بالباركود/SKU
+  const handleBarcodeSearch = async (sku) => {
+    if (!sku || sku.trim() === '') return;
+
+    // 🆕 تحويل الأحرف العربية للإنجليزية (في حالة السكانر بيكتب عربي)
+    const arabicToEnglishMap = {
+      'ض': 'q', 'ص': 'w', 'ث': 'e', 'ق': 'r', 'ف': 't', 'غ': 'y', 'ع': 'u', 'ه': 'i', 'خ': 'o', 'ح': 'p',
+      'ج': '[', 'د': ']', 'ش': 'a', 'س': 's', 'ي': 'd', 'ب': 'f', 'ل': 'g', 'ا': 'h', 'ت': 'j', 'ن': 'k',
+      'م': 'l', 'ك': ';', 'ط': "'", 'ئ': 'z', 'ء': 'x', 'ؤ': 'c', 'ر': 'v', 'لا': 'b', 'ى': 'n', 'ة': 'm',
+      'و': ',', 'ز': '.', 'ظ': '/'
+    };
+    
+    const convertedSku = sku.split('').map(char => arabicToEnglishMap[char] || char).join('');
+
+    // البحث في المنتجات المحملة أولاً
+    const foundProduct = products.find(p => 
+      p.sku && (p.sku.toLowerCase() === sku.toLowerCase() || p.sku.toLowerCase() === convertedSku.toLowerCase())
+    );
+
+    if (foundProduct) {
+      // إضافة المنتج للسلة مباشرة
+      const res = await addToCart(foundProduct);
+      if (res?.error) {
+        setToast({ message: res.error, type: 'error' });
+      } else {
+        setToast({ message: `✅ تمت إضافة "${foundProduct.name}"`, type: 'success' });
+        setTimeout(() => setToast(null), 2000);
+      }
+      setBarcodeInput(''); // مسح الحقل
+    } else {
+      // البحث في السيرفر
+      setToast({ message: '🔍 جاري البحث عن المنتج...', type: 'info' });
+      setTimeout(() => setToast(null), 1500);
+      
+      // محاولة جلب المنتج من السيرفر
+      const result = await fetchProducts({ page: 1, search: convertedSku });
+      
+      setTimeout(() => {
+        const serverProduct = products.find(p => 
+          p.sku && (p.sku.toLowerCase() === sku.toLowerCase() || p.sku.toLowerCase() === convertedSku.toLowerCase())
+        );
+        
+        if (serverProduct) {
+          addToCart(serverProduct);
+          setToast({ message: `✅ تمت إضافة "${serverProduct.name}"`, type: 'success' });
+          setTimeout(() => setToast(null), 2000);
+        } else {
+          // المنتج مش موجود - إعادة تحميل المنتجات الأصلية
+          setToast({ message: '❌ المنتج غير موجود - SKU: ' + convertedSku, type: 'error' });
+          setTimeout(() => setToast(null), 3000);
+          // إعادة تحميل المنتجات الأصلية
+          fetchProducts({ page: 1, search: '', category });
+        }
+        setBarcodeInput('');
+      }, 500);
+    }
+  };
+
   const handleUpdateQuantity = async (id, qty) => {
     const res = await updateQuantity(id, qty);
     if (res?.error) setToast({ message: res.error, type: 'error' });
@@ -201,6 +260,27 @@ export default function POSPage() {
         <div className="flex-1 p-4 md:p-6 overflow-y-auto">
           {/* Search & Filters */}
           <div className="mb-4 space-y-3">
+            {/* 🆕 Barcode Scanner Input */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="🔍 امسح الباركود هنا أو اكتب SKU..."
+                className="w-full px-4 py-3 pr-12 rounded-lg border-2 border-blue-500 bg-blue-50 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-lg font-mono"
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleBarcodeSearch(barcodeInput);
+                  }
+                }}
+                autoFocus
+              />
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl">
+                📦
+              </div>
+            </div>
+
             {/* Search - Full width on mobile */}
             <input
               type="text"

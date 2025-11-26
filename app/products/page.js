@@ -216,6 +216,7 @@ export default function ProductsPage() {
       return {
         ...p,
         name: typeof updatedData.name !== 'undefined' ? updatedData.name : p.name,
+        sku: typeof updatedData.sku !== 'undefined' ? updatedData.sku : p.sku,
         status: typeof updatedData.status !== 'undefined' ? updatedData.status : p.status,
         price: typeof updatedData.price !== 'undefined' ? updatedData.price : p.price,
         regular_price: typeof updatedData.price !== 'undefined' ? updatedData.price : p.regular_price,
@@ -230,6 +231,7 @@ export default function ProductsPage() {
     // Update cache too
     await productsCacheStorage.updateProductInCache(productId, {
       name: updatedData.name,
+      sku: updatedData.sku,
       status: updatedData.status,
       price: updatedData.price,
       regular_price: updatedData.price,

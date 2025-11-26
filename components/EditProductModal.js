@@ -10,6 +10,7 @@ export default function EditProductModal({
   const [name, setName] = useState(product.name);
   const [price, setPrice] = useState(product.regular_price);
   const [salePrice, setSalePrice] = useState(product.sale_price || "");
+  const [sku, setSku] = useState(product.sku || "");
   const [externalUrl, setExternalUrl] = useState(product.external_url || "");
   const [stockQuantity, setStockQuantity] = useState(product.stock_quantity || 0);
   const [manageStock, setManageStock] = useState(product.manage_stock || false);
@@ -37,6 +38,7 @@ export default function EditProductModal({
       regular_price: price,
       price,
       sale_price: salePrice || "",
+      sku: sku || "",
       status: product.status,
       external_url: externalUrl || "",
       manage_stock: manageStock,
@@ -63,6 +65,16 @@ export default function EditProductModal({
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          className="border w-full rounded px-2 py-1 mb-4"
+        />
+
+        {/* SKU */}
+        <label className="block mb-2">رقم SKU:</label>
+        <input
+          type="text"
+          value={sku}
+          onChange={(e) => setSku(e.target.value)}
+          placeholder="مثال: PROD-12345"
           className="border w-full rounded px-2 py-1 mb-4"
         />
 

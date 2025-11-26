@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setToast }) {
-  const [quickAddForm, setQuickAddForm] = useState({ name: '', price: '', stock: 0 });
+  const [quickAddForm, setQuickAddForm] = useState({ name: '', price: '', stock: 0, sku: '' });
   const [quickAddLoading, setQuickAddLoading] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -86,7 +86,7 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
           purchasePrice: 0,
           stock: parseInt(quickAddForm.stock) || 0,
           category: '',
-          sku: '',
+          sku: quickAddForm.sku || '',
           imageUrl: uploadedImageUrl
         })
       });
@@ -106,7 +106,7 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
       }
       
       // Reset and close
-      setQuickAddForm({ name: '', price: '', stock: 0 });
+      setQuickAddForm({ name: '', price: '', stock: 0, sku: '' });
       setImageFile(null);
       setImagePreview(null);
       setImageBase64(null);
@@ -215,6 +215,20 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
               placeholder="مثال: مساعد هيدروليك أمامي"
               required
               autoFocus
+              disabled={quickAddLoading}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold mb-2 text-gray-900 dark:text-white">
+              رقم SKU (اختياري)
+            </label>
+            <input
+              type="text"
+              value={quickAddForm.sku}
+              onChange={(e) => setQuickAddForm({ ...quickAddForm, sku: e.target.value })}
+              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              placeholder="مثال: PROD-12345"
               disabled={quickAddLoading}
             />
           </div>

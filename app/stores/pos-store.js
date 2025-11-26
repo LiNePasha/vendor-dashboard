@@ -36,6 +36,11 @@ const usePOSStore = create(persist((set, get) => ({
     const { cart } = get();
     const existingItem = cart.find(item => item.id === product.id);
     
+    // 🆕 التحقق من المخزون قبل الإضافة
+    if (product.stock_quantity <= 0) {
+      return { error: `⚠️ "${product.name}" - المخزون فارغ!` };
+    }
+    
     if (existingItem) {
       if (existingItem.quantity >= product.stock_quantity) {
         return { error: 'لا يوجد مخزون كافي' };

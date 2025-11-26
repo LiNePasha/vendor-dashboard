@@ -144,10 +144,11 @@ export async function POST(req) {
     const roles = decoded?.data?.user?.roles || [];
 
     const body = await req.json();
-    const { name, price, salePrice, imageUrl, whatsapp, type } = body;
+    const { name, price, salePrice, imageUrl, whatsapp, type, sku } = body;
 
     let payload = {
       name,
+      sku: sku || "",
       status: "publish",
       images: imageUrl ? [{ src: imageUrl }] : [],
       meta_data: [{ key: "_wcfm_product_author", value: vendorId }],
@@ -195,7 +196,7 @@ export async function PATCH(req) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const { id, name, price, status, sale_price, manage_stock, stock_quantity } = body;
+    const { id, name, price, status, sale_price, manage_stock, stock_quantity, sku } = body;
 
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
     const res = await fetch(`${API_BASE}/wp-json/wc/v3/products/${id}`, {
@@ -206,6 +207,7 @@ export async function PATCH(req) {
       },
       body: JSON.stringify({
         name,
+        sku: sku || "",
         price,
         regular_price: price,   // السعر الأساسي
         sale_price: sale_price || "", // لو محدد سعر عرض
