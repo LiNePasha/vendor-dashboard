@@ -86,12 +86,14 @@ const usePOSStore = create(persist((set, get) => ({
   },
 
   // Service Actions
-  addService: (id = null, description = '', amount = 0) => {
+  addService: (id = null, description = '', amount = 0, employeeId = null, employeeName = null) => {
     const { services } = get();
     const newService = {
       id: id || Date.now().toString(),
       description: description,
-      amount: amount
+      amount: amount,
+      employeeId: employeeId,
+      employeeName: employeeName
     };
     set({ services: [...services, newService] });
   },
@@ -101,6 +103,7 @@ const usePOSStore = create(persist((set, get) => ({
     const updated = services.map(service =>
       service.id === id ? { ...service, [field]: value } : service
     );
+    console.log('📝 Service Updated:', { id, field, value, updatedService: updated.find(s => s.id === id) });
     set({ services: updated });
   },
 
@@ -316,15 +319,17 @@ const usePOSStore = create(persist((set, get) => ({
       });
 
       // Filter valid services (must have description and positive amount)
-      const validServices = services
-        .filter(s => s.description.trim() && s.amount > 0)
-        .map(s => ({
-          id: s.id,
-          description: s.description.trim(),
-          amount: Number(s.amount)
-        }));
+        const validServices = services
+          .filter(s => s.description.trim() && s.amount > 0)
+          .map(s => ({
+            id: s.id,
+            description: s.description.trim(),
+            amount: Number(s.amount),
+            employeeId: s.employeeId || null, // 🔥 حفظ معلومات الموظف
+            employeeName: s.employeeName || null
+          }));
 
-      // 💰 حساب الربح النهائي (مع الخصم والرسوم)
+        console.log('💾 Invoice Services to Save:', validServices);      // 💰 حساب الربح النهائي (مع الخصم والرسوم)
       
       // حصة المنتجات من الخصم (نسبة من الخصم الكلي)
       const productsRatio = subtotal > 0 ? (productsSubtotal / subtotal) : 0;

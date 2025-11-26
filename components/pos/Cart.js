@@ -18,7 +18,8 @@ export function Cart({
   paymentMethod = 'cash',
   onDiscountChange,
   onDiscountTypeChange,
-  onPaymentMethodChange
+  onPaymentMethodChange,
+  employees = [] // 🆕 قائمة الموظفين
 }) {
   const productsSubtotal = items.reduce(
     (sum, item) => sum + (Number(item.price) * item.quantity),
@@ -208,6 +209,36 @@ export function Cart({
                     ×
                   </button>
                 </div>
+                
+                {/* 🆕 اختيار الموظف المسؤول عن الخدمة */}
+                {employees && employees.length > 0 && (
+                  <div className="mb-2">
+                    <select
+                      value={service.employeeId || ''}
+                      onChange={(e) => {
+                        const selectedEmp = employees.find(emp => emp.id == e.target.value);
+                        console.log('🔧 Service Employee Selected:', {
+                          serviceId: service.id,
+                          employeeId: e.target.value,
+                          employeeName: selectedEmp?.name,
+                          employeeIdType: typeof e.target.value
+                        });
+                        onUpdateService(service.id, 'employeeId', e.target.value);
+                        onUpdateService(service.id, 'employeeName', selectedEmp?.name || '');
+                      }}
+                      className="w-full px-2.5 py-1.5 border border-gray-300 rounded text-xs
+                        focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    >
+                      <option value="">👤 اختر الموظف المسؤول...</option>
+                      {employees.map(emp => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name} - {emp.employeeCode}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-600 font-medium">المبلغ:</span>
                   <input

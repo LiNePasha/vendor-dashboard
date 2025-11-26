@@ -271,6 +271,7 @@ export default function POSPage() {
           <Cart
             items={cart}
             services={services}
+            employees={employees}
             onUpdateQuantity={handleUpdateQuantity}
             onRemoveItem={removeFromCart}
             onAddService={addService}
@@ -346,6 +347,7 @@ export default function POSPage() {
                   <Cart
                     items={cart}
                     services={services}
+                    employees={employees}
                     onUpdateQuantity={handleUpdateQuantity}
                     onRemoveItem={removeFromCart}
                     onAddService={addService}

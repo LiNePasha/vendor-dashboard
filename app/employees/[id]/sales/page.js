@@ -38,12 +38,21 @@ export default function EmployeeSalesPage() {
       const allInvoices = await invoiceStorage.getAllInvoices();
       
       // فلترة فواتير الموظف في الشهر المحدد
+      // 🔥 نجيب الفواتير اللي الموظف باعها أو عمل فيها خدمة
       const employeeInvoices = allInvoices.filter(inv => {
-        if (inv.soldBy?.employeeId !== employeeId) return false;
-        
         const invDate = new Date(inv.date || inv.createdAt);
-        return invDate.getMonth() + 1 === month && 
-               invDate.getFullYear() === year;
+        const isInPeriod = invDate.getMonth() + 1 === month && 
+                          invDate.getFullYear() === year;
+        
+        if (!isInPeriod) return false;
+        
+        // لو الموظف هو البائع
+        const isSeller = inv.soldBy?.employeeId == employeeId;
+        
+        // لو الموظف عامل خدمة في الفاتورة
+        const hasService = (inv.services || []).some(s => s.employeeId == employeeId);
+        
+        return isSeller || hasService;
       });
       
       // حساب الإحصائيات
@@ -62,24 +71,38 @@ export default function EmployeeSalesPage() {
   };
 
   const calculateSalesStats = (invoices) => {
-    const totalSales = invoices.reduce((sum, inv) => sum + (inv.summary?.total || inv.total || 0), 0);
-    const totalInvoices = invoices.length;
+    // 🔥 نفصل الفواتير: اللي الموظف باعها vs اللي عمل فيها خدمة بس
+    const salesInvoices = invoices.filter(inv => inv.soldBy?.employeeId == employeeId);
+    const serviceOnlyInvoices = invoices.filter(inv => 
+      inv.soldBy?.employeeId != employeeId && 
+      (inv.services || []).some(s => s.employeeId == employeeId)
+    );
+    
+    const totalSales = salesInvoices.reduce((sum, inv) => sum + (inv.summary?.total || inv.total || 0), 0);
+    const totalInvoices = salesInvoices.length;
     const averageInvoiceValue = totalInvoices > 0 ? totalSales / totalInvoices : 0;
     
-    // 💰 حساب الأرباح
-    const totalProfit = invoices.reduce((sum, inv) => sum + (inv.summary?.totalProfit || 0), 0);
-    const productsProfit = invoices.reduce((sum, inv) => sum + (inv.summary?.finalProductsProfit || inv.summary?.productsProfit || 0), 0);
-    const servicesProfit = invoices.reduce((sum, inv) => sum + (inv.summary?.servicesTotal || 0), 0);
+    // 💰 حساب الأرباح - المنتجات من الفواتير اللي باعها فقط
+    const productsProfit = salesInvoices.reduce((sum, inv) => sum + (inv.summary?.finalProductsProfit || inv.summary?.productsProfit || 0), 0);
+    
+    // 🔧 حساب ربح الخدمات من كل الفواتير (اللي باعها + اللي عمل فيها خدمة)
+    const servicesProfit = invoices.reduce((sum, inv) => {
+      const services = inv.services || [];
+      console.log('🔍 Invoice Services:', inv.id, services);
+      const employeeServices = services.filter(s => s.employeeId == employeeId);
+      console.log('✅ Employee Services for', employeeId, ':', employeeServices);
+      return sum + employeeServices.reduce((serviceSum, s) => serviceSum + (s.amount || 0), 0);
+    }, 0);
     
     // عدد المنتجات اللي عليها ربح
-    const profitableItemsCount = invoices.reduce((sum, inv) => sum + (inv.summary?.profitItemsCount || 0), 0);
+    const profitableItemsCount = salesInvoices.reduce((sum, inv) => sum + (inv.summary?.profitItemsCount || 0), 0);
     
-    // حساب المبيعات حسب طريقة الدفع
-    const cashSales = invoices
+    // حساب المبيعات حسب طريقة الدفع (من الفواتير اللي باعها فقط)
+    const cashSales = salesInvoices
       .filter(inv => inv.paymentMethod === 'cash')
       .reduce((sum, inv) => sum + (inv.summary?.total || inv.total || 0), 0);
     
-    const cardSales = invoices
+    const cardSales = salesInvoices
       .filter(inv => inv.paymentMethod === 'card')
       .reduce((sum, inv) => sum + (inv.summary?.total || inv.total || 0), 0);
     
@@ -98,7 +121,7 @@ export default function EmployeeSalesPage() {
     // المبيعات اليومية
     const salesByDay = {};
     const invoicesByDay = {};
-    invoices.forEach(inv => {
+    salesInvoices.forEach(inv => {
       const day = new Date(inv.date || inv.createdAt).getDate();
       const total = inv.summary?.total || inv.total || 0;
       salesByDay[day] = (salesByDay[day] || 0) + total;
@@ -114,7 +137,7 @@ export default function EmployeeSalesPage() {
     });
     
     // حساب إجمالي عدد المنتجات المباعة
-    const totalItemsSold = invoices.reduce((sum, inv) => {
+    const totalItemsSold = salesInvoices.reduce((sum, inv) => {
       return sum + (inv.items?.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0) || 0);
     }, 0);
     
@@ -122,11 +145,11 @@ export default function EmployeeSalesPage() {
       totalSales,
       totalInvoices,
       averageInvoiceValue,
-      totalProfit,
+      totalProfit: productsProfit + servicesProfit, // 🔥 ربح المنتجات + ربح خدمات الموظف
       productsProfit,
       servicesProfit,
       profitableItemsCount,
-      profitMargin: totalSales > 0 ? (totalProfit / totalSales) * 100 : 0,
+      profitMargin: totalSales > 0 ? ((productsProfit + servicesProfit) / totalSales) * 100 : 0,
       cashSales,
       cardSales,
       otherSales,
@@ -135,7 +158,8 @@ export default function EmployeeSalesPage() {
       salesByDay,
       invoicesByDay,
       bestDay,
-      totalItemsSold
+      totalItemsSold,
+      serviceOnlyInvoicesCount: serviceOnlyInvoices.length // 🆕 عدد الفواتير اللي عمل فيها خدمة بس
     };
   };
 
@@ -251,6 +275,9 @@ export default function EmployeeSalesPage() {
           </div>
           <div className="text-xs opacity-75 mt-1">
             {salesData?.stats.totalItemsSold} منتج مباع
+            {salesData?.stats.serviceOnlyInvoicesCount > 0 && (
+              <span className="mr-2">+ {salesData?.stats.serviceOnlyInvoicesCount} خدمة</span>
+            )}
           </div>
         </div>
         
@@ -364,8 +391,8 @@ export default function EmployeeSalesPage() {
         
         <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
           <p className="text-xs text-blue-800 leading-relaxed">
-            <strong>💡 ملاحظة:</strong> الأرباح تُحسب فقط للمنتجات اللي محدد لها سعر شراء في النظام. 
-            الخدمات تُحسب كإيراد كامل لأنها مش بضاعة.
+            <strong>💡 ملاحظة:</strong> الأرباح تُحسب من المنتجات (اللي فيها سعر شراء) + الخدمات المسؤول عنها الموظف فقط. 
+            الخدمات اللي عملها موظفين تانيين مش بتظهر في تقريره.
           </p>
         </div>
       </div>
@@ -397,7 +424,18 @@ export default function EmployeeSalesPage() {
                 {salesData?.invoices.map(invoice => {
                   const date = new Date(invoice.date || invoice.createdAt);
                   const total = invoice.summary?.total || invoice.total || 0;
-                  const profit = invoice.summary?.totalProfit || 0;
+                  
+                  // 🔥 حساب ربح الموظف من الفاتورة دي بس
+                  const isSeller = invoice.soldBy?.employeeId == employeeId;
+                  const employeeProductsProfit = isSeller 
+                    ? (invoice.summary?.finalProductsProfit || invoice.summary?.productsProfit || 0)
+                    : 0;
+                  
+                  const employeeServices = (invoice.services || []).filter(s => s.employeeId == employeeId);
+                  const employeeServicesProfit = employeeServices.reduce((sum, s) => sum + (s.amount || 0), 0);
+                  
+                  const employeeProfit = employeeProductsProfit + employeeServicesProfit;
+                  
                   const itemsCount = invoice.items?.length || 0;
                   const profitItemsCount = invoice.summary?.profitItemsCount || 0;
                   
@@ -417,21 +455,43 @@ export default function EmployeeSalesPage() {
                         })}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        {itemsCount} منتج
-                        {profitItemsCount > 0 && (
-                          <span className="text-xs text-green-600 mr-1">
-                            ({profitItemsCount} بربح)
+                        {isSeller ? (
+                          <>
+                            {itemsCount} منتج
+                            {profitItemsCount > 0 && (
+                              <span className="text-xs text-green-600 mr-1">
+                                ({profitItemsCount} بربح)
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-purple-600">خدمات فقط</span>
+                        )}
+                        {employeeServices.length > 0 && (
+                          <span className="text-xs text-purple-600 block mt-1">
+                            🔧 {employeeServices.length} خدمة
                           </span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-green-600">
-                        {total.toLocaleString('ar-EG')} ج.م
+                        {isSeller ? (
+                          <>{total.toLocaleString('ar-EG')} ج.م</>
+                        ) : (
+                          <span className="text-gray-400 text-xs">-</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-sm font-bold">
-                        {profit > 0 ? (
-                          <span className="text-yellow-700">
-                            💰 {profit.toLocaleString('ar-EG')} ج.م
-                          </span>
+                        {employeeProfit > 0 ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-yellow-700">
+                              💰 {employeeProfit.toLocaleString('ar-EG')} ج.م
+                            </span>
+                            {employeeProductsProfit > 0 && employeeServicesProfit > 0 && (
+                              <span className="text-xs text-gray-500">
+                                ({employeeProductsProfit.toLocaleString('ar-EG')} منتجات + {employeeServicesProfit.toLocaleString('ar-EG')} خدمات)
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
