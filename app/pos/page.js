@@ -166,6 +166,12 @@ export default function POSPage() {
       setShowInvoice(true);
       setToast({ message: 'تم إنشاء الفاتورة وتحديث المخزون بنجاح ✅', type: 'success' });
       
+      // إعادة تعيين الخصم والرسوم الإضافية
+      setDiscount(0);
+      setDiscountType('amount');
+      setDiscountApplyMode('both');
+      setExtraFee(0);
+      
       // Poll invoice status to update UI when synced
       const invoiceId = result.invoice.id;
       const checkSyncStatus = setInterval(async () => {
