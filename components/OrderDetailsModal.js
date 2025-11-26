@@ -140,7 +140,23 @@ export default function OrderDetailsModal({
             <div>
               <h2 className="text-2xl font-bold">طلب #{order.id}</h2>
               <p className="text-blue-100 text-sm">
-                {new Date(order.date_created).toLocaleString('ar-EG')}
+                {(() => {
+                  // معالجة التاريخ وإضافة ساعتين (فرق التوقيت بين UTC والقاهرة)
+                  const dateStr = order.date_created.replace('T', ' ').substring(0, 16);
+                  const [datePart, timePart] = dateStr.split(' ');
+                  const [year, month, day] = datePart.split('-');
+                  const [hour, minute] = timePart.split(':');
+                  const date = new Date(year, month - 1, day, parseInt(hour) + 2, minute); // +2 hours for Cairo timezone
+                  
+                  return date.toLocaleString('ar-EG', { 
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                  });
+                })()}
               </p>
             </div>
           </div>

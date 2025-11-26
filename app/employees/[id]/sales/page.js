@@ -88,10 +88,37 @@ export default function EmployeeSalesPage() {
     // 🔧 حساب ربح الخدمات من كل الفواتير (اللي باعها + اللي عمل فيها خدمة)
     const servicesProfit = invoices.reduce((sum, inv) => {
       const services = inv.services || [];
-      console.log('🔍 Invoice Services:', inv.id, services);
       const employeeServices = services.filter(s => s.employeeId == employeeId);
-      console.log('✅ Employee Services for', employeeId, ':', employeeServices);
-      return sum + employeeServices.reduce((serviceSum, s) => serviceSum + (s.amount || 0), 0);
+      
+      // حساب إجمالي خدمات الموظف في الفاتورة دي
+      const employeeServicesTotal = employeeServices.reduce((serviceSum, s) => serviceSum + (s.amount || 0), 0);
+      
+      // 🆕 التحقق من وضع تطبيق الخصم
+      const discountApplyMode = inv.summary?.discount?.applyMode || 'both';
+      
+      // لو فيه خصم ووضع التطبيق يشمل الخدمات
+      if (inv.summary?.discount?.amount > 0 && inv.summary?.subtotal > 0 && 
+          (discountApplyMode === 'both' || discountApplyMode === 'services')) {
+        
+        if (discountApplyMode === 'both') {
+          // توزيع بالنسبة
+          const servicesRatio = employeeServicesTotal / inv.summary.subtotal;
+          const discountOnEmployeeServices = inv.summary.discount.amount * servicesRatio;
+          const finalEmployeeServicesProfit = Math.max(0, employeeServicesTotal - discountOnEmployeeServices);
+          return sum + finalEmployeeServicesProfit;
+        } else if (discountApplyMode === 'services') {
+          // الخصم كله على الخدمات - نحسب حصة خدمات الموظف
+          const servicesTotal = inv.summary?.servicesTotal || 0;
+          if (servicesTotal > 0) {
+            const employeeServicesRatio = employeeServicesTotal / servicesTotal;
+            const discountOnEmployeeServices = inv.summary.discount.amount * employeeServicesRatio;
+            const finalEmployeeServicesProfit = Math.max(0, employeeServicesTotal - discountOnEmployeeServices);
+            return sum + finalEmployeeServicesProfit;
+          }
+        }
+      }
+      
+      return sum + employeeServicesTotal;
     }, 0);
     
     // عدد المنتجات اللي عليها ربح
@@ -392,7 +419,7 @@ export default function EmployeeSalesPage() {
         <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
           <p className="text-xs text-blue-800 leading-relaxed">
             <strong>💡 ملاحظة:</strong> الأرباح تُحسب من المنتجات (اللي فيها سعر شراء) + الخدمات المسؤول عنها الموظف فقط. 
-            الخدمات اللي عملها موظفين تانيين مش بتظهر في تقريره.
+            الخدمات اللي عملها موظفين تانيين مش بتظهر في تقريره. <strong>الخصم بيتوزع بالنسبة</strong> على المنتجات والخدمات.
           </p>
         </div>
       </div>
@@ -432,7 +459,30 @@ export default function EmployeeSalesPage() {
                     : 0;
                   
                   const employeeServices = (invoice.services || []).filter(s => s.employeeId == employeeId);
-                  const employeeServicesProfit = employeeServices.reduce((sum, s) => sum + (s.amount || 0), 0);
+                  const employeeServicesTotal = employeeServices.reduce((sum, s) => sum + (s.amount || 0), 0);
+                  
+                  // 🆕 حساب حصة خدمات الموظف من الخصم بناءً على وضع التطبيق
+                  let employeeServicesProfit = employeeServicesTotal;
+                  const discountApplyMode = invoice.summary?.discount?.applyMode || 'both';
+                  
+                  if (invoice.summary?.discount?.amount > 0 && employeeServicesTotal > 0 &&
+                      (discountApplyMode === 'both' || discountApplyMode === 'services')) {
+                    
+                    if (discountApplyMode === 'both' && invoice.summary?.subtotal > 0) {
+                      // توزيع بالنسبة
+                      const servicesRatio = employeeServicesTotal / invoice.summary.subtotal;
+                      const discountOnEmployeeServices = invoice.summary.discount.amount * servicesRatio;
+                      employeeServicesProfit = Math.max(0, employeeServicesTotal - discountOnEmployeeServices);
+                    } else if (discountApplyMode === 'services') {
+                      // الخصم كله على الخدمات
+                      const servicesTotal = invoice.summary?.servicesTotal || 0;
+                      if (servicesTotal > 0) {
+                        const employeeServicesRatio = employeeServicesTotal / servicesTotal;
+                        const discountOnEmployeeServices = invoice.summary.discount.amount * employeeServicesRatio;
+                        employeeServicesProfit = Math.max(0, employeeServicesTotal - discountOnEmployeeServices);
+                      }
+                    }
+                  }
                   
                   const employeeProfit = employeeProductsProfit + employeeServicesProfit;
                   

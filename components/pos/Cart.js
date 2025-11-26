@@ -15,9 +15,11 @@ export function Cart({
   processing,
   discount = 0,
   discountType = 'amount', // 'amount' or 'percentage'
+  discountApplyMode = 'both', // 'both', 'products', 'services'
   paymentMethod = 'cash',
   onDiscountChange,
   onDiscountTypeChange,
+  onDiscountApplyModeChange,
   onPaymentMethodChange,
   employees = [] // 🆕 قائمة الموظفين
 }) {
@@ -305,6 +307,25 @@ export function Cart({
             />
           </div>
         </div>
+
+        {/* Discount Apply Mode */}
+        {discount > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+            <label className="block text-[10px] font-semibold text-amber-800 mb-2">
+              📌 تطبيق الخصم على:
+            </label>
+            <select
+              value={discountApplyMode}
+              onChange={(e) => onDiscountApplyModeChange(e.target.value)}
+              className="w-full px-2 py-1.5 bg-white border border-amber-300 rounded text-xs 
+                focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-medium"
+            >
+              <option value="both">المنتجات والخدمات معاً</option>
+              <option value="products">المنتجات فقط</option>
+              <option value="services">الخدمات فقط</option>
+            </select>
+          </div>
+        )}
 
         {/* Totals */}
         <div className="space-y-2 pt-2 bg-gray-50 -mx-4 px-4 py-3 rounded-lg">

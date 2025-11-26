@@ -274,8 +274,19 @@ const usePOSStore = create(persist((set, get) => ({
       // Combined subtotal
       const subtotal = productsSubtotal + servicesTotal;
       
+      // 🆕 حساب الخصم بناءً على وضع التطبيق (discountApplyMode)
+      const discountApplyMode = paymentDetails.discountApplyMode || 'both'; // both, products, services
+      
+      let discountBase = subtotal; // القاعدة اللي هنحسب عليها الخصم
+      
+      if (discountApplyMode === 'products') {
+        discountBase = productsSubtotal;
+      } else if (discountApplyMode === 'services') {
+        discountBase = servicesTotal;
+      }
+      
       const discountAmount = paymentDetails.discountType === 'percentage'
-        ? (subtotal * (Number(paymentDetails.discount) / 100))
+        ? (discountBase * (Number(paymentDetails.discount) / 100))
         : Number(paymentDetails.discount);
 
       const finalTotal = subtotal - discountAmount + Number(paymentDetails.extraFee);
@@ -331,18 +342,37 @@ const usePOSStore = create(persist((set, get) => ({
 
         console.log('💾 Invoice Services to Save:', validServices);      // 💰 حساب الربح النهائي (مع الخصم والرسوم)
       
-      // حصة المنتجات من الخصم (نسبة من الخصم الكلي)
-      const productsRatio = subtotal > 0 ? (productsSubtotal / subtotal) : 0;
-      const discountOnProducts = discountAmount * productsRatio;
+      // 🔥 توزيع الخصم بناءً على وضع التطبيق
+      let discountOnProducts = 0;
+      let discountOnServices = 0;
+      
+      if (discountApplyMode === 'both') {
+        // توزيع الخصم بالنسبة على المنتجات والخدمات
+        const productsRatio = subtotal > 0 ? (productsSubtotal / subtotal) : 0;
+        const servicesRatio = subtotal > 0 ? (servicesTotal / subtotal) : 0;
+        discountOnProducts = discountAmount * productsRatio;
+        discountOnServices = discountAmount * servicesRatio;
+      } else if (discountApplyMode === 'products') {
+        // الخصم كله على المنتجات
+        discountOnProducts = discountAmount;
+        discountOnServices = 0;
+      } else if (discountApplyMode === 'services') {
+        // الخصم كله على الخدمات
+        discountOnProducts = 0;
+        discountOnServices = discountAmount;
+      }
       
       // الربح النهائي للمنتجات بعد الخصم
       const finalProductsProfit = Math.max(0, totalProductsProfit - discountOnProducts);
       
+      // الربح النهائي للخدمات بعد الخصم
+      const finalServicesProfit = Math.max(0, servicesTotal - discountOnServices);
+      
       // الربح الكلي:
       // - ربح المنتجات (بعد الخصم)
       // - الرسوم الإضافية (إيراد كامل)
-      // - إيرادات الخدمات (إيراد كامل)
-      const totalProfit = finalProductsProfit + Number(paymentDetails.extraFee) + servicesTotal;
+      // - إيرادات الخدمات (بعد الخصم)
+      const totalProfit = finalProductsProfit + Number(paymentDetails.extraFee) + finalServicesProfit;
 
       // Create invoice
       const invoice = {
@@ -357,14 +387,17 @@ const usePOSStore = create(persist((set, get) => ({
           discount: {
             type: paymentDetails.discountType,
             value: Number(paymentDetails.discount),
-            amount: discountAmount
+            amount: discountAmount,
+            applyMode: discountApplyMode // 🆕 وضع تطبيق الخصم
           },
           extraFee: Number(paymentDetails.extraFee),
           total: finalTotal,
-          totalProfit: totalProfit, // الربح الكلي (مع الخصم والرسوم)
+          totalProfit: totalProfit, // الربح الكلي (بعد الخصم والرسوم)
           productsProfit: totalProductsProfit, // ربح المنتجات الأصلي (قبل الخصم)
           finalProductsProfit: finalProductsProfit, // ربح المنتجات بعد الخصم
+          finalServicesProfit: finalServicesProfit, // ربح الخدمات بعد الخصم
           discountOnProducts: discountOnProducts, // حصة المنتجات من الخصم
+          discountOnServices: discountOnServices, // حصة الخدمات من الخصم
           profitItemsCount: itemsWithProfit.length
         },
         profitDetails: itemsWithProfit,

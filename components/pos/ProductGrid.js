@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 function ProductSkeleton() {
   return (
@@ -12,8 +12,17 @@ function ProductSkeleton() {
   );
 }
 
-export function ProductGrid({ products, loading, onAddToCart }) {
+export function ProductGrid({ products, loading, onAddToCart, cart = [] }) {
   const [quantities, setQuantities] = useState({});
+
+  // 🔄 Sync quantities with actual cart
+  useEffect(() => {
+    const newQuantities = {};
+    cart.forEach(item => {
+      newQuantities[item.id] = item.quantity;
+    });
+    setQuantities(newQuantities);
+  }, [cart]);
 
   // Get actual cart quantity from props if available
   const getCartQuantity = (productId) => {

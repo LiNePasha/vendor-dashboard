@@ -16,6 +16,7 @@ export default function POSPage() {
   const [toast, setToast] = useState(null);
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('amount');
+  const [discountApplyMode, setDiscountApplyMode] = useState('both'); // 🆕 تطبيق الخصم على
   const [extraFee, setExtraFee] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [showInvoice, setShowInvoice] = useState(false);
@@ -148,7 +149,8 @@ export default function POSPage() {
 
     const result = await processCheckout({ 
       discount, 
-      discountType, 
+      discountType,
+      discountApplyMode, // 🆕 تطبيق الخصم على
       extraFee, 
       paymentMethod,
       // 🆕 إرسال بيانات البائع
@@ -235,7 +237,12 @@ export default function POSPage() {
             </div>
           </div>
 
-          <ProductGrid products={products} loading={loading} onAddToCart={handleAddToCart} />
+          <ProductGrid 
+            products={products} 
+            loading={loading} 
+            onAddToCart={handleAddToCart} 
+            cart={cart} 
+          />
 
           {!loading && Array.isArray(products) && products.length > 0 && (
             <div className="mt-6 text-center pb-20 md:pb-6">
@@ -281,10 +288,12 @@ export default function POSPage() {
             processing={processing}
             discount={discount}
             discountType={discountType}
+            discountApplyMode={discountApplyMode}
             extraFee={extraFee}
             paymentMethod={paymentMethod}
             onDiscountChange={(v) => setDiscount(Number(v))}
             onDiscountTypeChange={(v) => setDiscountType(v)}
+            onDiscountApplyModeChange={(v) => setDiscountApplyMode(v)}
             onExtraFeeChange={(v) => setExtraFee(Number(v))}
             onPaymentMethodChange={(v) => setPaymentMethod(v)}
           />
@@ -360,10 +369,12 @@ export default function POSPage() {
                     processing={processing}
                     discount={discount}
                     discountType={discountType}
+                    discountApplyMode={discountApplyMode}
                     extraFee={extraFee}
                     paymentMethod={paymentMethod}
                     onDiscountChange={(v) => setDiscount(Number(v))}
                     onDiscountTypeChange={(v) => setDiscountType(v)}
+                    onDiscountApplyModeChange={(v) => setDiscountApplyMode(v)}
                     onExtraFeeChange={(v) => setExtraFee(Number(v))}
                     onPaymentMethodChange={(v) => setPaymentMethod(v)}
                   />
