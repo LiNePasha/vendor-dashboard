@@ -141,21 +141,26 @@ export default function OrderDetailsModal({
               <h2 className="text-2xl font-bold">طلب #{order.id}</h2>
               <p className="text-blue-100 text-sm">
                 {(() => {
-                  // معالجة التاريخ وإضافة ساعتين (فرق التوقيت بين UTC والقاهرة)
-                  const dateStr = order.date_created.replace('T', ' ').substring(0, 16);
-                  const [datePart, timePart] = dateStr.split(' ');
-                  const [year, month, day] = datePart.split('-');
-                  const [hour, minute] = timePart.split(':');
-                  const date = new Date(year, month - 1, day, parseInt(hour) + 2, minute); // +2 hours for Cairo timezone
-                  
-                  return date.toLocaleString('ar-EG', { 
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
-                  });
+                  if (!order.date_created) return 'تاريخ غير محدد';
+                  try {
+                    // معالجة التاريخ وإضافة ساعتين (فرق التوقيت بين UTC والقاهرة)
+                    const dateStr = order.date_created.replace('T', ' ').substring(0, 16);
+                    const [datePart, timePart] = dateStr.split(' ');
+                    const [year, month, day] = datePart.split('-');
+                    const [hour, minute] = timePart.split(':');
+                    const date = new Date(year, month - 1, day, parseInt(hour) + 2, minute); // +2 hours for Cairo timezone
+                    
+                    return date.toLocaleString('ar-EG', { 
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true
+                    });
+                  } catch (e) {
+                    return 'تاريخ غير صالح';
+                  }
                 })()}
               </p>
             </div>
@@ -176,19 +181,26 @@ export default function OrderDetailsModal({
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 حالة الطلب
               </label>
-              <select
-                disabled={updatingStatus}
-                className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-base bg-white hover:border-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                value={order.status}
-                onChange={(e) => handleStatusChange(e.target.value)}
-              >
-                <option value="on-hold">معلق</option>
-                <option value="processing">قيد التجهيز</option>
-                <option value="completed">مكتمل</option>
-                <option value="cancelled">ملغى</option>
-                <option value="refunded">تم الاسترجاع</option>
-                <option value="failed">فشل</option>
-              </select>
+              <div className="relative">
+                <select
+                  disabled={updatingStatus}
+                  className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-base bg-white hover:border-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  value={order.status}
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                >
+                  <option value="on-hold">معلق</option>
+                  <option value="processing">قيد التجهيز</option>
+                  <option value="completed">مكتمل</option>
+                  <option value="cancelled">ملغى</option>
+                  <option value="refunded">تم الاسترجاع</option>
+                  <option value="failed">فشل</option>
+                </select>
+                {updatingStatus && (
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">

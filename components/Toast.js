@@ -1,6 +1,8 @@
 "use client";
 
-export function Toast({ message, type, onClose }) {
+export function Toast({ message, type, onClose, isVisible }) {
+  if (!isVisible) return null;
+  
   return (
     <div
       className={`fixed px-4 py-2 rounded shadow text-white z-[100000000000] transition-all 

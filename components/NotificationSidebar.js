@@ -3,15 +3,18 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import OrderDetailsModal from "./OrderDetailsModal";
+import usePOSStore from "@/app/stores/pos-store";
 
 export default function NotificationSidebar({ isOpen, onClose, soundEnabled = true, onSoundToggle }) {
   const router = useRouter();
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const processingOrders = usePOSStore((state) => state.processingOrders);
+  const fetchOrders = usePOSStore((state) => state.fetchOrders);
+  const loading = usePOSStore((state) => state.loading);
   const [readNotifications, setReadNotifications] = useState(new Set());
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [toast, setToast] = useState(null);
   const sidebarRef = useRef(null);
+  const fetchingRef = useRef(false); // 🆕 لمنع concurrent requests
 
   // Load read notifications from localStorage
   useEffect(() => {
@@ -35,31 +38,51 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
 
   // Fetch processing orders
   const fetchProcessingOrders = async () => {
-    setLoading(true);
+    // 🔥 منع concurrent requests
+    if (fetchingRef.current) {
+      console.log('Already fetching, skipping...');
+      return;
+    }
+    
     try {
-      const res = await fetch('/api/orders?status=processing&per_page=10', {
-        credentials: 'include',
+      fetchingRef.current = true;
+      
+      // 🆕 جلب الطلبات من آخر 48 ساعة فقط
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setHours(twoDaysAgo.getHours() - 48);
+      const afterDate = twoDaysAgo.toISOString();
+      
+      await fetchOrders({ 
+        status: 'processing', 
+        per_page: 100,
+        after: afterDate // 🔥 فلتر التاريخ
       });
-      
-      if (!res.ok) throw new Error('Failed to fetch orders');
-      
-      const data = await res.json();
-      const processingOrders = data.orders || data || [];
-      
-      setOrders(processingOrders);
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
-      setLoading(false);
+      fetchingRef.current = false;
     }
   };
 
   // Fetch orders when sidebar opens
   useEffect(() => {
     if (isOpen) {
+      // 🧹 تنظيف localStorage مرة واحدة لما الـ Sidebar يفتح
+      const saved = localStorage.getItem('readNotifications');
+      if (saved && processingOrders.length > 0) {
+        const readIds = JSON.parse(saved);
+        const currentOrderIds = processingOrders.map(o => o.id.toString());
+        const cleanedIds = readIds.filter(id => currentOrderIds.includes(id));
+        
+        if (cleanedIds.length !== readIds.length) {
+          localStorage.setItem('readNotifications', JSON.stringify(cleanedIds));
+          setReadNotifications(new Set(cleanedIds));
+        }
+      }
+      
       fetchProcessingOrders();
       // Poll every 60 seconds while sidebar is open
-      const interval = setInterval(fetchProcessingOrders, 60000);
+      const interval = setInterval(fetchProcessingOrders, 60000); // 🔥 60 ثانية
       return () => clearInterval(interval);
     }
   }, [isOpen]);
@@ -80,15 +103,17 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
 
   // Mark notification as read
   const markAsRead = (orderId) => {
+    // 🔥 تبسيط - نحفظ order ID فقط
     const newRead = new Set(readNotifications);
-    newRead.add(orderId);
+    newRead.add(orderId.toString());
+    
     setReadNotifications(newRead);
     localStorage.setItem('readNotifications', JSON.stringify([...newRead]));
   };
 
   // Mark all as read
   const markAllAsRead = () => {
-    const allIds = orders.map(o => o.id);
+    const allIds = processingOrders.map(o => o.id.toString());
     const newRead = new Set([...readNotifications, ...allIds]);
     setReadNotifications(newRead);
     localStorage.setItem('readNotifications', JSON.stringify([...newRead]));
@@ -102,8 +127,7 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
   
   // Handle status change from modal
   const handleStatusChange = (orderId, newStatus) => {
-    setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-    
+    // 🔥 تحديث الطلب المختار
     if (selectedOrder && selectedOrder.id === orderId) {
       setSelectedOrder({ ...selectedOrder, status: newStatus });
     }
@@ -136,7 +160,7 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
     });
   };
 
-  const unreadCount = orders.filter(o => !readNotifications.has(o.id)).length;
+  const unreadCount = processingOrders.filter(o => !readNotifications.has(o.id.toString())).length;
 
   return (
     <>
@@ -196,6 +220,7 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
             <button
               onClick={fetchProcessingOrders}
               className="bg-white/20 hover:bg-white/30 backdrop-blur-sm px-3 py-2 rounded-lg text-lg transition-all"
+              title="تحديث الإشعارات"
             >
               🔄
             </button>
@@ -224,7 +249,7 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
                 </div>
               ))}
             </div>
-          ) : orders.length === 0 ? (
+          ) : processingOrders.length === 0 ? (
             // Empty State
             <div className="flex flex-col items-center justify-center h-full text-center p-8">
               <div className="bg-green-100 rounded-full w-24 h-24 flex items-center justify-center mb-4">
@@ -240,8 +265,8 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
           ) : (
             // Notifications List
             <div className="p-4 space-y-3">
-              {orders.map((order) => {
-                const isRead = readNotifications.has(order.id);
+              {processingOrders.map((order) => {
+                const isRead = readNotifications.has(order.id.toString());
                 const images = getProductImages(order.line_items || []);
                 const itemsCount = order.line_items?.length || 0;
                 const timeAgo = getTimeAgo(order.date_created);
@@ -249,7 +274,7 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
                 return (
                   <div
                     key={order.id}
-                    onClick={() => handleOrderClick(order.id)}
+                    onClick={() => handleOrderClick(order)}
                     className={`bg-white rounded-xl p-4 shadow-sm hover:shadow-lg transition-all cursor-pointer border-2 ${
                       isRead 
                         ? 'border-gray-100 opacity-75' 

@@ -91,6 +91,7 @@ export default function ProductsPage() {
   const [imageModal, setImageModal] = useState(null);
   const [initialized, setInitialized] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   // Get vendor info for logo fallback
   const vendorInfo = usePOSStore((s) => s.vendorInfo);

@@ -303,12 +303,13 @@ const usePOSStore = create(persist((set, get) => ({
       // Calculate profit for items with purchase price
       let totalProductsProfit = 0; // أرباح المنتجات فقط (قبل الخصم)
       const itemsWithProfit = [];
+      const itemsWithoutPurchasePrice = []; // 🆕 تتبع المنتجات بدون سعر شراء
       
       const invoiceItems = cart.map(item => {
         const purchasePrice = purchasePricesMap[item.id];
         let profit = 0;
         
-        if (purchasePrice !== undefined && purchasePrice !== null) {
+        if (purchasePrice !== undefined && purchasePrice !== null && purchasePrice >= 0) {
           // Calculate profit: (selling price - purchase price) * quantity
           profit = (Number(item.price) - Number(purchasePrice)) * item.quantity;
           totalProductsProfit += profit;
@@ -320,6 +321,14 @@ const usePOSStore = create(persist((set, get) => ({
             quantity: item.quantity,
             profit: profit
           });
+        } else {
+          // 🆕 منتج بدون سعر شراء - الربح غير محسوب
+          itemsWithoutPurchasePrice.push({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price
+          });
+          console.warn(`⚠️ المنتج "${item.name}" ليس له سعر شراء - الربح غير محسوب`);
         }
 
         return {
@@ -330,7 +339,8 @@ const usePOSStore = create(persist((set, get) => ({
           totalPrice: Number(item.price) * item.quantity,
           stock_quantity: item.stock_quantity,
           purchasePrice: purchasePrice || null,
-          profit: profit || null
+          profit: profit || null,
+          hasPurchasePrice: (purchasePrice !== undefined && purchasePrice !== null) // 🆕 flag
         };
       });
 
@@ -403,9 +413,12 @@ const usePOSStore = create(persist((set, get) => ({
           finalServicesProfit: finalServicesProfit, // ربح الخدمات بعد الخصم
           discountOnProducts: discountOnProducts, // حصة المنتجات من الخصم
           discountOnServices: discountOnServices, // حصة الخدمات من الخصم
-          profitItemsCount: itemsWithProfit.length
+          profitItemsCount: itemsWithProfit.length,
+          itemsWithoutPurchasePrice: itemsWithoutPurchasePrice.length, // 🆕 عدد المنتجات بدون سعر شراء
+          totalItemsCount: cart.length // 🆕 إجمالي المنتجات
         },
         profitDetails: itemsWithProfit,
+        itemsWithoutProfit: itemsWithoutPurchasePrice, // 🆕 قائمة المنتجات بدون سعر شراء
         paymentMethod: paymentDetails.paymentMethod,
         // 🆕 إضافة معلومات البائع
         soldBy: paymentDetails.soldBy || null,
@@ -534,6 +547,7 @@ const usePOSStore = create(persist((set, get) => ({
       const params = new URLSearchParams();
       if (filters.status) params.append('status', filters.status);
       if (filters.per_page) params.append('per_page', filters.per_page);
+      if (filters.after) params.append('after', filters.after);
       
       const res = await fetch(`/api/orders?${params}`, {
         credentials: 'include',
@@ -544,15 +558,18 @@ const usePOSStore = create(persist((set, get) => ({
       const data = await res.json();
       const fetchedOrders = data.orders || data || [];
       
-      // 🔥 تحديث حسب الفلتر
+      // 🔥 تبسيط - Direct replacement بدون merge
       if (filters.status === 'processing') {
-        // تحديث الطلبات قيد التجهيز فقط
+        // 🆕 فلترة وترتيب مباشر
+        const validOrders = fetchedOrders
+          .filter(order => order.status === 'processing') // تأكد من الـ status
+          .sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
+        
         set({ 
-          processingOrders: fetchedOrders,
+          processingOrders: validOrders,
           lastOrdersFetch: Date.now()
         });
       } else {
-        // تحديث كل الطلبات
         set({ 
           orders: fetchedOrders,
           processingOrders: fetchedOrders.filter(o => o.status === 'processing'),

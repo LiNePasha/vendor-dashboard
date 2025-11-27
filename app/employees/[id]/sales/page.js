@@ -15,6 +15,13 @@ export default function EmployeeSalesPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
 
+  // دالة لتنسيق الأرقام - تقريب وإضافة فواصل
+  const formatPrice = (price) => {
+    const num = Number(price);
+    if (isNaN(num)) return '0';
+    return Math.round(num).toLocaleString('en-US');
+  };
+
   useEffect(() => {
     loadSalesData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -55,6 +62,13 @@ export default function EmployeeSalesPage() {
         return isSeller || hasService;
       });
       
+      // 🆕 ترتيب الفواتير من الأحدث للأقدم
+      employeeInvoices.sort((a, b) => {
+        const dateA = new Date(a.date || a.createdAt);
+        const dateB = new Date(b.date || b.createdAt);
+        return dateB - dateA; // الأحدث أولاً
+      });
+      
       // حساب الإحصائيات
       const stats = calculateSalesStats(employeeInvoices);
       
@@ -84,6 +98,10 @@ export default function EmployeeSalesPage() {
     
     // 💰 حساب الأرباح - المنتجات من الفواتير اللي باعها فقط
     const productsProfit = salesInvoices.reduce((sum, inv) => sum + (inv.summary?.finalProductsProfit || inv.summary?.productsProfit || 0), 0);
+    
+    // 🆕 تتبع المنتجات بدون سعر شراء
+    const itemsWithoutPurchasePrice = salesInvoices.reduce((sum, inv) => sum + (inv.summary?.itemsWithoutPurchasePrice || 0), 0);
+    const totalItemsInSales = salesInvoices.reduce((sum, inv) => sum + (inv.summary?.totalItemsCount || inv.items?.length || 0), 0);
     
     // 🔧 حساب ربح الخدمات من كل الفواتير (اللي باعها + اللي عمل فيها خدمة)
     const servicesProfit = invoices.reduce((sum, inv) => {
@@ -186,7 +204,10 @@ export default function EmployeeSalesPage() {
       invoicesByDay,
       bestDay,
       totalItemsSold,
-      serviceOnlyInvoicesCount: serviceOnlyInvoices.length // 🆕 عدد الفواتير اللي عمل فيها خدمة بس
+      serviceOnlyInvoicesCount: serviceOnlyInvoices.length, // 🆕 عدد الفواتير اللي عمل فيها خدمة بس
+      itemsWithoutPurchasePrice, // 🆕 عدد المنتجات بدون سعر شراء
+      totalItemsInSales, // 🆕 إجمالي المنتجات في المبيعات
+      hasMissingProfitData: itemsWithoutPurchasePrice > 0 // 🆕 flag للتحذير
     };
   };
 
@@ -288,10 +309,10 @@ export default function EmployeeSalesPage() {
         <div className="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-transform">
           <div className="text-sm opacity-90 mb-1">إجمالي المبيعات</div>
           <div className="text-3xl font-bold">
-            {salesData?.stats.totalSales.toLocaleString('ar-EG')} <span className="text-xl">ج.م</span>
+            {formatPrice(salesData?.stats.totalSales)} <span className="text-xl">ج.م</span>
           </div>
           <div className="text-xs opacity-75 mt-1">
-            💰 ربح: {salesData?.stats.totalProfit.toLocaleString('ar-EG')} ج.م
+            💰 ربح: {formatPrice(salesData?.stats.totalProfit)} ج.م
           </div>
         </div>
         
@@ -321,13 +342,39 @@ export default function EmployeeSalesPage() {
         <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-6 rounded-xl shadow-lg transform hover:scale-105 transition-transform">
           <div className="text-sm opacity-90 mb-1">أكبر فاتورة</div>
           <div className="text-3xl font-bold">
-            {salesData?.stats.largestInvoice.toLocaleString('ar-EG')} <span className="text-xl">ج.م</span>
+            {formatPrice(salesData?.stats.largestInvoice)} <span className="text-xl">ج.م</span>
           </div>
           <div className="text-xs opacity-75 mt-1">
-            أصغر: {salesData?.stats.smallestInvoice.toLocaleString('ar-EG')} ج.م
+            أصغر: {formatPrice(salesData?.stats.smallestInvoice)} ج.م
           </div>
         </div>
       </div>
+
+      {/* 🆕 تحذير لو فيه منتجات بدون سعر شراء */}
+      {salesData?.stats.hasMissingProfitData && (
+        <div className="mb-6 bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <svg className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-yellow-800 mb-2">⚠️ تحذير: بيانات الأرباح غير مكتملة</h3>
+              <p className="text-sm text-yellow-700 mb-2">
+                <strong>{salesData.stats.itemsWithoutPurchasePrice}</strong> من <strong>{salesData.stats.totalItemsInSales}</strong> منتج 
+                في مبيعات هذا الموظف ليس له سعر شراء محدد
+              </p>
+              <p className="text-xs text-yellow-600">
+                💡 النتيجة: الأرباح المعروضة ({formatPrice(salesData.stats.totalProfit)} ج.م) 
+                <strong className="mx-1">أقل من القيمة الفعلية</strong> 
+                لأنها لا تشمل أرباح المنتجات التي لا يوجد لها سعر شراء.
+              </p>
+              <p className="text-xs text-yellow-600 mt-2">
+                🔧 الحل: قم بإضافة سعر الشراء للمنتجات من صفحة <Link href="/products" className="underline font-bold">إدارة المنتجات</Link>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* مبيعات حسب طريقة الدفع */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
@@ -337,7 +384,7 @@ export default function EmployeeSalesPage() {
             <span>المبيعات النقدية</span>
           </h3>
           <div className="text-2xl font-bold text-green-600">
-            {salesData?.stats.cashSales.toLocaleString('ar-EG')} ج.م
+            {formatPrice(salesData?.stats.cashSales)} ج.م
           </div>
           <div className="text-sm text-gray-500 mt-1">
             {salesData?.stats.totalSales > 0 
@@ -352,7 +399,7 @@ export default function EmployeeSalesPage() {
             <span>المبيعات بالبطاقة</span>
           </h3>
           <div className="text-2xl font-bold text-blue-600">
-            {salesData?.stats.cardSales.toLocaleString('ar-EG')} ج.م
+            {formatPrice(salesData?.stats.cardSales)} ج.م
           </div>
           <div className="text-sm text-gray-500 mt-1">
             {salesData?.stats.totalSales > 0 
@@ -371,7 +418,7 @@ export default function EmployeeSalesPage() {
           </div>
           <div className="text-sm text-gray-500 mt-1">
             {salesData?.stats.bestDay.sales > 0 
-              ? `${salesData?.stats.bestDay.sales.toLocaleString('ar-EG')} ج.م`
+              ? `${formatPrice(salesData?.stats.bestDay.sales)} ج.م`
               : 'لا توجد مبيعات'}
           </div>
         </div>
@@ -388,7 +435,7 @@ export default function EmployeeSalesPage() {
           <div className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border border-yellow-200">
             <div className="text-sm text-gray-600 mb-1">إجمالي الأرباح</div>
             <div className="text-2xl font-bold text-green-700">
-              {salesData?.stats.totalProfit.toLocaleString('ar-EG')} ج.م
+              {formatPrice(salesData?.stats.totalProfit)} ج.م
             </div>
             <div className="text-xs text-gray-500 mt-1">
               هامش: {salesData?.stats.profitMargin.toFixed(1)}%
@@ -398,7 +445,7 @@ export default function EmployeeSalesPage() {
           <div className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border border-yellow-200">
             <div className="text-sm text-gray-600 mb-1">ربح المنتجات</div>
             <div className="text-2xl font-bold text-blue-700">
-              {salesData?.stats.productsProfit.toLocaleString('ar-EG')} ج.م
+              {formatPrice(salesData?.stats.productsProfit)} ج.م
             </div>
             <div className="text-xs text-gray-500 mt-1">
               {salesData?.stats.profitableItemsCount} منتج
@@ -408,7 +455,7 @@ export default function EmployeeSalesPage() {
           <div className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border border-yellow-200">
             <div className="text-sm text-gray-600 mb-1">ربح الخدمات</div>
             <div className="text-2xl font-bold text-purple-700">
-              {salesData?.stats.servicesProfit.toLocaleString('ar-EG')} ج.م
+              {formatPrice(salesData?.stats.servicesProfit)} ج.م
             </div>
             <div className="text-xs text-gray-500 mt-1">
               إيراد كامل
@@ -525,20 +572,32 @@ export default function EmployeeSalesPage() {
                       </td>
                       <td className="px-6 py-4 text-sm font-bold text-green-600">
                         {isSeller ? (
-                          <>{total.toLocaleString('ar-EG')} ج.م</>
+                          <>{formatPrice(total)} ج.م</>
                         ) : (
                           <span className="text-gray-400 text-xs">-</span>
                         )}
                       </td>
                       <td className="px-6 py-4 text-sm font-bold">
-                        {employeeProfit > 0 ? (
+                        {/* 🆕 لو فيه منتجات بدون سعر شراء - نعرض تحذير */}
+                        {isSeller && (invoice.summary?.itemsWithoutPurchasePrice > 0 || invoice.itemsWithoutProfit?.length > 0) ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-yellow-600 text-xs flex items-center gap-1">
+                              ⚠️ مفيش سعر شراء لـ {invoice.summary?.itemsWithoutPurchasePrice || invoice.itemsWithoutProfit?.length || 0} منتج
+                            </span>
+                            {employeeProfit > 0 && (
+                              <span className="text-gray-500 text-xs">
+                                الربح الجزئي: {formatPrice(employeeProfit)} ج.م
+                              </span>
+                            )}
+                          </div>
+                        ) : employeeProfit > 0 ? (
                           <div className="flex flex-col gap-1">
                             <span className="text-yellow-700">
-                              💰 {employeeProfit.toLocaleString('ar-EG')} ج.م
+                              💰 {formatPrice(employeeProfit)} ج.م
                             </span>
                             {employeeProductsProfit > 0 && employeeServicesProfit > 0 && (
                               <span className="text-xs text-gray-500">
-                                ({employeeProductsProfit.toLocaleString('ar-EG')} منتجات + {employeeServicesProfit.toLocaleString('ar-EG')} خدمات)
+                                ({formatPrice(employeeProductsProfit)} منتجات + {formatPrice(employeeServicesProfit)} خدمات)
                               </span>
                             )}
                           </div>

@@ -196,7 +196,24 @@ export async function PATCH(req) {
     if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
-    const { id, name, price, status, sale_price, manage_stock, stock_quantity, sku } = body;
+    const { id, name, price, status, sale_price, manage_stock, stock_quantity, sku, imageUrl } = body;
+
+    // 🆕 بناء بيانات المنتج
+    const productData = {
+      name,
+      sku: sku || "",
+      price,
+      regular_price: price,   // السعر الأساسي
+      sale_price: sale_price || "", // لو محدد سعر عرض
+      status,
+      manage_stock: manage_stock || false,
+      stock_quantity: manage_stock ? stock_quantity : null,
+    };
+
+    // 🆕 إضافة الصورة لو موجودة
+    if (imageUrl) {
+      productData.images = [{ src: imageUrl }];
+    }
 
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
     const res = await fetch(`${API_BASE}/wp-json/wc/v3/products/${id}`, {
@@ -205,16 +222,7 @@ export async function PATCH(req) {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        name,
-        sku: sku || "",
-        price,
-        regular_price: price,   // السعر الأساسي
-        sale_price: sale_price || "", // لو محدد سعر عرض
-        status,
-        manage_stock: manage_stock || false,
-        stock_quantity: manage_stock ? stock_quantity : null,
-      }),
+      body: JSON.stringify(productData),
     });
 
     if (!res.ok) throw new Error(`API Error: ${res.status}`);

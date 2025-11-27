@@ -10,6 +10,7 @@ export default function NotificationBell({ onToggleSidebar, onOpenSidebar, sound
   const audioContextRef = useRef(null);
   const audioElRef = useRef(null);
   const lastCountRef = useRef(0);
+  const isFetchingRef = useRef(false); // 🆕 Request guard بسيط
   
   // 🔥 استخدام Global State
   const fetchOrders = usePOSStore((state) => state.fetchOrders);
@@ -100,38 +101,58 @@ export default function NotificationBell({ onToggleSidebar, onOpenSidebar, sound
 
   // Fetch processing orders
   const fetchProcessingOrders = async () => {
+    // 🔥 Request guard - منع concurrent requests
+    if (isFetchingRef.current) return;
+    
     try {
-      // 🔥 جلب كل الطلبات عشان نحدث Global State كامل
-      await fetchOrders(); // بدون فلتر = كل الطلبات
+      isFetchingRef.current = true;
+      
+      // 🆕 جلب الطلبات من آخر 48 ساعة فقط
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setHours(twoDaysAgo.getHours() - 48);
+      const afterDate = twoDaysAgo.toISOString();
+      
+      await fetchOrders({ 
+        status: 'processing', 
+        per_page: 100,
+        after: afterDate
+      });
     } catch (error) {
       console.error('Error fetching orders:', error);
+    } finally {
+      isFetchingRef.current = false;
     }
   };
   
   // 🔥 تحديث العداد لما processingOrders يتغير
   useEffect(() => {
-    const count = processingOrders.length;
+    const readNotifications = JSON.parse(localStorage.getItem('readNotifications') || '[]');
+    
+    // فلترة الطلبات الغير مقروءة (بدون تنظيف localStorage كل مرة)
+    const unreadOrders = processingOrders.filter(order => 
+      !readNotifications.includes(order.id.toString())
+    );
+    const count = unreadOrders.length;
+    
     setNotificationCount(count);
     
     // Play sound if count increased
-    if (count > lastCountRef.current && lastCountRef.current > 0) {
-      if (soundEnabled) {
-        playNotificationSound();
-      }
+    if (count > lastCountRef.current && lastCountRef.current > 0 && soundEnabled) {
+      playNotificationSound();
       if (typeof onOpenSidebar === 'function') {
         onOpenSidebar();
       }
     }
     
     lastCountRef.current = count;
-  }, [processingOrders]);
+  }, [processingOrders, soundEnabled, onOpenSidebar]);
 
   // Poll for new orders every 60 seconds
   useEffect(() => {
     fetchProcessingOrders();
-    const interval = setInterval(fetchProcessingOrders, 60000);
+    const interval = setInterval(fetchProcessingOrders, 60000); // 🔥 60 ثانية بدل 30
     return () => clearInterval(interval);
-  }, []);
+  }, [soundEnabled]);
 
   return (
     <button

@@ -3,6 +3,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import usePOSStore from "./stores/pos-store";
 import { useEffect, useState, Suspense } from "react";
 import { invoiceStorage } from "./lib/localforage";
+import OrderDetailsModal from "@/components/OrderDetailsModal";
+import { Toast } from "@/components/Toast";
 
 function DashboardContent() {
   const router = useRouter();
@@ -28,6 +30,15 @@ function DashboardContent() {
   });
   const [loading, setLoading] = useState(true);
   const [showBlockedAlert, setShowBlockedAlert] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+  // دالة لتنسيق الأرقام - تقريب وإضافة فواصل
+  const formatPrice = (price) => {
+    const num = Number(price);
+    if (isNaN(num)) return '0';
+    return Math.round(num).toLocaleString('en-US');
+  };
 
   useEffect(() => {
     if (!vendorInfo) {
@@ -109,7 +120,8 @@ function DashboardContent() {
   const updateStatsFromOrders = (ordersData) => {
     const processingOrders = ordersData.filter(o => o.status === 'processing');
     const totalRevenue = ordersData.reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
-    const recentOrders = ordersData.slice(0, 5);
+    // 🆕 عرض آخر 5 طلبات قيد التنفيذ فقط
+    const recentOrders = processingOrders.slice(0, 5);
     
     setStats(prev => ({
       ...prev,
@@ -118,6 +130,16 @@ function DashboardContent() {
       totalRevenue,
       recentOrders
     }));
+  };
+
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+  };
+
+  const handleStatusChange = async () => {
+    // 🔄 إعادة تحميل الطلبات بعد تغيير الحالة
+    await fetchOrders({ per_page: 100 });
   };
 
   const quickActions = [
@@ -269,7 +291,7 @@ function DashboardContent() {
             ) : (
               <div className="text-right">
                 <p className="text-2xl font-bold text-gray-800">
-                  {stats.totalRevenue.toFixed(0)}
+                  {formatPrice(stats.totalRevenue)}
                 </p>
                 <p className="text-xs text-gray-500">جنيه</p>
               </div>
@@ -287,7 +309,7 @@ function DashboardContent() {
               {loading ? (
                 <div className="animate-pulse bg-pink-400 bg-opacity-30 h-10 w-28 rounded"></div>
               ) : (
-                <p className="text-3xl font-bold">{stats.totalProfit.toFixed(0)} ج.م</p>
+                <p className="text-3xl font-bold">{formatPrice(stats.totalProfit)} ج.م</p>
               )}
             </div>
             <div className="bg-pink-400 bg-opacity-30 rounded-full p-3">
@@ -300,15 +322,15 @@ function DashboardContent() {
             <div className="space-y-1.5 pt-3 border-t border-pink-400 border-opacity-30 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-pink-100">📦 أرباح المنتجات</span>
-                <span className="font-bold">{stats.productsProfit.toFixed(0)} ج.م</span>
+                <span className="font-bold">{formatPrice(stats.productsProfit)} ج.م</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-pink-100">🔧 إيرادات الخدمات</span>
-                <span className="font-bold">{stats.servicesRevenue.toFixed(0)} ج.م</span>
+                <span className="font-bold">{formatPrice(stats.servicesRevenue)} ج.م</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-pink-100">➕ رسوم إضافية</span>
-                <span className="font-bold">{stats.extraFeesRevenue.toFixed(0)} ج.م</span>
+                <span className="font-bold">{formatPrice(stats.extraFeesRevenue)} ج.م</span>
               </div>
               <div className="flex items-center justify-between pt-1 border-t border-pink-400 border-opacity-20">
                 <span className="text-pink-100">من {stats.totalInvoices} فاتورة</span>
@@ -390,7 +412,7 @@ function DashboardContent() {
               return (
                 <div
                   key={order.id}
-                  onClick={() => router.push('/orders')}
+                  onClick={() => setSelectedOrder(order)}
                   className="flex items-center gap-4 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg cursor-pointer transition-all group"
                 >
                   <div className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-lg w-12 h-12 flex items-center justify-center font-bold shadow-md">
@@ -416,6 +438,23 @@ function DashboardContent() {
           </div>
         )}
       </div>
+
+      {/* Order Details Modal */}
+      <OrderDetailsModal
+        order={selectedOrder}
+        isOpen={!!selectedOrder}
+        onClose={() => setSelectedOrder(null)}
+        onStatusChange={handleStatusChange}
+        showToast={showToast}
+      />
+
+      {/* Toast Notification */}
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.show}
+        onClose={() => setToast({ show: false, message: '', type: 'success' })}
+      />
     </div>
   );
 }

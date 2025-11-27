@@ -1,7 +1,6 @@
 import { cookies } from "next/headers";
 
 export async function GET(req) {
-  // ✅ لازم await هنا
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
 
@@ -10,25 +9,16 @@ export async function GET(req) {
   }
 
   try {
-    // قراءة query parameters
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get('status') || '';
-    const perPage = searchParams.get('per_page') || '20';
     const page = searchParams.get('page') || '1';
-    const after = searchParams.get('after') || ''; // 🆕 فلتر بالتاريخ
+    const perPage = searchParams.get('per_page') || '20';
+    const notificationType = searchParams.get('notification_type') || 'order';
+    const notificationStatus = searchParams.get('notification_status') || 'unread';
+    const order = searchParams.get('order') || 'DESC';
+    const orderby = searchParams.get('orderby') || 'created';
 
-    // بناء URL مع الـ parameters
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
-    let apiUrl = `${API_BASE}/wp-json/wcfmmp/v1/orders?per_page=${perPage}&page=${page}`;
-    
-    if (status) {
-      apiUrl += `&status=${status}`;
-    }
-    
-    // 🆕 إضافة فلتر التاريخ (جلب الطلبات بعد تاريخ معين)
-    if (after) {
-      apiUrl += `&after=${after}`;
-    }
+    const apiUrl = `${API_BASE}/wp-json/wcfmmp/v1/notifications/?page=${page}&per_page=${perPage}&notification_type=${notificationType}&notification_status=${notificationStatus}&order=${order}&orderby=${orderby}`;
 
     const res = await fetch(apiUrl, {
       headers: {
@@ -44,26 +34,31 @@ export async function GET(req) {
       });
     }
 
-    const data = await res.json();
+    const notifications = await res.json();
     
-    // محاولة الحصول على total من الـ headers
-    const totalCount = res.headers.get('X-WP-Total') || res.headers.get('X-Total-Count');
-    
-    // إضافة معلومات إضافية للـ response
-    const response = {
-      orders: Array.isArray(data) ? data : [],
-      total: totalCount ? parseInt(totalCount) : (Array.isArray(data) ? data.length : 0),
+    // Parse order IDs from notification messages
+    const enrichedNotifications = notifications.map(notif => {
+      // Extract order ID from message like "#274 order status updated" or "Order #274 for Product"
+      const orderIdMatch = notif.message?.match(/#(\d+)/);
+      return {
+        ...notif,
+        orderId: orderIdMatch ? parseInt(orderIdMatch[1]) : null,
+        isNew: notificationStatus === 'unread',
+      };
+    });
+
+    return new Response(JSON.stringify({
+      notifications: enrichedNotifications,
+      total: notifications.length,
       page: parseInt(page),
       per_page: parseInt(perPage),
-      status: status || 'all'
-    };
-
-    return new Response(JSON.stringify(response), { status: 200 });
+    }), { status: 200 });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
 }
 
+// Mark notification as read
 export async function PATCH(req) {
   const cookieStore = await cookies();
   const token = cookieStore.get("token")?.value;
@@ -72,17 +67,16 @@ export async function PATCH(req) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
-  const { orderId, status } = await req.json();
-
   try {
+    const { notificationId } = await req.json();
+
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
-    const res = await fetch(`${API_BASE}/wp-json/wc/v3/orders/${orderId}`, {
-      method: "PUT",
+    const res = await fetch(`${API_BASE}/wp-json/wcfmmp/v1/notifications/${notificationId}/read`, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ status }),
     });
 
     if (!res.ok) {
@@ -91,8 +85,7 @@ export async function PATCH(req) {
       });
     }
 
-    const updatedOrder = await res.json();
-    return new Response(JSON.stringify(updatedOrder), { status: 200 });
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
