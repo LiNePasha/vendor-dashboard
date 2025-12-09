@@ -7,42 +7,79 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
   const [quickAddLoading, setQuickAddLoading] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-  const [imageBase64, setImageBase64] = useState(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState(null); // 🆕 حفظ رابط الصورة المرفوعة
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
-    if (file) {
-      // التحقق من نوع الملف
-      if (!file.type.startsWith('image/')) {
-        setToast({ message: '⚠️ يرجى اختيار صورة فقط', type: 'error' });
-        setTimeout(() => setToast(null), 2500);
-        return;
+    if (!file) return;
+
+    // التحقق من نوع الملف
+    if (!file.type.startsWith('image/')) {
+      setToast({ message: '⚠️ يرجى اختيار صورة فقط', type: 'error' });
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
+
+    // التحقق من حجم الملف (أقل من 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setToast({ message: '⚠️ حجم الصورة يجب أن يكون أقل من 5 ميجابايت', type: 'error' });
+      setTimeout(() => setToast(null), 2500);
+      return;
+    }
+
+    setImageFile(file);
+    
+    // معاينة فورية
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+
+    // 🔥 رفع الصورة فوراً في الخلفية
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error('فشل رفع الصورة');
       }
 
-      // التحقق من حجم الملف (أقل من 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setToast({ message: '⚠️ حجم الصورة يجب أن يكون أقل من 5 ميجابايت', type: 'error' });
-        setTimeout(() => setToast(null), 2500);
-        return;
-      }
-
-      setImageFile(file);
+      const uploadData = await uploadRes.json();
       
-      // إنشاء معاينة للصورة + تحويلها لـ base64
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-        setImageBase64(reader.result); // حفظ الـ base64
-      };
-      reader.readAsDataURL(file);
+      // 🆕 تحويل الرابط لـ WebP للسرعة
+      let imageUrl = uploadData.url;
+      if (imageUrl && !imageUrl.includes('.webp')) {
+        // لو الرابط من Cloudinary، نضيف .webp في النهاية
+        imageUrl = imageUrl.replace(/\.(jpg|jpeg|png|gif)$/i, '.webp');
+      }
+      
+      setUploadedImageUrl(imageUrl);
+      setToast({ message: '✅ تم رفع الصورة بنجاح', type: 'success' });
+      setTimeout(() => setToast(null), 2000);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      setToast({ message: '⚠️ فشل رفع الصورة، جرب مرة أخرى', type: 'error' });
+      setTimeout(() => setToast(null), 2500);
+      // مسح الصورة عند الفشل
+      setImageFile(null);
+      setImagePreview(null);
+    } finally {
+      setUploadingImage(false);
     }
   };
 
   const removeImage = () => {
     setImageFile(null);
     setImagePreview(null);
-    setImageBase64(null);
+    setUploadedImageUrl(null);
   };
 
   const handleQuickAdd = async (e) => {
@@ -56,27 +93,7 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
     setQuickAddLoading(true);
     
     try {
-      let uploadedImageUrl = null;
-
-      // 1. رفع الصورة أولاً لو موجودة
-      if (imageFile) {
-        const formData = new FormData();
-        formData.append('file', imageFile);
-
-        const uploadRes = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (!uploadRes.ok) {
-          throw new Error('فشل رفع الصورة');
-        }
-
-        const uploadData = await uploadRes.json();
-        uploadedImageUrl = uploadData.url;
-      }
-
-      // 2. إنشاء المنتج مع رابط الصورة
+      // 🔥 الصورة اترفعت بالفعل! نستخدم الرابط المحفوظ
       const response = await fetch('/api/warehouse/create-product', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,7 +104,7 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
           stock: parseInt(quickAddForm.stock) || 0,
           category: '',
           sku: quickAddForm.sku || '',
-          imageUrl: uploadedImageUrl
+          imageUrl: uploadedImageUrl // استخدام الرابط المرفوع مسبقاً
         })
       });
 
@@ -109,7 +126,7 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
       setQuickAddForm({ name: '', price: '', stock: 0, sku: '' });
       setImageFile(null);
       setImagePreview(null);
-      setImageBase64(null);
+      setUploadedImageUrl(null);
       onClose();
     } catch (error) {
       console.error('Error adding product:', error);
@@ -189,10 +206,30 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
                   alt="معاينة"
                   className="w-full h-40 object-contain rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700"
                 />
+                
+                {/* 🔥 Loading overlay أثناء الرفع */}
+                {uploadingImage && (
+                  <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-10 w-10 border-4 border-white border-t-transparent mx-auto mb-2"></div>
+                      <p className="text-white text-sm font-semibold">جاري رفع الصورة...</p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* ✅ علامة النجاح بعد الرفع */}
+                {uploadedImageUrl && !uploadingImage && (
+                  <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-1.5 shadow-lg">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                )}
+                
                 <button
                   type="button"
                   onClick={removeImage}
-                  disabled={quickAddLoading}
+                  disabled={uploadingImage}
                   className="absolute top-2 left-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-2 shadow-lg transition-all opacity-0 group-hover:opacity-100 disabled:opacity-50"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -280,15 +317,15 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
           <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
             <button
               type="submit"
-              disabled={quickAddLoading}
+              disabled={quickAddLoading || uploadingImage}
               className="flex-1 bg-gradient-to-r from-green-600 to-emerald-700 text-white py-3 rounded-lg hover:from-green-700 hover:to-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-md transition-all"
             >
-              {quickAddLoading ? '⏳ جاري الإضافة...' : '✅ إضافة المنتج'}
+              {uploadingImage ? '⏳ جاري رفع الصورة...' : quickAddLoading ? '⏳ جاري الإضافة...' : '✅ إضافة المنتج'}
             </button>
             <button
               type="button"
               onClick={onClose}
-              disabled={quickAddLoading}
+              disabled={quickAddLoading || uploadingImage}
               className="px-6 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 font-semibold transition-colors text-gray-900 dark:text-white"
             >
               إلغاء
