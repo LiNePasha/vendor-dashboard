@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import EditProductModal from "@/components/EditProductModal";
 import QuickAddProductModal from "@/components/QuickAddProductModal";
+import BulkUploadModal from "@/components/BulkUploadModal";
 import Link from "next/link";
 import { productsCacheStorage } from "@/app/lib/localforage";
 import { getVendorLogo } from "@/app/lib/vendor-constants";
@@ -91,6 +92,7 @@ export default function ProductsPage() {
   const [imageModal, setImageModal] = useState(null);
   const [initialized, setInitialized] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
   // Get vendor info for logo fallback
@@ -320,18 +322,28 @@ export default function ProductsPage() {
             </div>
             <div className="flex gap-2">
               <button
+                onClick={() => setShowBulkUpload(true)}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-2.5 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2"
+              >
+                <span className="text-lg">📦</span>
+                <span className="hidden sm:inline">إضافة متعددة</span>
+                <span className="sm:hidden">متعدد</span>
+              </button>
+              <button
                 onClick={() => setShowQuickAdd(true)}
                 className="bg-gradient-to-r from-green-600 to-emerald-700 text-white px-5 py-2.5 rounded-lg hover:from-green-700 hover:to-emerald-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2"
               >
                 <span className="text-lg">⚡</span>
-                <span>إضافة سريعة</span>
+                <span className="hidden sm:inline">إضافة سريعة</span>
+                <span className="sm:hidden">سريع</span>
               </button>
               <Link
                 href="/warehouse"
                 className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white px-5 py-2.5 rounded-lg hover:from-purple-700 hover:to-indigo-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2"
               >
                 <span className="text-lg">📦</span>
-                <span>إدارة المخزن</span>
+                <span className="hidden sm:inline">إدارة المخزن</span>
+                <span className="sm:hidden">مخزن</span>
               </Link>
             </div>
           </div>
@@ -613,6 +625,14 @@ export default function ProductsPage() {
       <QuickAddProductModal
         isOpen={showQuickAdd}
         onClose={() => setShowQuickAdd(false)}
+        onSuccess={handleQuickAddSuccess}
+        setToast={setToast}
+      />
+
+      {/* Bulk Upload Modal */}
+      <BulkUploadModal
+        isOpen={showBulkUpload}
+        onClose={() => setShowBulkUpload(false)}
         onSuccess={handleQuickAddSuccess}
         setToast={setToast}
       />
