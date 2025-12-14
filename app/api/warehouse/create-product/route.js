@@ -17,7 +17,7 @@ cloudinary.config({
  *   sellingPrice: number,
  *   purchasePrice?: number,
  *   stock: number,
- *   category?: string,
+ *   categories?: number[] (array of category IDs),
  *   imageUrl?: string (رابط صورة من Cloudinary)
  * }
  */
@@ -44,7 +44,7 @@ export async function POST(req) {
     const vendorId = decoded?.data?.user?.id;
 
     const body = await req.json();
-    const { name, sku, sellingPrice, purchasePrice, stock, category, imageUrl } = body;
+    const { name, sku, sellingPrice, purchasePrice, stock, categories, imageUrl } = body;
 
     if (!name || !sellingPrice) {
       return NextResponse.json({ error: 'Name and selling price are required' }, { status: 400 });
@@ -77,45 +77,10 @@ export async function POST(req) {
       productPayload.images = [{ src: imageUrl }];
     }
 
-    // إضافة التصنيف إذا كان موجود
-    if (category) {
-      // البحث عن التصنيف أو إنشاؤه
-      const categoriesRes = await fetch(
-        `${API_BASE}/wp-json/wc/v3/products/categories?search=${encodeURIComponent(category)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (categoriesRes.ok) {
-        const categories = await categoriesRes.json();
-        const existingCategory = categories.find(c => c.name === category);
-
-        if (existingCategory) {
-          productPayload.categories = [{ id: existingCategory.id }];
-        } else {
-          // إنشاء تصنيف جديد
-          const createCatRes = await fetch(
-            `${API_BASE}/wp-json/wc/v3/products/categories`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ name: category }),
-            }
-          );
-
-          if (createCatRes.ok) {
-            const newCategory = await createCatRes.json();
-            productPayload.categories = [{ id: newCategory.id }];
-          }
-        }
-      }
+    // 🔥 إضافة التصنيفات (multi-select support)
+    if (categories && Array.isArray(categories) && categories.length > 0) {
+      productPayload.categories = categories.map(catId => ({ id: parseInt(catId) }));
+      console.log('✅ Categories added to product:', productPayload.categories);
     }
 
     // 3. إنشاء المنتج

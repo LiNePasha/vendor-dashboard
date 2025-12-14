@@ -109,6 +109,19 @@ export default function POSPage() {
     setSearch('');
   };
 
+  // 🆕 مراقبة تغيير الفئة وجلب المنتجات
+  useEffect(() => {
+    // فقط لو في products view وتغير category
+    if (viewMode === 'products' && initialized) {
+      fetchProducts({ page: 1, search, category }).then((result) => {
+        if (result?.error) {
+          setToast({ message: result.error, type: 'error' });
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]); // يشتغل لما category يتغير
+
   const loadMore = () => {
     if (!hasMore || loading) return;
     const next = page + 1;

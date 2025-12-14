@@ -42,29 +42,139 @@ async function fetchCategories(token) {
     );
 
     if (!categoriesRes.ok) {
-      throw new Error(`Categories API Error: ${categoriesRes.status}`);
+      console.error('Categories API Error:', categoriesRes.status);
+      return [];
     }
 
-    const categories = await categoriesRes.json();
+    const rawData = await categoriesRes.json();
+    
+    // 🔧 التعامل مع response format المختلف
+    let categoriesArray = [];
+    
+    if (Array.isArray(rawData)) {
+      categoriesArray = rawData;
+    } else if (rawData.categories && Array.isArray(rawData.categories)) {
+      categoriesArray = rawData.categories;
+    } else if (rawData.data && Array.isArray(rawData.data)) {
+      categoriesArray = rawData.data;
+    } else {
+      console.error('Invalid categories response format:', typeof rawData);
+      return [];
+    }
     
     // التصنيفات جاهزة مع عدد المنتجات
-    return categories.map(cat => ({
+    const formattedCategories = categoriesArray.map(cat => ({
       id: cat.id,
       name: cat.name,
       slug: cat.slug,
-      count: cat.count || 0
+      count: cat.count || 0,
+      // 🔧 إصلاح: تحويل image object إلى string URL
+      image: typeof cat.image === 'object' && cat.image?.src ? cat.image.src : (cat.image || null)
     }));
+    
+    console.log(`✅ Products API: Loaded ${formattedCategories.length} categories`);
+    return formattedCategories;
   } catch (error) {
-    console.error('Error fetching categories:', error);
+    console.error('❌ Error fetching categories:', error);
     return [];
   }
 }
 
-// جلب المنتجات من WooCommerce
+// جلب المنتجات من WooCommerce (مع دعم pagination للأرقام الكبيرة)
 async function fetchProducts({ page = 1, per_page = 12, search = "", status = "all", category = "" }) {
   const token = await getToken();
   if (!token) throw new Error("Unauthorized");
 
+  // 🔧 WooCommerce API الحد الأقصى لـ per_page هو 100
+  const maxPerPage = 100;
+  const requestedPerPage = parseInt(per_page);
+  
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+  
+  // إذا الطلب أكبر من 100، نستخدم pagination
+  if (requestedPerPage > maxPerPage) {
+    console.log(`📊 Requested ${requestedPerPage} products, fetching via pagination...`);
+    
+    const query = new URLSearchParams();
+    query.set("page", "1");
+    query.set("per_page", maxPerPage.toString());
+    if (search) query.set("search", search);
+    if (status !== "all") query.set("status", status);
+    if (category) query.set("category", category);
+
+    // جلب الصفحة الأولى
+    const firstRes = await fetch(
+      `${API_BASE}/wp-json/wc/v3/products?${query.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!firstRes.ok) {
+      const errorText = await firstRes.text();
+      console.error(`❌ WooCommerce API Error: ${firstRes.status}`, errorText);
+      throw new Error(`API Error: ${firstRes.status}`);
+    }
+
+    const firstPageProducts = await firstRes.json();
+    const totalProducts = parseInt(firstRes.headers.get("X-WP-Total") || "0");
+    const totalPages = parseInt(firstRes.headers.get("X-WP-TotalPages") || "1");
+    
+    console.log(`📈 Total products: ${totalProducts}, Total pages: ${totalPages}`);
+    
+    let allProducts = [...firstPageProducts];
+    
+    // حساب عدد الصفحات المطلوبة
+    const pagesNeeded = Math.min(Math.ceil(requestedPerPage / maxPerPage), totalPages);
+    
+    // جلب باقي الصفحات
+    if (pagesNeeded > 1) {
+      console.log(`🔄 Fetching ${pagesNeeded - 1} more pages...`);
+      
+      const pagePromises = [];
+      for (let p = 2; p <= pagesNeeded; p++) {
+        const pageQuery = new URLSearchParams();
+        pageQuery.set("page", p.toString());
+        pageQuery.set("per_page", maxPerPage.toString());
+        if (search) pageQuery.set("search", search);
+        if (status !== "all") pageQuery.set("status", status);
+        if (category) pageQuery.set("category", category);
+        
+        pagePromises.push(
+          fetch(`${API_BASE}/wp-json/wc/v3/products?${pageQuery.toString()}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }).then(res => res.ok ? res.json() : [])
+        );
+      }
+      
+      const remainingPages = await Promise.all(pagePromises);
+      remainingPages.forEach(pageData => {
+        allProducts = [...allProducts, ...pageData];
+      });
+      
+      console.log(`✅ Fetched ${allProducts.length} products from ${pagesNeeded} pages`);
+    }
+    
+    // قص النتائج للعدد المطلوب بالضبط
+    const finalProducts = allProducts.slice(0, requestedPerPage);
+    
+    return {
+      products: finalProducts,
+      pagination: { 
+        totalPages: Math.ceil(totalProducts / requestedPerPage),
+        totalProducts: totalProducts,
+        returnedCount: finalProducts.length
+      }
+    };
+  }
+  
+  // للطلبات 100 أو أقل، استخدام الطريقة العادية
   const query = new URLSearchParams();
   query.set("page", page);
   query.set("per_page", per_page);
@@ -72,9 +182,6 @@ async function fetchProducts({ page = 1, per_page = 12, search = "", status = "a
   if (status !== "all") query.set("status", status);
   if (category) query.set("category", category);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
-
-  // 1. Fetch products
   const res = await fetch(
     `${API_BASE}/wp-json/wc/v3/products?${query.toString()}`,
     {
@@ -85,7 +192,12 @@ async function fetchProducts({ page = 1, per_page = 12, search = "", status = "a
     }
   );
 
-  if (!res.ok) throw new Error(`API Error: ${res.status}`);
+  if (!res.ok) {
+    const errorText = await res.text();
+    console.error(`❌ WooCommerce API Error: ${res.status}`, errorText);
+    throw new Error(`API Error: ${res.status}`);
+  }
+  
   const products = await res.json();
   const totalPages = parseInt(res.headers.get("X-WP-TotalPages") || "1");
   
@@ -95,7 +207,7 @@ async function fetchProducts({ page = 1, per_page = 12, search = "", status = "a
   };
 }
 
-// GET: جلب المنتجات
+// GET: جلب المنتجات والتصنيفات
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get("page") || "1");
@@ -106,9 +218,25 @@ export async function GET(req) {
   const status = "publish";
 
   try {
-    const data = await fetchProducts({ page, per_page, search, status, category });
-    return NextResponse.json(data);
+    const token = await getToken();
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // جلب المنتجات والتصنيفات معاً
+    const [data, categories] = await Promise.all([
+      fetchProducts({ page, per_page, search, status, category }),
+      fetchCategories(token)
+    ]);
+
+    console.log(`📦 Products API Response: ${data.products?.length || 0} products, ${categories?.length || 0} categories`);
+
+    return NextResponse.json({
+      ...data,
+      categories
+    });
   } catch (err) {
+    console.error('❌ Products API Error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
