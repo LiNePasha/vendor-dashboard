@@ -25,10 +25,6 @@ export async function POST(req) {
 
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
 
-    console.log('Transfer Stock - API_BASE:', API_BASE);
-    console.log('Transfer Stock - Product ID:', productId);
-    console.log('Transfer Stock - Quantity:', quantity);
-
     // 1. جلب الـ stock الحالي من API
     const getRes = await fetch(
       `${API_BASE}/wp-json/wc/v3/products/${productId}`,
@@ -40,8 +36,6 @@ export async function POST(req) {
       }
     );
 
-    console.log('Get Product Response Status:', getRes.status);
-
     if (!getRes.ok) {
       const errorText = await getRes.text();
       console.error('Failed to fetch product:', errorText);
@@ -51,9 +45,6 @@ export async function POST(req) {
     const product = await getRes.json();
     const currentApiStock = Number(product.stock_quantity) || 0;
     const newApiStock = currentApiStock + Number(quantity);
-
-    console.log('Current API Stock:', currentApiStock);
-    console.log('New API Stock:', newApiStock);
 
     // 2. تحديث المخزون في API
     const updateRes = await fetch(

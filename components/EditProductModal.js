@@ -119,18 +119,32 @@ export default function EditProductModal({
           <>
             <label className="block mb-2">السعر الأساسي:</label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={price}
-              onChange={(e) => setPrice(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                  setPrice(val);
+                }
+              }}
               className="border w-full rounded px-2 py-1 mb-4"
+              placeholder="0.00"
             />
 
             <label className="block mb-2">سعر العرض (Sale):</label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={salePrice}
-              onChange={(e) => setSalePrice(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                  setSalePrice(val);
+                }
+              }}
               className="border w-full rounded px-2 py-1 mb-4"
+              placeholder="0.00"
             />
           </>
         )}
@@ -165,11 +179,18 @@ export default function EditProductModal({
             <div>
               <label className="block mb-1">الكمية المتوفرة:</label>
               <input
-                type="number"
-                min="0"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={stockQuantity}
-                onChange={(e) => setStockQuantity(parseInt(e.target.value) || 0)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^\d+$/.test(val)) {
+                    setStockQuantity(val === '' ? 0 : parseInt(val));
+                  }
+                }}
                 className="border w-full rounded px-2 py-1"
+                placeholder="0"
               />
             </div>
           )}

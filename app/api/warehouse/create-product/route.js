@@ -18,7 +18,7 @@ cloudinary.config({
  *   purchasePrice?: number,
  *   stock: number,
  *   category?: string,
- *   imageBase64?: string (صورة بصيغة base64)
+ *   imageUrl?: string (رابط صورة من Cloudinary)
  * }
  */
 export async function POST(req) {

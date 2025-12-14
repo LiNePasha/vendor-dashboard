@@ -79,7 +79,7 @@ function ImageModal({ src, onClose }) {
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(false); // Start false, fetchProducts will set to true
+  const [loading, setLoading] = useState(true); // 🔥 Start true للتحميل الأولي
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [perPage, setPerPage] = useState(12);
@@ -150,6 +150,7 @@ export default function ProductsPage() {
           setProducts(cache.products);
           setCategories(cache.categories || []);
           setTotalPages(cache.pagination?.totalPages || 1);
+          setLoading(false); // ✅ أوقف اللودر بعد عرض الـ cache
           
           // فحص: هل الـ cache حديث؟
           const isStale = await productsCacheStorage.isCacheStale(3 * 60 * 1000); // 3 دقائق
@@ -158,7 +159,9 @@ export default function ProductsPage() {
             return; // الـ cache حديث، لا داعي للتحديث
           }
           // الـ cache قديم - التحديث في الخلفية (بدون لودر)
-          setLoading(false); // ✅ أوقف اللودر
+        } else {
+          // مفيش cache - اعرض loader
+          setLoading(true);
         }
       } else {
         setLoading(true); // فقط عند البحث أو الفلترة

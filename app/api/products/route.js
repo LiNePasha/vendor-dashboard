@@ -12,55 +12,52 @@ async function getToken() {
 async function fetchCategories(token) {
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
   
-  // جلب المنتجات المتاحة أولاً
-  const productsRes = await fetch(
-    `${API_BASE}/wp-json/wc/v3/products?status=publish&per_page=100`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+  try {
+    // 🆕 استخدام API المخصص للتصنيفات
+    // فك التوكن لجلب vendor ID
+    function decodeToken(token) {
+      try {
+        const payload = token.split('.')[1];
+        return JSON.parse(Buffer.from(payload, 'base64').toString());
+      } catch {
+        return null;
+      }
     }
-  );
 
-  if (!productsRes.ok) throw new Error(`API Error: ${productsRes.status}`);
-  const products = await productsRes.json();
+    const decoded = decodeToken(token);
+    const vendorId = decoded?.data?.user?.id;
 
-  // استخراج معرفات التصنيفات من المنتجات
-  const categoryIds = new Set();
-  products.forEach(product => {
-    if (product.categories && Array.isArray(product.categories)) {
-      product.categories.forEach(cat => categoryIds.add(cat.id));
+    if (!vendorId) {
+      throw new Error('Vendor ID not found in token');
     }
-  });
 
-  // جلب تفاصيل التصنيفات المستخدمة فقط
-  if (categoryIds.size === 0) return [];
+    // جلب التصنيفات من الـ API المخصص
+    const categoriesRes = await fetch(
+      `${API_BASE}/wp-json/spare2app/v2/store/${vendorId}/categories?consumer_key=${process.env.WC_CONSUMER_KEY}&consumer_secret=${process.env.WC_CONSUMER_SECRET}`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
-  const categoriesQuery = new URLSearchParams();
-  categoriesQuery.set('include', Array.from(categoryIds).join(','));
-
-  const res = await fetch(
-    `${API_BASE}/wp-json/wc/v3/products/categories?${categoriesQuery.toString()}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+    if (!categoriesRes.ok) {
+      throw new Error(`Categories API Error: ${categoriesRes.status}`);
     }
-  );
 
-  if (!res.ok) throw new Error(`API Error: ${res.status}`);
-  const categories = await res.json();
-  
-  // إضافة عدد المنتجات لكل تصنيف
-  return categories.map(cat => ({
-    ...cat,
-    count: products.filter(p => 
-      p.categories && 
-      p.categories.some(c => c.id === cat.id)
-    ).length
-  }));
+    const categories = await categoriesRes.json();
+    
+    // التصنيفات جاهزة مع عدد المنتجات
+    return categories.map(cat => ({
+      id: cat.id,
+      name: cat.name,
+      slug: cat.slug,
+      count: cat.count || 0
+    }));
+  } catch (error) {
+    console.error('Error fetching categories:', error);
+    return [];
+  }
 }
 
 // جلب المنتجات من WooCommerce
@@ -92,15 +89,8 @@ async function fetchProducts({ page = 1, per_page = 12, search = "", status = "a
   const products = await res.json();
   const totalPages = parseInt(res.headers.get("X-WP-TotalPages") || "1");
   
-  // 2. Fetch categories on first page only
-  let categories = [];
-  if (page === 1) {
-    categories = await fetchCategories(token);
-  }
-
   return { 
     products,
-    categories,
     pagination: { totalPages } 
   };
 }

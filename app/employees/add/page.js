@@ -452,12 +452,16 @@ export default function AddEmployeePage() {
                 المرتب الأساسي <span className="text-red-500">*</span>
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 name="basicSalary"
                 value={formData.basicSalary}
-                onChange={handleInputChange}
-                min="0"
-                step="0.01"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                    handleInputChange({ target: { name: 'basicSalary', value: val } });
+                  }
+                }}
                 className={`w-full border rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 ${
                   errors.basicSalary ? "border-red-500 focus:ring-red-500" : "border-gray-200 focus:ring-blue-500"
                 }`}
@@ -472,12 +476,16 @@ export default function AddEmployeePage() {
                 البدلات
               </label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 name="allowances"
                 value={formData.allowances}
-                onChange={handleInputChange}
-                min="0"
-                step="0.01"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                    handleInputChange({ target: { name: 'allowances', value: val } });
+                  }
+                }}
                 className="w-full border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="0.00"
               />
@@ -538,13 +546,19 @@ export default function AddEmployeePage() {
                   فترة السماح (دقيقة)
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   name="gracePeriod"
                   value={formData.gracePeriod}
-                  onChange={handleInputChange}
-                  min="0"
-                  max="60"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '' || (/^\d+$/.test(val) && parseInt(val) <= 60)) {
+                      handleInputChange({ target: { name: 'gracePeriod', value: val } });
+                    }
+                  }}
                   className="w-full border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0-60"
                 />
               </div>
             </div>

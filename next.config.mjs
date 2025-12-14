@@ -10,6 +10,15 @@ const withPWA = withPWAInit({
 
 const nextConfig = {
   reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'api.spare2app.com',
+        pathname: '/wp-content/uploads/**',
+      },
+    ],
+  },
 };
 
 export default withPWA(nextConfig);

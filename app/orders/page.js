@@ -35,11 +35,6 @@ export default function OrdersPage() {
       fetchOrders();
     }
   }, []);
-  
-  // 🔥 تحديث تلقائي لما orders يتغير في Global State
-  useEffect(() => {
-    console.log('📦 Orders updated in Global State:', orders.length);
-  }, [orders]);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -175,16 +170,6 @@ export default function OrdersPage() {
               return items.map((item, idx) => {
                 // محاولة الحصول على الصورة من أماكن مختلفة
                 let imageUrl = null;
-                
-                // Debug: طباعة البيانات
-                if (idx === 0) {
-                  console.log('🖼️ Item structure:', {
-                    name: item.name,
-                    image: item.image,
-                    image_url: item.image_url,
-                    has_meta: !!item.meta_data
-                  });
-                }
                 
                 // من الـ image object (الطريقة الصحيحة في WooCommerce REST API)
                 if (item.image?.src) {

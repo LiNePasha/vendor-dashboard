@@ -276,11 +276,15 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
                 سعر البيع * (ج.م)
               </label>
               <input
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={quickAddForm.price}
-                onChange={(e) => setQuickAddForm({ ...quickAddForm, price: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                    setQuickAddForm({ ...quickAddForm, price: val });
+                  }
+                }}
                 className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder="450"
                 required
@@ -293,10 +297,16 @@ export default function QuickAddProductModal({ isOpen, onClose, onSuccess, setTo
                 المخزون 🛒
               </label>
               <input
-                type="number"
-                min="0"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={quickAddForm.stock || 0}
-                onChange={(e) => setQuickAddForm({ ...quickAddForm, stock: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^\d+$/.test(val)) {
+                    setQuickAddForm({ ...quickAddForm, stock: val === '' ? 0 : parseInt(val) });
+                  }
+                }}
                 className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 placeholder="0"
                 disabled={quickAddLoading}

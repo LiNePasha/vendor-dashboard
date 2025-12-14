@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ProductGrid } from '@/components/pos/ProductGrid';
+import { CategoryGrid } from '@/components/pos/CategoryGrid';
 import { Cart } from '@/components/pos/Cart';
 import { Toast } from '@/components/Toast';
 import QuickAddProductModal from '@/components/QuickAddProductModal';
@@ -12,11 +13,12 @@ import EmployeeSelector from '@/components/EmployeeSelector';
 export default function POSPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
+  const [viewMode, setViewMode] = useState('categories'); // 🆕 categories or products
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState(null);
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('amount');
-  const [discountApplyMode, setDiscountApplyMode] = useState('both'); // 🆕 تطبيق الخصم على
+  const [discountApplyMode, setDiscountApplyMode] = useState('both');
   const [extraFee, setExtraFee] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [showInvoice, setShowInvoice] = useState(false);
@@ -25,18 +27,20 @@ export default function POSPage() {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
-  const [showMobileCart, setShowMobileCart] = useState(false); // 🆕 Mobile cart visibility
-  const [barcodeInput, setBarcodeInput] = useState(''); // 🆕 Barcode scanner input
+  const [showMobileCart, setShowMobileCart] = useState(false);
+  const [barcodeInput, setBarcodeInput] = useState('');
 
   const {
     products = [],
     cart = [],
     services = [],
     categories = [],
+    categoriesLoading = false,
     loading = false,
     processing = false,
     hasMore = false,
     fetchProducts,
+    fetchCategories,
     addToCart,
     updateQuantity,
     removeFromCart,
@@ -50,7 +54,8 @@ export default function POSPage() {
   useEffect(() => {
     if (!initialized) {
       init();
-      fetchProducts({ page: 1 }).then((result) => {
+      // 🆕 تحميل التصنيفات أولاً
+      fetchCategories().then((result) => {
         if (result?.error) {
           setToast({ message: result.error, type: 'error' });
         }
@@ -84,18 +89,25 @@ export default function POSPage() {
     }
   };
 
-  useEffect(() => {
-    if (!initialized) return; // Don't fetch on initial mount
-    const t = setTimeout(() => {
-      fetchProducts({ page: 1, search, category }).then((result) => {
-        if (result?.error) {
-          setToast({ message: result.error, type: 'error' });
-        }
-      });
-    }, 350);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, category]);
+  // 🆕 دالة اختيار التصنيف
+  const handleSelectCategory = (categoryId) => {
+    setCategory(categoryId);
+    setViewMode('products');
+    setSearch(''); // مسح البحث
+    // جلب المنتجات حسب التصنيف
+    fetchProducts({ page: 1, category: categoryId, per_page: 20 }).then((result) => {
+      if (result?.error) {
+        setToast({ message: result.error, type: 'error' });
+      }
+    });
+  };
+
+  // 🆕 دالة الرجوع للتصنيفات
+  const handleBackToCategories = () => {
+    setViewMode('categories');
+    setCategory('all');
+    setSearch('');
+  };
 
   const loadMore = () => {
     if (!hasMore || loading) return;
@@ -256,10 +268,34 @@ export default function POSPage() {
   return (
     <>
       <div className="flex flex-col md:flex-row bg-gray-100 min-h-screen">
-        {/* Products Section */}
+        {/* Main Content Section */}
         <div className="flex-1 p-4 md:p-6 overflow-y-auto">
-          {/* Search & Filters */}
-          <div className="mb-4 space-y-3">
+          
+          {/* 🆕 Categories View */}
+          {viewMode === 'categories' ? (
+            <>
+              <CategoryGrid
+                categories={categories}
+                loading={categoriesLoading}
+                onSelectCategory={handleSelectCategory}
+                totalProducts={products.length}
+              />
+            </>
+          ) : (
+            <>
+              {/* 🆕 Back to Categories Button */}
+              <div className="mb-4">
+                <button
+                  onClick={handleBackToCategories}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all font-semibold shadow-sm"
+                >
+                  <span className="text-xl">🏪</span>
+                  <span>رجوع للتصنيفات</span>
+                </button>
+              </div>
+
+              {/* Search & Filters */}
+              <div className="mb-4 space-y-3">
             {/* 🆕 Barcode Scanner Input */}
             <div className="relative">
               <input
@@ -287,7 +323,22 @@ export default function POSPage() {
               placeholder="ابحث عن منتج..."
               className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSearch(val);
+                // البحث التلقائي
+                if (val.trim()) {
+                  setViewMode('products');
+                  const t = setTimeout(() => {
+                    fetchProducts({ page: 1, search: val, category }).then((result) => {
+                      if (result?.error) {
+                        setToast({ message: result.error, type: 'error' });
+                      }
+                    });
+                  }, 400);
+                  return () => clearTimeout(t);
+                }
+              }}
             />
             
             {/* Filters Row */}
@@ -323,21 +374,23 @@ export default function POSPage() {
             </div>
           </div>
 
-          <ProductGrid 
-            products={products} 
-            loading={loading} 
-            onAddToCart={handleAddToCart} 
-            cart={cart} 
-          />
+              <ProductGrid 
+                products={products} 
+                loading={loading} 
+                onAddToCart={handleAddToCart} 
+                cart={cart} 
+              />
 
-          {!loading && Array.isArray(products) && products.length > 0 && (
-            <div className="mt-6 text-center pb-20 md:pb-6">
-              {hasMore ? (
-                <button onClick={loadMore} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">تحميل المزيد</button>
-              ) : (
-                <p className="text-gray-500">لا يوجد المزيد من المنتجات</p>
+              {!loading && Array.isArray(products) && products.length > 0 && (
+                <div className="mt-6 text-center pb-20 md:pb-6">
+                  {hasMore ? (
+                    <button onClick={loadMore} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">تحميل المزيد</button>
+                  ) : (
+                    <p className="text-gray-500">لا يوجد المزيد من المنتجات</p>
+                  )}
+                </div>
               )}
-            </div>
+            </>
           )}
         </div>
 

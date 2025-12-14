@@ -22,6 +22,7 @@ const usePOSStore = create(persist((set, get) => ({
   cart: [],
   services: [], // Service fees array
   categories: [],
+  categoriesLoading: false,
   loading: false,
   processing: false,
   pendingUpdates: [], // For tracking pending stock updates
@@ -121,6 +122,37 @@ const usePOSStore = create(persist((set, get) => ({
     set({ services: [] });
   },
 
+  // 🆕 Categories Actions
+  fetchCategories: async () => {
+    try {
+      set({ categoriesLoading: true });
+
+      const res = await fetch('/api/categories', {
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'فشل تحميل التصنيفات');
+      }
+
+      const data = await res.json();
+
+      if (data.success && data.categories) {
+        set({ 
+          categories: data.categories,
+          categoriesLoading: false 
+        });
+        return { success: true, categories: data.categories };
+      }
+
+      throw new Error('Invalid response format');
+    } catch (error) {
+      set({ categoriesLoading: false });
+      return { error: error.message || 'فشل تحميل التصنيفات' };
+    }
+  },
+
   // Products Actions
   fetchProducts: async (query = {}, append = false) => {
     try {
@@ -187,7 +219,7 @@ const usePOSStore = create(persist((set, get) => ({
       if (!query.search && query.category === 'all' && !append) {
         await productsCacheStorage.saveCache(
           data.products || [],
-          data.categories || [],
+          [], // لا نحفظ categories في cache المنتجات
           data.pagination || {}
         );
       }
@@ -195,7 +227,6 @@ const usePOSStore = create(persist((set, get) => ({
       // 4️⃣ Update state
       set(state => ({
         products: append ? [...state.products, ...(data.products || [])] : (data.products || []),
-        categories: data.categories || state.categories,
         hasMore: (query.page || 1) < ((data.pagination?.totalPages || 0))
       }));
 

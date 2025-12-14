@@ -18,9 +18,7 @@ function PrintInvoiceContent() {
 
   // Load vendor info if not available
   useEffect(() => {
-    console.log('👤 Vendor Info:', vendorInfo);
     if (!vendorInfo) {
-      console.log('⚠️ No vendor info, fetching...');
       getVendorInfo();
     }
   }, [vendorInfo, getVendorInfo]);
@@ -28,17 +26,13 @@ function PrintInvoiceContent() {
   useEffect(() => {
     async function load() {
       try {
-        console.log('🔍 Loading invoice:', invoiceId);
         let inv = null;
         if (invoiceStorage?.getInvoice) {
           inv = await invoiceStorage.getInvoice(invoiceId);
-          console.log('📄 Invoice from getInvoice:', inv);
         }
         if (!inv) {
           const all = await invoiceStorage.getAllInvoices();
-          console.log('📦 All invoices:', all);
           inv = all.find((i) => String(i.id) === String(invoiceId)) || null;
-          console.log('✅ Found invoice:', inv);
         }
         setInvoice(inv || null);
       } catch (err) {

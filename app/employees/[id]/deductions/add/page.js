@@ -211,12 +211,16 @@ export default function AddDeductionPage() {
               المبلغ (ج.م) <span className="text-red-500">*</span>
             </label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               name="amount"
               value={formData.amount}
-              onChange={handleInputChange}
-              min="0"
-              step="0.01"
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                  handleInputChange({ target: { name: 'amount', value: val } });
+                }
+              }}
               className={`w-full border rounded-lg px-4 py-3 text-lg focus:outline-none focus:ring-2 ${
                 errors.amount ? "border-red-500 focus:ring-red-500" : "border-gray-200 focus:ring-blue-500"
               }`}

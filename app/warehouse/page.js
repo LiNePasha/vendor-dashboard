@@ -34,6 +34,9 @@ export default function WarehousePage() {
   });
   const [transferring, setTransferring] = useState(false);
 
+  // Image Modal state
+  const [imageModal, setImageModal] = useState(null);
+
   useEffect(() => {
     loadData(currentPage);
   }, [currentPage]);
@@ -73,7 +76,7 @@ export default function WarehousePage() {
       }
 
       // جلب من API (في الخلفية أو أول مرة أو صفحات أخرى)
-      const response = await fetch(`/api/products?per_page=100&page=${pageNum}`);
+      const response = await fetch(`/api/products?per_page=500&page=${pageNum}`);
       if (response.ok) {
         const data = await response.json();
         const apiProducts = data.products || [];
@@ -367,7 +370,9 @@ export default function WarehousePage() {
                     <img 
                       src={product.images[0].src} 
                       alt={product.name} 
-                      className="w-16 h-16 object-cover rounded-lg bg-white border shadow-sm" 
+                      className="w-16 h-16 object-cover rounded-lg bg-white border shadow-sm cursor-pointer hover:opacity-80 hover:scale-105 transition-all" 
+                      onClick={() => setImageModal(product.images[0].src)}
+                      title="اضغط لعرض الصورة بحجم أكبر"
                     />
                   ) : (
                     <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-lg border flex items-center justify-center text-gray-400 text-2xl">
@@ -535,10 +540,15 @@ export default function WarehousePage() {
                   سعر الشراء (ج.م):
                 </label>
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   value={modalForm.purchasePrice}
-                  onChange={(e) => setModalForm({ ...modalForm, purchasePrice: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                      setModalForm({ ...modalForm, purchasePrice: val });
+                    }
+                  }}
                   className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="300.00"
                 />
@@ -551,9 +561,16 @@ export default function WarehousePage() {
                   المخزون المحلي (اختياري):
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={modalForm.localStock}
-                  onChange={(e) => setModalForm({ ...modalForm, localStock: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d+$/.test(val)) {
+                      setModalForm({ ...modalForm, localStock: val });
+                    }
+                  }}
                   className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder="15"
                 />
@@ -630,11 +647,19 @@ export default function WarehousePage() {
                   الكمية المراد نقلها:
                 </label>
                 <input
-                  type="number"
-                  min="1"
-                  max={transferForm.maxQuantity}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={transferForm.quantity}
-                  onChange={(e) => setTransferForm({ ...transferForm, quantity: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d+$/.test(val)) {
+                      const num = val === '' ? '' : parseInt(val);
+                      if (num === '' || (num >= 1 && num <= transferForm.maxQuantity)) {
+                        setTransferForm({ ...transferForm, quantity: val });
+                      }
+                    }
+                  }}
                   className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-lg font-semibold bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   placeholder={`1 - ${transferForm.maxQuantity}`}
                   disabled={transferring}
@@ -717,6 +742,27 @@ export default function WarehousePage() {
           >
             التالي →
           </button>
+        </div>
+      )}
+
+      {/* Image Modal */}
+      {imageModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fadeIn"
+          onClick={() => setImageModal(null)}
+        >
+          <button
+            onClick={() => setImageModal(null)}
+            className="absolute top-4 left-4 bg-white/10 hover:bg-white/20 text-white rounded-full w-10 h-10 flex items-center justify-center text-2xl font-bold backdrop-blur-md transition-all z-10"
+          >
+            ×
+          </button>
+          <img
+            src={imageModal}
+            alt="product preview"
+            className="max-h-[90vh] max-w-[90vw] rounded-xl shadow-2xl animate-scaleIn"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>

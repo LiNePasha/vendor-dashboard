@@ -487,17 +487,30 @@ export default function BulkUploadModal({ isOpen, onClose, onSuccess, setToast }
                       />
                       <div className="grid grid-cols-2 gap-2">
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="decimal"
                           placeholder="السعر *"
                           value={product.price}
-                          onChange={(e) => updateProduct(product.id, 'price', e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                              updateProduct(product.id, 'price', val);
+                            }
+                          }}
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                         />
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           placeholder="المخزون"
                           value={product.stock}
-                          onChange={(e) => updateProduct(product.id, 'stock', e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || /^\d+$/.test(val)) {
+                              updateProduct(product.id, 'stock', val);
+                            }
+                          }}
                           className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                         />
                       </div>

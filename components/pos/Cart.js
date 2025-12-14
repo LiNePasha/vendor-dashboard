@@ -244,11 +244,15 @@ export function Cart({
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-600 font-medium">المبلغ:</span>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     value={service.amount || ''}
-                    onChange={(e) => onUpdateService(service.id, 'amount', parseFloat(e.target.value) || 0)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                        onUpdateService(service.id, 'amount', val === '' ? 0 : parseFloat(val) || 0);
+                      }
+                    }}
                     placeholder="0.00"
                     className="flex-1 px-2.5 py-1.5 border border-gray-300 rounded text-sm 
                       focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
@@ -297,10 +301,15 @@ export function Cart({
               </select>
             </div>
             <input
-              type="number"
-              min="0"
+              type="text"
+              inputMode="decimal"
               value={discount}
-              onChange={(e) => onDiscountChange(Math.max(0, e.target.value))}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                  onDiscountChange(val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
+                }
+              }}
               className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded text-xs 
                 focus:ring-2 focus:ring-red-500 focus:border-red-500"
               placeholder="0"

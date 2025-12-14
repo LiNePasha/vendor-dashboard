@@ -5,6 +5,7 @@ import NotificationBell from "../components/NotificationBell";
 import { useState } from "react";
 import NotificationSidebar from "@/components/NotificationSidebar";
 import Sidebar from "@/components/Sidebar";
+import NetworkStatus from "@/components/NetworkStatus";
 import usePOSStore from "@/app/stores/pos-store";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -72,6 +73,9 @@ export default function ClientLayout({ children }) {
 
   return (
     <>
+      {/* Network Status Indicator - Always visible */}
+      <NetworkStatus />
+      
       {!shouldHideLayout && (
         <>
           {/* Hamburger Menu Button - Mobile Only */}
