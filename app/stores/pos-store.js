@@ -139,6 +139,7 @@ const usePOSStore = create(persist((set, get) => ({
       const data = await res.json();
 
       if (data.success && data.categories) {
+        console.log('✅ Categories loaded:', data.categories.length);
         set({ 
           categories: data.categories,
           categoriesLoading: false 
@@ -148,6 +149,7 @@ const usePOSStore = create(persist((set, get) => ({
 
       throw new Error('Invalid response format');
     } catch (error) {
+      console.error('❌ Categories error:', error);
       set({ categoriesLoading: false });
       return { error: error.message || 'فشل تحميل التصنيفات' };
     }
@@ -171,9 +173,9 @@ const usePOSStore = create(persist((set, get) => ({
         const cache = await productsCacheStorage.getCache();
         if (cache && cache.products && cache.products.length > 0) {
           // عرض البيانات من الـ cache فوراً
+          // 🔧 لا تمسح categories - هي متحملة من fetchCategories
           set({
             products: cache.products,
-            categories: cache.categories || [],
             hasMore: false, // الـ cache يحتوي كل المنتجات
             loading: false // ✅ أوقف اللودر
           });
@@ -225,10 +227,13 @@ const usePOSStore = create(persist((set, get) => ({
       }
       
       // 4️⃣ Update state
-      set(state => ({
-        products: append ? [...state.products, ...(data.products || [])] : (data.products || []),
-        hasMore: (query.page || 1) < ((data.pagination?.totalPages || 0))
-      }));
+      set(state => {
+        console.log('📦 Products updated. Categories count:', state.categories.length);
+        return {
+          products: append ? [...state.products, ...(data.products || [])] : (data.products || []),
+          hasMore: (query.page || 1) < ((data.pagination?.totalPages || 0))
+        };
+      });
 
       return { success: true, data };
     } catch (error) {
