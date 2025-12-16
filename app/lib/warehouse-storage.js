@@ -81,6 +81,41 @@ export const warehouseStorage = {
     }
   },
 
+  // حفظ المخزون المحلي لمتغير
+  async setVariationLocalStock(variationId, localStock) {
+    const allData = await localforage.getItem('variation-local-stocks') || {};
+    allData[variationId] = {
+      localStock: Number(localStock) || 0,
+      updatedAt: new Date().toISOString()
+    };
+    await localforage.setItem('variation-local-stocks', allData);
+  },
+
+  // جلب المخزون المحلي لمتغير
+  async getVariationLocalStock(variationId) {
+    const allData = await localforage.getItem('variation-local-stocks') || {};
+    return allData[variationId]?.localStock || 0;
+  },
+
+  // جلب كل المخزون المحلي للمتغيرات
+  async getAllVariationLocalStocks() {
+    return await localforage.getItem('variation-local-stocks') || {};
+  },
+
+  // حفظ مخزون محلي لعدة متغيرات دفعة واحدة
+  async setMultipleVariationLocalStocks(variations) {
+    const allData = await localforage.getItem('variation-local-stocks') || {};
+    variations.forEach(v => {
+      if (v.id && typeof v.localStock !== 'undefined') {
+        allData[v.id] = {
+          localStock: Number(v.localStock) || 0,
+          updatedAt: new Date().toISOString()
+        };
+      }
+    });
+    await localforage.setItem('variation-local-stocks', allData);
+  },
+
   // مسح كل البيانات
   async clearAll() {
     await localforage.setItem('warehouse-products', []);

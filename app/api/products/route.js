@@ -207,6 +207,50 @@ async function fetchProducts({ page = 1, per_page = 12, search = "", status = "a
   };
 }
 
+// 🆕 جلب variations للمنتج المتغير
+async function fetchVariations(productId, token) {
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+  
+  try {
+    const res = await fetch(
+      `${API_BASE}/wp-json/wc/v3/products/${productId}/variations?per_page=100`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!res.ok) {
+      console.error(`❌ Error fetching variations for product ${productId}:`, res.status);
+      return [];
+    }
+
+    const variations = await res.json();
+    
+    // تنسيق الـ variations لسهولة الاستخدام
+    return variations.map(v => ({
+      id: v.id,
+      sku: v.sku || '',
+      price: v.price || v.regular_price || '0',
+      regular_price: v.regular_price || '0',
+      sale_price: v.sale_price || '',
+      stock_quantity: v.stock_quantity || 0,
+      manage_stock: v.manage_stock || false,
+      in_stock: v.stock_status === 'instock',
+      purchasable: v.purchasable || false,
+      attributes: v.attributes || [], // [{name: "اللون", option: "أحمر"}]
+      image: v.image?.src || null,
+      // نص وصفي للـ variation (مثل: "أحمر - M")
+      description: v.attributes?.map(a => a.option).join(' - ') || ''
+    }));
+  } catch (error) {
+    console.error(`❌ Error fetching variations for product ${productId}:`, error);
+    return [];
+  }
+}
+
 // GET: جلب المنتجات والتصنيفات
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
@@ -228,6 +272,46 @@ export async function GET(req) {
       fetchProducts({ page, per_page, search, status, category }),
       fetchCategories(token)
     ]);
+
+    // 🆕 جلب variations للمنتجات المتغيرة
+    const includeVariations = searchParams.get("include_variations") === "true";
+    
+    if (includeVariations && data.products) {
+      console.log(`🔀 Fetching variations for ${data.products.length} products...`);
+      
+      // جلب variations للمنتجات من نوع variable فقط
+      const variableProducts = data.products.filter(p => p.type === 'variable');
+      
+      if (variableProducts.length > 0) {
+        const variationsPromises = variableProducts.map(product =>
+          fetchVariations(product.id, token).then(variations => ({
+            productId: product.id,
+            variations
+          }))
+        );
+        
+        const variationsResults = await Promise.all(variationsPromises);
+        
+        // إضافة variations لكل منتج
+        const variationsMap = {};
+        variationsResults.forEach(result => {
+          variationsMap[result.productId] = result.variations;
+        });
+        
+        data.products = data.products.map(product => {
+          if (product.type === 'variable' && variationsMap[product.id]) {
+            return {
+              ...product,
+              variations: variationsMap[product.id],
+              variations_count: variationsMap[product.id].length
+            };
+          }
+          return product;
+        });
+        
+        console.log(`✅ Added variations for ${variableProducts.length} variable products`);
+      }
+    }
 
     console.log(`📦 Products API Response: ${data.products?.length || 0} products, ${categories?.length || 0} categories`);
 

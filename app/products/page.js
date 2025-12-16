@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import EditProductModal from "@/components/EditProductModal";
-import QuickAddProductModal from "@/components/QuickAddProductModal";
+import ProductFormModal from "@/components/ProductFormModal";
 import BulkUploadModal from "@/components/BulkUploadModal";
 import Link from "next/link";
 import { productsCacheStorage } from "@/app/lib/localforage";
@@ -80,10 +79,10 @@ export default function ProductsPage() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true); // 🔥 Start true للتحميل الأولي
+  const [searching, setSearching] = useState(false); // 🔍 Loading للبحث
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [perPage, setPerPage] = useState(12);
-  const [selectedProduct, setSelectedProduct] = useState(null);
   const [updating, setUpdating] = useState(false);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -93,16 +92,32 @@ export default function ProductsPage() {
   const [initialized, setInitialized] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
-  const [showModal, setShowModal] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
 
   // Get vendor info for logo fallback
   const vendorInfo = usePOSStore((s) => s.vendorInfo);
   const vendorLogo = getVendorLogo(vendorInfo?.id);
 
-  // Debounce للبحث
+  // Debounce للبحث - يبحث بعد 300ms من آخر حرف
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   useEffect(() => {
-    const handler = setTimeout(() => setDebouncedSearch(search), 400);
+    // لو السيرش فاضي - بحث فوري بدون delay
+    if (search === '') {
+      setDebouncedSearch('');
+      setSearching(false);
+      return;
+    }
+    
+    // إظهار loading indicator
+    if (search !== debouncedSearch) {
+      setSearching(true);
+    }
+    
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+      setSearching(false);
+    }, 300); // أسرع للاستجابة الفورية
+    
     return () => clearTimeout(handler);
   }, [search]);
 
@@ -114,11 +129,6 @@ export default function ProductsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Handle product modal close
-  const handleProductModalClose = () => {
-    setSelectedProduct(null);
-  };
 
   // Handle filter/search changes (skip initial render)
   useEffect(() => {
@@ -233,6 +243,7 @@ export default function ProductsPage() {
         sale_price: typeof updatedData.sale_price !== 'undefined' ? (updatedData.sale_price || "") : p.sale_price,
         manage_stock: isManageStock,
         stock_quantity: isManageStock ? (newQty ?? 0) : p.stock_quantity,
+        images: updatedData.imageUrl ? [{ src: updatedData.imageUrl }] : p.images,
       };
     };
 
@@ -248,6 +259,7 @@ export default function ProductsPage() {
       sale_price: updatedData.sale_price,
       manage_stock: isManageStock,
       stock_quantity: isManageStock ? (newQty ?? 0) : undefined,
+      images: updatedData.imageUrl ? [{ src: updatedData.imageUrl }] : undefined,
     });
 
     // Close modal fast and show lightweight toast
@@ -340,9 +352,9 @@ export default function ProductsPage() {
                 onClick={() => setShowQuickAdd(true)}
                 className="bg-gradient-to-r from-green-600 to-emerald-700 text-white px-5 py-2.5 rounded-lg hover:from-green-700 hover:to-emerald-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2"
               >
-                <span className="text-lg">⚡</span>
-                <span className="hidden sm:inline">إضافة سريعة</span>
-                <span className="sm:hidden">سريع</span>
+                <span className="text-lg">➕</span>
+                <span className="hidden sm:inline">إضافة منتج</span>
+                <span className="sm:hidden">إضافة</span>
               </button>
               <Link
                 href="/warehouse"
@@ -365,14 +377,25 @@ export default function ProductsPage() {
           <div className="flex flex-col gap-3">
             {/* Search - Full width on mobile */}
             <div className="w-full relative">
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                {searching ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+                ) : (
+                  '🔍'
+                )}
+              </span>
               <input
                 type="text"
-                placeholder="ابحث بالاسم..."
+                placeholder="ابحث بالاسم أو SKU..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="border border-gray-200 rounded-lg px-4 pr-10 py-2.5 w-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
+              {searching && (
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-blue-600 font-medium">
+                  جاري البحث...
+                </span>
+              )}
             </div>
             
             {/* Filters Row - 2 selects + refresh button */}
@@ -429,14 +452,39 @@ export default function ProductsPage() {
         </div>
       ) : products.length === 0 ? (
         <div className="text-center py-16">
-          <div className="text-6xl mb-4">📦</div>
-          <p className="text-gray-500 text-lg">لا توجد منتجات حتى الآن</p>
-          <button
-            onClick={() => setShowModal(true)}
-            className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-          >
-            أضف منتج جديد
-          </button>
+          {search || category !== 'all' || filterStatus !== 'all' ? (
+            // رسالة عدم وجود نتائج بحث
+            <>
+              <div className="text-6xl mb-4">🔍</div>
+              <p className="text-gray-700 text-xl font-semibold mb-2">لا توجد نتائج</p>
+              <p className="text-gray-500 text-sm mb-4">
+                {search && `لم نجد أي منتجات تطابق "${search}"`}
+                {!search && 'لا توجد منتجات تطابق الفلاتر المحددة'}
+              </p>
+              <button
+                onClick={() => {
+                  setSearch('');
+                  setCategory('all');
+                  setFilterStatus('all');
+                }}
+                className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-all shadow-sm"
+              >
+                🔄 إعادة تعيين البحث
+              </button>
+            </>
+          ) : (
+            // رسالة عدم وجود منتجات أصلاً
+            <>
+              <div className="text-6xl mb-4">📦</div>
+              <p className="text-gray-500 text-lg">لا توجد منتجات حتى الآن</p>
+              <Link
+                href="/warehouse/add"
+                className="inline-block mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+              >
+                أضف منتج جديد
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -565,8 +613,9 @@ export default function ProductsPage() {
                   {/* Actions */}
                   <div className="flex gap-2 mt-auto pt-2 border-t border-gray-100">
                     <button
-                      className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-2 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all text-xs font-semibold shadow-sm hover:shadow-md"
-                      onClick={() => setSelectedProduct(product)}
+                      className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 text-white px-3 py-2 rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all text-sm font-semibold shadow-sm hover:shadow-md"
+                      onClick={() => setEditingProduct(product.id)}
+                      title="تعديل المنتج"
                     >
                       ✏️ تعديل
                     </button>
@@ -615,25 +664,31 @@ export default function ProductsPage() {
       </div>
 
       {/* Modals */}
-      {selectedProduct && (
-        <EditProductModal
-          product={selectedProduct}
-          onClose={handleProductModalClose}
-          onSave={handleUpdateProduct}
-          updating={updating}
-          setToast={setToast}
-        />
-      )}
       {imageModal && (
         <ImageModal src={imageModal} onClose={() => setImageModal(null)} />
       )}
 
-      {/* Quick Add Modal */}
-      <QuickAddProductModal
+      {/* Edit Product Modal */}
+      <ProductFormModal
+        isOpen={!!editingProduct}
+        onClose={() => setEditingProduct(null)}
+        mode="edit"
+        productId={editingProduct}
+        onSuccess={(data) => {
+          setToast({ message: '✅ تم تعديل المنتج بنجاح', type: 'success' });
+          fetchProducts(page, perPage, search, filterStatus, category);
+        }}
+      />
+
+      {/* Add Product Modal */}
+      <ProductFormModal
         isOpen={showQuickAdd}
         onClose={() => setShowQuickAdd(false)}
-        onSuccess={handleQuickAddSuccess}
-        setToast={setToast}
+        mode="create"
+        onSuccess={(data) => {
+          setToast({ message: '✅ تم إضافة المنتج بنجاح', type: 'success' });
+          fetchProducts(page, perPage, search, filterStatus, category);
+        }}
       />
 
       {/* Bulk Upload Modal */}

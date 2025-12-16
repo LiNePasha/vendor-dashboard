@@ -122,6 +122,15 @@ const usePOSStore = create(persist((set, get) => ({
     set({ services: [] });
   },
 
+  // 🆕 Update single product locally (for optimistic updates)
+  updateProduct: (productId, updates) => {
+    set(state => ({
+      products: state.products.map(p => 
+        p.id === productId ? { ...p, ...updates } : p
+      )
+    }));
+  },
+
   // 🆕 Categories Actions
   fetchCategories: async () => {
     try {
@@ -481,11 +490,28 @@ const usePOSStore = create(persist((set, get) => ({
       if (cart.length > 0) {
         const updates = cart.map(item => ({
           productId: item.id,
+          variationId: item.variation_id, // 🆕 إضافة variation_id إذا كان موجود
           newQuantity: Math.max(0, item.stock_quantity - item.quantity)
         }));
 
         // Update stock and wait for response
         const { successCount } = await processStockUpdates(updates);
+        
+        // 🆕 تحديث المخزون المحلي للمتغيرات
+        try {
+          for (const item of cart) {
+            if (item.variation_id) {
+              // هذا variation - محتاج نحدث المخزون المحلي
+              const currentLocalStock = await warehouseStorage.getVariationLocalStock(item.variation_id);
+              const newLocalStock = Math.max(0, currentLocalStock - item.quantity);
+              await warehouseStorage.setVariationLocalStock(item.variation_id, newLocalStock);
+              console.log(`✅ تم تحديث المخزون المحلي للمتغير ${item.variation_id}: ${currentLocalStock} → ${newLocalStock}`);
+            }
+          }
+        } catch (error) {
+          console.error('❌ فشل تحديث المخزون المحلي للمتغيرات:', error);
+          // لا نوقف العملية
+        }
 
         // Mark invoice as synced if update was successful
         if (successCount > 0) {

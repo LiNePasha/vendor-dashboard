@@ -145,7 +145,7 @@ export default function NotificationBell({ onToggleSidebar, onOpenSidebar, sound
     }
     
     lastCountRef.current = count;
-  }, [processingOrders, soundEnabled, onOpenSidebar]);
+  }, [processingOrders, soundEnabled]); // ❌ شلت onOpenSidebar من dependencies
 
   // Poll for new orders every 60 seconds
   useEffect(() => {

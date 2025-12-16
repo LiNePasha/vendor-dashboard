@@ -12,7 +12,7 @@ function ProductSkeleton() {
   );
 }
 
-export function ProductGrid({ products, loading, onAddToCart, cart = [] }) {
+export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVariation, cart = [] }) {
   const [quantities, setQuantities] = useState({});
 
   // 🔄 Sync quantities with actual cart
@@ -89,7 +89,20 @@ export function ProductGrid({ products, loading, onAddToCart, cart = [] }) {
         const isInCart = currentQty > 0;
 
         return (
-        <div key={product.id} className="bg-white rounded-lg shadow hover:shadow-xl transition-all duration-300 overflow-hidden group">
+        <div key={product.id} className="bg-white rounded-lg shadow hover:shadow-xl transition-all duration-300 overflow-hidden group relative">
+          {/* 🆕 زر التعديل */}
+          {onEdit && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(product);
+              }}
+              className="absolute top-2 left-2 z-20 bg-white hover:bg-blue-500 hover:text-white text-gray-700 rounded-full w-8 h-8 flex items-center justify-center shadow-lg transition-all border border-gray-200"
+              title="تعديل المنتج"
+            >
+              ✏️
+            </button>
+          )}
           <div className="relative h-36 md:h-40 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100">
             <img
               src={product.images[0]?.src || '/placeholder.webp'}
@@ -113,47 +126,81 @@ export function ProductGrid({ products, loading, onAddToCart, cart = [] }) {
               {product.name}
             </h3>
             
+            {/* 🆕 Variable Product Badge */}
+            {product.type === 'variable' && (
+              <div className="mb-2 flex items-center gap-1">
+                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-bold rounded-full flex items-center gap-1">
+                  🔀 {product.variations_count || product.variations?.length || 0} متغير
+                </span>
+              </div>
+            )}
+            
             <div className="flex items-center justify-between gap-2">
-              <span className="text-base md:text-lg font-bold text-gray-900">
-                {product.regular_price || product.price}
-                <span className="text-xs text-gray-500 mr-1">ج.م</span>
-              </span>
+              {/* السعر مع دعم العروض */}
+              <div className="flex flex-col">
+                {product.sale_price && product.sale_price !== product.regular_price ? (
+                  <>
+                    <span className="text-base md:text-lg font-bold text-green-600">
+                      {product.sale_price}
+                      <span className="text-xs text-gray-500 mr-1">ج.م</span>
+                    </span>
+                    <span className="text-xs text-gray-400 line-through">
+                      {product.regular_price || product.price} ج.م
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-base md:text-lg font-bold text-gray-900">
+                    {product.regular_price || product.price}
+                    <span className="text-xs text-gray-500 mr-1">ج.م</span>
+                  </span>
+                )}
+              </div>
               
-              {/* Counter Button */}
-              {!isInCart ? (
+              {/* 🆕 Variable Product - Select Button */}
+              {product.type === 'variable' ? (
                 <button
-                  onClick={() => {
-                    onAddToCart(product);
-                    setQuantities(prev => ({ ...prev, [product.id]: 1 }));
-                  }}
-                  disabled={product.stock_quantity === 0}
-                  className={`px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-semibold transition-all
-                    ${product.stock_quantity > 0
-                      ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-md hover:shadow-lg'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    }`}
+                  onClick={() => onSelectVariation && onSelectVariation(product)}
+                  className="px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-semibold transition-all bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 shadow-md hover:shadow-lg"
                 >
-                  {product.stock_quantity > 0 ? '+ إضافة' : 'نفذ'}
+                  🎯 اختر
                 </button>
               ) : (
-                <div className="flex items-center gap-1 bg-blue-600 rounded-lg shadow-md">
+                /* Simple Product - Counter Button */
+                !isInCart ? (
                   <button
-                    onClick={() => handleDecrease(product)}
-                    className="px-2 py-1.5 md:py-2 text-white hover:bg-blue-700 rounded-r-lg transition-colors font-bold text-sm md:text-base"
+                    onClick={() => {
+                      onAddToCart(product);
+                      setQuantities(prev => ({ ...prev, [product.id]: 1 }));
+                    }}
+                    disabled={product.stock_quantity === 0}
+                    className={`px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-semibold transition-all
+                      ${product.stock_quantity > 0
+                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-md hover:shadow-lg'
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
                   >
-                    −
+                    {product.stock_quantity > 0 ? '+ إضافة' : 'نفذ'}
                   </button>
-                  <span className="px-2 py-1 text-white font-bold text-sm md:text-base min-w-[24px] text-center">
-                    {currentQty}
-                  </span>
-                  <button
-                    onClick={() => handleIncrease(product)}
-                    disabled={currentQty >= product.stock_quantity}
-                    className="px-2 py-1.5 md:py-2 text-white hover:bg-blue-700 rounded-l-lg transition-colors font-bold text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    +
-                  </button>
-                </div>
+                ) : (
+                  <div className="flex items-center gap-1 bg-blue-600 rounded-lg shadow-md">
+                    <button
+                      onClick={() => handleDecrease(product)}
+                      className="px-2 py-1.5 md:py-2 text-white hover:bg-blue-700 rounded-r-lg transition-colors font-bold text-sm md:text-base"
+                    >
+                      −
+                    </button>
+                    <span className="px-2 py-1 text-white font-bold text-sm md:text-base min-w-[24px] text-center">
+                      {currentQty}
+                    </span>
+                    <button
+                      onClick={() => handleIncrease(product)}
+                      disabled={currentQty >= product.stock_quantity}
+                      className="px-2 py-1.5 md:py-2 text-white hover:bg-blue-700 rounded-l-lg transition-colors font-bold text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      +
+                    </button>
+                  </div>
+                )
               )}
             </div>
           </div>

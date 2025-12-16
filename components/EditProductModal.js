@@ -7,6 +7,9 @@ export default function EditProductModal({
   updating,
   setToast,
 }) {
+  // 🔒 Early return if no product
+  if (!product) return null;
+
   const [name, setName] = useState(product.name);
   const [price, setPrice] = useState(product.regular_price);
   const [salePrice, setSalePrice] = useState(product.sale_price || "");

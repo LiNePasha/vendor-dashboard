@@ -14,11 +14,13 @@ cloudinary.config({
  * Body: {
  *   name: string,
  *   sku?: string,
- *   sellingPrice: number,
+ *   type?: 'simple' | 'variable', // نوع المنتج
+ *   sellingPrice?: number, // للمنتجات البسيطة فقط
  *   purchasePrice?: number,
- *   stock: number,
- *   categories?: number[] (array of category IDs),
- *   imageUrl?: string (رابط صورة من Cloudinary)
+ *   stock?: number, // للمنتجات البسيطة فقط
+ *   categories?: number[], // array of category IDs
+ *   imageUrl?: string, // رابط صورة من Cloudinary
+ *   attributes?: array // للمنتجات المتعددة: [{name, options, visible, variation}]
  * }
  */
 export async function POST(req) {
@@ -44,10 +46,20 @@ export async function POST(req) {
     const vendorId = decoded?.data?.user?.id;
 
     const body = await req.json();
-    const { name, sku, sellingPrice, purchasePrice, stock, categories, imageUrl } = body;
+    const { name, sku, type = 'simple', sellingPrice, purchasePrice, stock, categories, imageUrl, attributes } = body;
 
-    if (!name || !sellingPrice) {
-      return NextResponse.json({ error: 'Name and selling price are required' }, { status: 400 });
+    if (!name) {
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    // Validation for simple products
+    if (type === 'simple' && !sellingPrice) {
+      return NextResponse.json({ error: 'Selling price is required for simple products' }, { status: 400 });
+    }
+
+    // Validation for variable products
+    if (type === 'variable' && (!attributes || attributes.length === 0)) {
+      return NextResponse.json({ error: 'Attributes are required for variable products' }, { status: 400 });
     }
 
     // 2. إنشاء المنتج في WooCommerce API
@@ -55,14 +67,10 @@ export async function POST(req) {
 
     const productPayload = {
       name,
-      type: 'simple',
-      regular_price: String(sellingPrice),
+      type: type, // 'simple' or 'variable'
       status: 'publish',
-      manage_stock: true,
-      stock_quantity: Number(stock) || 0,
       meta_data: [
         { key: '_wcfm_product_author', value: vendorId },
-        // حفظ سعر الشراء في meta_data للاستخدام لاحقاً
         { key: '_purchase_price', value: String(purchasePrice || 0) }
       ]
     };
@@ -77,10 +85,25 @@ export async function POST(req) {
       productPayload.images = [{ src: imageUrl }];
     }
 
-    // 🔥 إضافة التصنيفات (multi-select support)
+    // إضافة التصنيفات
     if (categories && Array.isArray(categories) && categories.length > 0) {
       productPayload.categories = categories.map(catId => ({ id: parseInt(catId) }));
       console.log('✅ Categories added to product:', productPayload.categories);
+    }
+
+    // Settings specific to product type
+    if (type === 'simple') {
+      productPayload.regular_price = String(sellingPrice);
+      productPayload.manage_stock = true;
+      productPayload.stock_quantity = Number(stock) || 0;
+    } else if (type === 'variable') {
+      // For variable products, add attributes
+      productPayload.attributes = attributes.map(attr => ({
+        name: attr.name,
+        options: attr.options,
+        visible: attr.visible !== false,
+        variation: attr.variation !== false
+      }));
     }
 
     // 3. إنشاء المنتج

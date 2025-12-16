@@ -5,13 +5,16 @@ import { ProductGrid } from '@/components/pos/ProductGrid';
 import { CategoryGrid } from '@/components/pos/CategoryGrid';
 import { Cart } from '@/components/pos/Cart';
 import { Toast } from '@/components/Toast';
-import QuickAddProductModal from '@/components/QuickAddProductModal';
+import ProductFormModal from '@/components/ProductFormModal';
+import VariationSelector from '@/components/pos/VariationSelector';
 import usePOSStore from '@/app/stores/pos-store';
 import InvoiceModal from './InvoiceModal';
 import EmployeeSelector from '@/components/EmployeeSelector';
+import { productsCacheStorage } from '@/app/lib/localforage';
 
 export default function POSPage() {
   const [search, setSearch] = useState('');
+  const [searching, setSearching] = useState(false); // 🔍 Loading للبحث
   const [category, setCategory] = useState('all');
   const [viewMode, setViewMode] = useState('categories'); // 🆕 categories or products
   const [page, setPage] = useState(1);
@@ -29,6 +32,9 @@ export default function POSPage() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showMobileCart, setShowMobileCart] = useState(false);
   const [barcodeInput, setBarcodeInput] = useState('');
+  const [editingProductId, setEditingProductId] = useState(null); // 🆕 للتعديل
+  const [variationSelectorProduct, setVariationSelectorProduct] = useState(null); // 🆕 للـ variation selector
+  const [variationSelectorVariations, setVariationSelectorVariations] = useState([]); // 🆕 variations list
 
   const {
     products = [],
@@ -48,6 +54,7 @@ export default function POSPage() {
     addService,
     updateService,
     removeService,
+    updateProduct,
     init
   } = usePOSStore();
 
@@ -89,13 +96,47 @@ export default function POSPage() {
     }
   };
 
+  // 🔍 Debounce للبحث - لو السيرش فاضي يرجع فوري
+  useEffect(() => {
+    if (!initialized) return;
+    
+    // لو السيرش فاضي - بحث فوري بدون delay
+    if (search === '') {
+      setSearching(false);
+      if (viewMode === 'products') {
+        fetchProducts({ page: 1, search: '', category }).then((result) => {
+          if (result?.error) {
+            setToast({ message: result.error, type: 'error' });
+          }
+        });
+      }
+      return;
+    }
+    
+    // إظهار loading للبحث
+    setSearching(true);
+    
+    const handler = setTimeout(() => {
+      setViewMode('products'); // الانتقال لعرض المنتجات
+      fetchProducts({ page: 1, search, category }).then((result) => {
+        setSearching(false);
+        if (result?.error) {
+          setToast({ message: result.error, type: 'error' });
+        }
+      });
+    }, 300); // 300ms للاستجابة السريعة
+    
+    return () => clearTimeout(handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]); // نشتغل بس لما السيرش يتغير
+
   // 🆕 دالة اختيار التصنيف
   const handleSelectCategory = (categoryId) => {
     setCategory(categoryId);
     setViewMode('products');
     setSearch(''); // مسح البحث
-    // جلب المنتجات حسب التصنيف
-    fetchProducts({ page: 1, category: categoryId, per_page: 20 }).then((result) => {
+    // 🔥 جلب المنتجات حسب التصنيف
+    fetchProducts({ page: 1, search: '', category: categoryId }).then((result) => {
       if (result?.error) {
         setToast({ message: result.error, type: 'error' });
       }
@@ -108,19 +149,6 @@ export default function POSPage() {
     setCategory('all');
     setSearch('');
   };
-
-  // 🆕 مراقبة تغيير الفئة وجلب المنتجات
-  useEffect(() => {
-    // فقط لو في products view وتغير category
-    if (viewMode === 'products' && initialized) {
-      fetchProducts({ page: 1, search, category }).then((result) => {
-        if (result?.error) {
-          setToast({ message: result.error, type: 'error' });
-        }
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category]); // يشتغل لما category يتغير
 
   const loadMore = () => {
     if (!hasMore || loading) return;
@@ -150,6 +178,71 @@ export default function POSPage() {
   const handleQuickAddSuccess = async () => {
     // تحديث قائمة المنتجات
     await fetchProducts({ page: 1, search, category });
+  };
+
+  // 🆕 دالة اختيار variation من منتج variable
+  const handleSelectVariation = async (product) => {
+    setToast({ message: '🔄 جاري تحميل المتغيرات...', type: 'info' });
+    
+    try {
+      // جلب variations من الـ API
+      const res = await fetch(`/api/products/${product.id}/variations`);
+      const data = await res.json();
+      
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'فشل تحميل المتغيرات');
+      }
+      
+      // 🆕 إضافة المخزون المحلي لكل variation
+      const { warehouseStorage } = await import('@/app/lib/warehouse-storage');
+      const variationsWithLocalStock = await Promise.all(
+        data.variations.map(async (v) => {
+          const localStock = await warehouseStorage.getVariationLocalStock(v.id);
+          return {
+            ...v,
+            localStock: localStock || 0
+          };
+        })
+      );
+      
+      setVariationSelectorProduct(product);
+      setVariationSelectorVariations(variationsWithLocalStock);
+      setToast(null);
+      console.log('✅ تم تحميل', variationsWithLocalStock.length, 'متغيرات مع المخزون المحلي');
+    } catch (error) {
+      setToast({ message: error.message || 'فشل تحميل المتغيرات', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  // 🆕 دالة إضافة variation للسلة
+  const handleVariationSelect = async (product, variation) => {
+    // إنشاء product object مدمج مع variation
+    const variationProduct = {
+      id: product.id,
+      variation_id: variation.id,
+      name: `${product.name} - ${variation.description}`,
+      price: variation.price,
+      regular_price: variation.regular_price,
+      sale_price: variation.sale_price,
+      stock_quantity: variation.stock_quantity,
+      manage_stock: variation.manage_stock,
+      sku: variation.sku,
+      images: variation.image ? [{ src: variation.image }] : product.images,
+      // معلومات إضافية للـ variation
+      parent_id: product.id,
+      parent_name: product.name,
+      variation_attributes: variation.attributes,
+      is_variation: true
+    };
+    
+    const res = await addToCart(variationProduct);
+    if (res?.error) {
+      setToast({ message: res.error, type: 'error' });
+    } else {
+      setToast({ message: `✅ تمت إضافة "${variationProduct.name}"`, type: 'success' });
+      setTimeout(() => setToast(null), 2000);
+    }
   };
 
   // 🆕 دالة البحث بالباركود/SKU
@@ -331,28 +424,29 @@ export default function POSPage() {
             </div>
 
             {/* Search - Full width on mobile */}
-            <input
-              type="text"
-              placeholder="ابحث عن منتج..."
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={search}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSearch(val);
-                // البحث التلقائي
-                if (val.trim()) {
-                  setViewMode('products');
-                  const t = setTimeout(() => {
-                    fetchProducts({ page: 1, search: val, category }).then((result) => {
-                      if (result?.error) {
-                        setToast({ message: result.error, type: 'error' });
-                      }
-                    });
-                  }, 400);
-                  return () => clearTimeout(t);
-                }
-              }}
-            />
+            <div className="relative w-full">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                {searching ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+                ) : (
+                  '🔍'
+                )}
+              </span>
+              <input
+                type="text"
+                placeholder="ابحث عن منتج..."
+                className="w-full px-4 pr-10 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                }}
+              />
+              {searching && (
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-blue-600 font-medium">
+                  جاري البحث...
+                </span>
+              )}
+            </div>
             
             {/* Filters Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -390,7 +484,9 @@ export default function POSPage() {
               <ProductGrid 
                 products={products} 
                 loading={loading} 
-                onAddToCart={handleAddToCart} 
+                onAddToCart={handleAddToCart}
+                onEdit={(product) => setEditingProductId(product.id)}
+                onSelectVariation={handleSelectVariation}
                 cart={cart} 
               />
 
@@ -539,13 +635,41 @@ export default function POSPage() {
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </div>
 
-      {/* Quick Add Modal */}
-      <QuickAddProductModal
+      {/* Add Product Modal */}
+      <ProductFormModal
         isOpen={showQuickAdd}
         onClose={() => setShowQuickAdd(false)}
-        onSuccess={handleQuickAddSuccess}
-        setToast={setToast}
+        mode="create"
+        onSuccess={(data) => {
+          setToast({ message: '✅ تم إضافة المنتج بنجاح', type: 'success' });
+          fetchProducts({ page: 1, search, category });
+        }}
       />
+
+      {/* Edit Product Modal */}
+      <ProductFormModal
+        isOpen={!!editingProductId}
+        onClose={() => setEditingProductId(null)}
+        mode="edit"
+        productId={editingProductId}
+        onSuccess={(data) => {
+          setToast({ message: '✅ تم تعديل المنتج بنجاح', type: 'success' });
+          fetchProducts({ page: 1, search, category });
+        }}
+      />
+
+      {/* Variation Selector Modal */}
+      {variationSelectorProduct && (
+        <VariationSelector
+          product={variationSelectorProduct}
+          variations={variationSelectorVariations}
+          onClose={() => {
+            setVariationSelectorProduct(null);
+            setVariationSelectorVariations([]);
+          }}
+          onSelect={handleVariationSelect}
+        />
+      )}
 
       <InvoiceModal
         invoice={lastInvoice}
