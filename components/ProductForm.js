@@ -260,11 +260,21 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       const description = combo.map(c => c.option).join(' - ');
       const baseSku = form.sku || 'VAR';
       
+      // 🔥 توليد SKU فريدة باستخدام أول 3 حروف من كل خيار + timestamp
+      const optionsSlug = combo
+        .map(c => c.option.substring(0, 3).toUpperCase().replace(/[^A-Z0-9]/g, ''))
+        .join('-');
+      
+      const timestamp = Date.now().toString().slice(-6); // آخر 6 أرقام من timestamp
+      const randomPart = Math.random().toString(36).substring(2, 5).toUpperCase(); // 3 حروف عشوائية
+      
+      const uniqueSku = `${baseSku}-${optionsSlug}-${timestamp}${randomPart}`;
+      
       return {
         id: `temp_${Date.now()}_${index}`,
         attributes: combo,
         description,
-        sku: `${baseSku}-${index + 1}`,
+        sku: uniqueSku,
         price: form.sellingPrice || '0',
         sale_price: form.salePrice || '',
         stock_quantity: 0,
