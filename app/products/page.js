@@ -192,12 +192,10 @@ export default function ProductsPage() {
 
       const data = await res.json();
       setProducts(data.products);
-      console.log('📦 Products Page: Received', data.products?.length, 'products and', data.categories?.length, 'categories');
       if (data.categories && Array.isArray(data.categories)) {
-        console.log('✅ Setting categories:', data.categories);
         setCategories(data.categories);
       } else {
-        console.warn('⚠️ No categories in response or invalid format:', data.categories);
+        console.warn('No categories in response or invalid format:', data.categories);
       }
       if (data.pagination) {
         setTotalPages(data.pagination.totalPages);

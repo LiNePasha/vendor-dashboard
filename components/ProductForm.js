@@ -51,7 +51,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
   // Debug: Log attributes changes
   useEffect(() => {
-    console.log('🔍 [ProductForm] Attributes changed:', attributes);
+    
   }, [attributes]);
 
   useEffect(() => {
@@ -84,12 +84,11 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
       if (!res.ok) {
         const errorText = await res.text();
-        console.error('❌ API Error:', errorText);
+        console.error('API Error:', errorText);
         throw new Error('فشل تحميل التصنيفات');
       }
 
       const data = await res.json();
-      console.log('📦 Full API Response:', data);
 
       // Extract categories array from response
       let categoriesArray = [];
@@ -98,12 +97,9 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       } else if (Array.isArray(data)) {
         categoriesArray = data;
       } else {
-        console.error('❌ Invalid data format:', data);
+        console.error('Invalid data format:', data);
         throw new Error('البيانات المستلمة غير صالحة');
       }
-
-      console.log(`✅ Successfully loaded ${categoriesArray.length} categories`);
-      console.log('📋 Sample categories:', categoriesArray.slice(0, 3));
       
       setCategories(categoriesArray);
     } catch (error) {
@@ -178,7 +174,6 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         
         setVariations(variationsWithLocalStock);
         setGeneratedVariations(true);
-        console.log('✅ تم تحميل', variationsWithLocalStock.length, 'متغيرات مع المخزون المحلي');
       }
     }
   };
@@ -386,13 +381,38 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         alert('⚠️ الاسم مطلوب');
         return;
       }
-      if (variations.length === 0) {
-        alert('⚠️ يجب توليد variations أولاً');
+      
+      // 🔥 التحقق من السمات (Attributes)
+      if (attributes.length === 0) {
+        alert('⚠️ يجب إضافة سمة واحدة على الأقل (مثل: اللون، المقاس)');
         return;
       }
-      const invalidVariation = variations.find(v => !v.sku || !v.price || v.price === '0');
-      if (invalidVariation) {
-        alert('⚠️ يجب إدخال SKU وسعر لجميع الـ variations');
+      
+      const emptyAttribute = attributes.find(attr => !attr.name || attr.options.length === 0);
+      if (emptyAttribute) {
+        alert('⚠️ يجب إدخال اسم السمة وخيار واحد على الأقل لكل سمة');
+        return;
+      }
+      
+      // 🔥 التحقق من الأنواع (Variations)
+      if (variations.length === 0) {
+        alert('⚠️ يجب توليد الأنواع (Variations) أولاً!\n\nاضغط على زر "🔄 توليد Variations" بعد إضافة السمات والخيارات');
+        return;
+      }
+      
+      // 🔥 التحقق من اكتمال بيانات كل variation
+      const invalidVariations = [];
+      variations.forEach((v, index) => {
+        if (!v.sku || !v.sku.trim()) {
+          invalidVariations.push(`النوع ${index + 1}: SKU مطلوب`);
+        }
+        if (!v.price || v.price === '0' || parseFloat(v.price) <= 0) {
+          invalidVariations.push(`النوع ${index + 1}: السعر مطلوب ويجب أن يكون أكبر من 0`);
+        }
+      });
+      
+      if (invalidVariations.length > 0) {
+        alert('⚠️ بيانات غير مكتملة:\n\n' + invalidVariations.join('\n'));
         return;
       }
     }
@@ -559,7 +579,6 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     // 🆕 حفظ المخزون المحلي لكل المتغيرات
     if (createdVariations.length > 0) {
       await warehouseStorage.setMultipleVariationLocalStocks(createdVariations);
-      console.log('✅ تم حفظ المخزون المحلي لـ', createdVariations.length, 'متغيرات');
     }
 
     const selectedSupplier = suppliers.find(s => s.id === form.supplierId);

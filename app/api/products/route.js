@@ -61,19 +61,6 @@ async function fetchCategories(token) {
       console.error('Invalid categories response format:', typeof rawData);
       return [];
     }
-    
-    // التصنيفات جاهزة مع عدد المنتجات
-    const formattedCategories = categoriesArray.map(cat => ({
-      id: cat.id,
-      name: cat.name,
-      slug: cat.slug,
-      count: cat.count || 0,
-      // 🔧 إصلاح: تحويل image object إلى string URL
-      image: typeof cat.image === 'object' && cat.image?.src ? cat.image.src : (cat.image || null)
-    }));
-    
-    console.log(`✅ Products API: Loaded ${formattedCategories.length} categories`);
-    return formattedCategories;
   } catch (error) {
     console.error('❌ Error fetching categories:', error);
     return [];
@@ -277,8 +264,6 @@ export async function GET(req) {
     const includeVariations = searchParams.get("include_variations") === "true";
     
     if (includeVariations && data.products) {
-      console.log(`🔀 Fetching variations for ${data.products.length} products...`);
-      
       // جلب variations للمنتجات من نوع variable فقط
       const variableProducts = data.products.filter(p => p.type === 'variable');
       
@@ -308,8 +293,6 @@ export async function GET(req) {
           }
           return product;
         });
-        
-        console.log(`✅ Added variations for ${variableProducts.length} variable products`);
       }
     }
 

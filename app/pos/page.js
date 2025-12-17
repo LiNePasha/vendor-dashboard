@@ -80,7 +80,6 @@ export default function POSPage() {
       const allEmployees = await employeesStorage.getAllEmployees();
       const activeEmployees = allEmployees.filter(emp => emp.isActive !== false);
       setEmployees(activeEmployees);
-      console.log('Loaded employees:', activeEmployees.length);
       
       // 🆕 تحميل الموظف المحفوظ
       const savedEmployeeId = localStorage.getItem('selectedPOSEmployee');
@@ -88,7 +87,6 @@ export default function POSPage() {
         const savedEmp = activeEmployees.find(emp => emp.id === savedEmployeeId);
         if (savedEmp) {
           setSelectedEmployee(savedEmp);
-          console.log('تم تحميل الموظف المحفوظ:', savedEmp.name);
         }
       }
     } catch (error) {
@@ -208,7 +206,6 @@ export default function POSPage() {
       setVariationSelectorProduct(product);
       setVariationSelectorVariations(variationsWithLocalStock);
       setToast(null);
-      console.log('✅ تم تحميل', variationsWithLocalStock.length, 'متغيرات مع المخزون المحلي');
     } catch (error) {
       setToast({ message: error.message || 'فشل تحميل المتغيرات', type: 'error' });
       setTimeout(() => setToast(null), 3000);

@@ -109,7 +109,6 @@ const usePOSStore = create(persist((set, get) => ({
     const updated = services.map(service =>
       service.id === id ? { ...service, [field]: value } : service
     );
-    console.log('📝 Service Updated:', { id, field, value, updatedService: updated.find(s => s.id === id) });
     set({ services: updated });
   },
 
@@ -148,7 +147,6 @@ const usePOSStore = create(persist((set, get) => ({
       const data = await res.json();
 
       if (data.success && data.categories) {
-        console.log('✅ Categories loaded:', data.categories.length);
         set({ 
           categories: data.categories,
           categoriesLoading: false 
@@ -237,7 +235,6 @@ const usePOSStore = create(persist((set, get) => ({
       
       // 4️⃣ Update state
       set(state => {
-        console.log('📦 Products updated. Categories count:', state.categories.length);
         return {
           products: append ? [...state.products, ...(data.products || [])] : (data.products || []),
           hasMore: (query.page || 1) < ((data.pagination?.totalPages || 0))
@@ -373,7 +370,6 @@ const usePOSStore = create(persist((set, get) => ({
             quantity: item.quantity,
             price: item.price
           });
-          console.warn(`⚠️ المنتج "${item.name}" ليس له سعر شراء - الربح غير محسوب`);
         }
 
         return {
@@ -398,9 +394,7 @@ const usePOSStore = create(persist((set, get) => ({
             amount: Number(s.amount),
             employeeId: s.employeeId || null, // 🔥 حفظ معلومات الموظف
             employeeName: s.employeeName || null
-          }));
-
-        console.log('💾 Invoice Services to Save:', validServices);      // 💰 حساب الربح النهائي (مع الخصم والرسوم)
+          }));      // 💰 حساب الربح النهائي (مع الخصم والرسوم)
       
       // 🔥 توزيع الخصم بناءً على وضع التطبيق
       let discountOnProducts = 0;
@@ -505,7 +499,6 @@ const usePOSStore = create(persist((set, get) => ({
               const currentLocalStock = await warehouseStorage.getVariationLocalStock(item.variation_id);
               const newLocalStock = Math.max(0, currentLocalStock - item.quantity);
               await warehouseStorage.setVariationLocalStock(item.variation_id, newLocalStock);
-              console.log(`✅ تم تحديث المخزون المحلي للمتغير ${item.variation_id}: ${currentLocalStock} → ${newLocalStock}`);
             }
           }
         } catch (error) {

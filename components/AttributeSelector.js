@@ -20,21 +20,16 @@ export default function AttributeSelector({ attributes, onChange, onGenerateVari
   const loadWooAttributes = async () => {
     setLoadingAttributes(true);
     try {
-      console.log('🔄 جاري تحميل السمات من WooCommerce...');
       const response = await fetch('/api/products/attributes?include_terms=true');
       const data = await response.json();
       
-      console.log('📦 Response:', data);
       
       if (data.success && data.attributes) {
         setWooAttributes(data.attributes);
-        console.log('✅ تم تحميل', data.attributes.length, 'سمة');
       } else {
-        console.warn('⚠️ لم يتم العثور على سمات في WooCommerce');
         setWooAttributes([]);
       }
     } catch (error) {
-      console.error('❌ Error loading attributes:', error);
       setWooAttributes([]);
     } finally {
       setLoadingAttributes(false);
@@ -42,11 +37,9 @@ export default function AttributeSelector({ attributes, onChange, onGenerateVari
   };
 
   const addAttribute = (wooAttrId = null) => {
-    console.log('➕ إضافة سمة:', wooAttrId ? `من WooCommerce (ID: ${wooAttrId})` : 'جديدة يدوياً');
     
     if (wooAttrId) {
       const wooAttr = wooAttributes.find(a => a.id === wooAttrId);
-      console.log('🔍 السمة المختارة:', wooAttr);
       
       if (wooAttr) {
         if (attributes.some(a => a.id === wooAttr.id)) {
@@ -62,7 +55,6 @@ export default function AttributeSelector({ attributes, onChange, onGenerateVari
           isFromWoo: true
         };
         
-        console.log('✅ إضافة سمة:', newAttr);
         onChange([...attributes, newAttr]);
       }
     } else {
@@ -71,7 +63,6 @@ export default function AttributeSelector({ attributes, onChange, onGenerateVari
         options: [],
         isFromWoo: false
       };
-      console.log('✅ إضافة سمة جديدة:', newAttr);
       onChange([...attributes, newAttr]);
     }
   };
@@ -120,7 +111,6 @@ export default function AttributeSelector({ attributes, onChange, onGenerateVari
             <select
               onChange={(e) => {
                 if (e.target.value) {
-                  console.log('📋 Selected value:', e.target.value);
                   addAttribute(parseInt(e.target.value));
                   e.target.value = '';
                 }
@@ -141,7 +131,6 @@ export default function AttributeSelector({ attributes, onChange, onGenerateVari
           <button
             type="button"
             onClick={() => {
-              console.log('🔘 زر سمة جديدة تم الضغط عليه');
               addAttribute();
             }}
             className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all flex items-center gap-2 text-sm font-semibold shadow-sm hover:shadow-md"
@@ -199,7 +188,7 @@ export default function AttributeSelector({ attributes, onChange, onGenerateVari
                       />
                       {attr.isFromWoo && (
                         <p className="text-xs text-indigo-600 mt-1 flex items-center gap-1">
-                          <span>📦</span> من WooCommerce
+                          <span>📦</span> من الموقع
                         </p>
                       )}
                     </div>
@@ -216,7 +205,7 @@ export default function AttributeSelector({ attributes, onChange, onGenerateVari
                   {availableTerms.length > 0 && (
                     <div className="mb-3 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
                       <p className="text-xs font-semibold text-indigo-800 mb-2">
-                        ⭐ خيارات متاحة من WooCommerce:
+                        ⭐ خيارات متاحة من الموقع:
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {availableTerms.map(term => (

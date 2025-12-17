@@ -40,7 +40,6 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
   const fetchProcessingOrders = async () => {
     // 🔥 منع concurrent requests
     if (fetchingRef.current) {
-      console.log('Already fetching, skipping...');
       return;
     }
     

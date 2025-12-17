@@ -16,8 +16,6 @@ export async function GET(req) {
 
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
     
-    console.log('🔄 Fetching ALL WooCommerce categories...');
-
     // 🔥 جلب كل التصنيفات من WooCommerce (بدون فلترة vendor)
     // المرحلة 1: جلب الصفحة الأولى لمعرفة عدد الصفحات الإجمالي
     const firstPageRes = await fetch(
@@ -43,14 +41,10 @@ export async function GET(req) {
     const totalPages = parseInt(firstPageRes.headers.get('X-WP-TotalPages') || '1');
     const totalCategories = parseInt(firstPageRes.headers.get('X-WP-Total') || '0');
     
-    console.log(`📊 Total categories: ${totalCategories}, Total pages: ${totalPages}`);
-
     let allCategories = [...firstPageData];
 
     // المرحلة 2: جلب باقي الصفحات إذا وجدت
     if (totalPages > 1) {
-      console.log(`🔄 Fetching remaining ${totalPages - 1} pages...`);
-      
       const pagePromises = [];
       for (let page = 2; page <= totalPages; page++) {
         pagePromises.push(
@@ -70,14 +64,9 @@ export async function GET(req) {
       remainingPages.forEach(pageData => {
         allCategories = [...allCategories, ...pageData];
       });
-
-      console.log(`✅ Successfully fetched all ${allCategories.length} categories from ${totalPages} pages`);
     }
 
     const rawCategories = allCategories;
-    
-    console.log('✅ Raw categories received:', rawCategories.length);
-    console.log('📊 First category sample:', JSON.stringify(rawCategories[0], null, 2));
     
     // تنسيق البيانات
     const formattedCategories = rawCategories.map(cat => ({
@@ -103,23 +92,6 @@ export async function GET(req) {
     };
     
     const maxDepth = Math.max(...parentCats.map(c => getDepth(c.id, 1)));
-
-    console.log('📈 Categories Analysis:');
-    console.log('  - Total:', formattedCategories.length);
-    console.log('  - Parents:', parentCats.length);
-    console.log('  - Children:', childCats.length);
-    console.log('  - Max Depth:', maxDepth);
-    
-    // عرض بعض الأمثلة من الشجرة
-    console.log('🌳 Tree Structure Sample:');
-    parentCats.slice(0, 3).forEach(parent => {
-      const children = formattedCategories.filter(c => c.parent === parent.id);
-      console.log(`  📁 ${parent.name} (${parent.count}) → ${children.length} children`);
-      children.slice(0, 2).forEach(child => {
-        const grandchildren = formattedCategories.filter(c => c.parent === child.id);
-        console.log(`    ↳ ${child.name} (${child.count}) → ${grandchildren.length} grandchildren`);
-      });
-    });
 
     return NextResponse.json({
       success: true,

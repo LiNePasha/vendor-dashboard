@@ -219,12 +219,6 @@ export function Cart({
                       value={service.employeeId || ''}
                       onChange={(e) => {
                         const selectedEmp = employees.find(emp => emp.id == e.target.value);
-                        console.log('🔧 Service Employee Selected:', {
-                          serviceId: service.id,
-                          employeeId: e.target.value,
-                          employeeName: selectedEmp?.name,
-                          employeeIdType: typeof e.target.value
-                        });
                         onUpdateService(service.id, 'employeeId', e.target.value);
                         onUpdateService(service.id, 'employeeName', selectedEmp?.name || '');
                       }}

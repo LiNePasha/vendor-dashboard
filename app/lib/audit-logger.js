@@ -18,8 +18,6 @@ export const auditLogger = {
    */
   async log(entry) {
     try {
-      console.log('📝 Audit log entry:', entry.category, entry.action);
-      
       const id = `AUDIT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const timestamp = new Date().toISOString();
       
@@ -34,10 +32,9 @@ export const auditLogger = {
       logs.push(fullEntry);
       await auditDB.setItem('logs', logs);
       
-      console.log('✅ Audit log saved successfully:', id);
       return { success: true, id };
     } catch (error) {
-      console.error('❌ Audit log error:', error);
+      console.error('Audit log error:', error);
       // لا نرمي خطأ - التسجيل يجب أن يكون صامت
       return { success: false, error };
     }
