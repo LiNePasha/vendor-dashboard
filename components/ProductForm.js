@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { warehouseStorage, suppliersStorage } from '@/app/lib/warehouse-storage';
 import AttributeSelector from './AttributeSelector';
 import VariationImageUpload from './VariationImageUpload';
+import MultipleImageUpload from './MultipleImageUpload';
 
 /**
  * ProductForm Component - نموذج شامل للمنتجات
@@ -26,9 +27,8 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   const [categorySearch, setCategorySearch] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState(new Set());
   
-  // Image States
-  const [imagePreview, setImagePreview] = useState(null);
-  const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
+  // Image States - 🆕 تحويل لـ multiple images
+  const [images, setImages] = useState([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   
   // Form State
@@ -146,8 +146,12 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     });
 
     if (product.images && product.images.length > 0) {
-      setImagePreview(product.images[0].src);
-      setUploadedImageUrl(product.images[0].src);
+      const formattedImages = product.images.map(img => ({
+        url: img.src,
+        preview: img.src,
+        uploading: false
+      }));
+      setImages(formattedImages);
     }
 
     // Load attributes and variations for variable products
@@ -548,7 +552,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         purchasePrice: parseFloat(form.purchasePrice) || 0,
         stock: parseInt(form.apiStock) || 0,
         categories: form.categories.length > 0 ? form.categories : null,
-        imageUrl: uploadedImageUrl
+        images: images.filter(img => !img.uploading).map(img => img.url) // 🆕 إرسال كل الصور
       })
     });
 
@@ -1253,64 +1257,14 @@ export default function ProductForm({ mode = 'create', productId = null, initial
           </>
         )}
 
-        {/* Product Image */}
+        {/* Product Images - 🆕 Multiple Images */}
         <div className="md:col-span-2">
-          <label className="block text-sm font-semibold mb-2">صورة المنتج (اختياري)</label>
-          
-          {!imagePreview ? (
-            <div>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="w-full px-4 py-2 border rounded-lg"
-                disabled={uploadingImage}
-                id="image-upload"
-              />
-              {uploadingImage && (
-                <div className="mt-3 flex items-center gap-2 text-blue-600">
-                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
-                  <span className="text-sm font-medium">⏳ جاري رفع الصورة...</span>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="mt-3 space-y-3">
-              <div className="relative inline-block">
-                <img src={imagePreview} alt="Preview" className="w-32 h-32 object-cover rounded-lg border-2 border-green-500 shadow-md" />
-                {uploadedImageUrl && (
-                  <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={removeImage}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm"
-                >
-                  🗑️ إزالة الصورة
-                </button>
-                <label
-                  htmlFor="image-upload"
-                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm cursor-pointer"
-                >
-                  🔄 تغيير الصورة
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="hidden"
-                  disabled={uploadingImage}
-                  id="image-upload"
-                />
-              </div>
-            </div>
-          )}
+          <MultipleImageUpload 
+            images={images}
+            onChange={setImages}
+            maxImages={8}
+            uploading={uploadingImage}
+          />
         </div>
 
         {/* Submit Button */}

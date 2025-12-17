@@ -46,7 +46,7 @@ export async function POST(req) {
     const vendorId = decoded?.data?.user?.id;
 
     const body = await req.json();
-    const { name, sku, type = 'simple', sellingPrice, purchasePrice, stock, categories, imageUrl, attributes } = body;
+    const { name, sku, type = 'simple', sellingPrice, purchasePrice, stock, categories, images, attributes } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -80,9 +80,9 @@ export async function POST(req) {
       productPayload.sku = sku;
     }
 
-    // إضافة الصورة إذا تم رفعها
-    if (imageUrl) {
-      productPayload.images = [{ src: imageUrl }];
+    // إضافة الصور إذا تم رفعها - 🆕 دعم multiple images
+    if (images && Array.isArray(images) && images.length > 0) {
+      productPayload.images = images.map(url => ({ src: url }));
     }
 
     // إضافة التصنيفات
@@ -126,7 +126,6 @@ export async function POST(req) {
     return NextResponse.json({
       success: true,
       product: newProduct,
-      imageUrl,
     });
   } catch (error) {
     console.error('Create product error:', error);
