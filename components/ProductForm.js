@@ -11,8 +11,10 @@ import VariationImageUpload from './VariationImageUpload';
  * @param {string} mode - 'create' أو 'edit'
  * @param {number} productId - ID المنتج (للتعديل فقط)
  * @param {object} initialData - بيانات أولية (للتعديل)
+ * @param {function} onSuccess - callback عند النجاح
+ * @param {function} onClose - callback لإغلاق الـ modal
  */
-export default function ProductForm({ mode = 'create', productId = null, initialData = null, onSuccess }) {
+export default function ProductForm({ mode = 'create', productId = null, initialData = null, onSuccess, onClose }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(mode === 'edit');
@@ -48,6 +50,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   const [attributes, setAttributes] = useState([]);
   const [variations, setVariations] = useState([]);
   const [generatedVariations, setGeneratedVariations] = useState(false);
+  const [originalData, setOriginalData] = useState(null); // للمقارنة في حالة التعديل
 
   // Debug: Log attributes changes
   useEffect(() => {
@@ -176,6 +179,30 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         setGeneratedVariations(true);
       }
     }
+
+    // حفظ البيانات الأصلية للمقارنة لاحقاً
+    if (mode === 'edit') {
+      setOriginalData({
+        name: product.name || '',
+        sku: product.sku || '',
+        categories: product.categories?.map(c => c.id) || [],
+        attributes: product.attributes?.map(attr => ({
+          id: attr.id,
+          name: attr.name,
+          options: [...attr.options]
+        })) || [],
+        variations: product.variations?.map(v => ({
+          id: v.id,
+          sku: v.sku,
+          price: v.price || v.regular_price,
+          sale_price: v.sale_price,
+          stock_quantity: v.stock_quantity,
+          localStock: 0,
+          attributes: v.attributes,
+          image: typeof v.image === 'string' ? v.image : v.image?.src
+        })) || []
+      });
+    }
   };
 
   // Image Upload Handler
@@ -303,6 +330,47 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     if (index !== -1) {
       updateVariation(index, 'image', imageUrl);
     }
+  };
+
+  // دالة للتحقق من تغيير variation
+  const hasVariationChanged = (current, original) => {
+    if (!original) return true; // variation جديدة
+    
+    return (
+      current.sku !== original.sku ||
+      String(current.price) !== String(original.price) ||
+      String(current.sale_price || '') !== String(original.sale_price || '') ||
+      parseInt(current.stock_quantity) !== parseInt(original.stock_quantity) ||
+      parseInt(current.localStock || 0) !== parseInt(original.localStock || 0) ||
+      (typeof current.image === 'string' ? current.image : current.image?.src) !== original.image
+    );
+  };
+
+  // دالة للتحقق من تغيير المنتج الأساسي
+  const hasParentProductChanged = () => {
+    if (!originalData) return true;
+    
+    const categoriesChanged = 
+      form.categories.length !== originalData.categories.length ||
+      form.categories.some(id => !originalData.categories.includes(id));
+    
+    const attributesChanged = 
+      attributes.length !== originalData.attributes.length ||
+      attributes.some((attr, i) => {
+        const orig = originalData.attributes[i];
+        return !orig || 
+          attr.name !== orig.name || 
+          attr.options.length !== orig.options.length ||
+          attr.options.some((opt, j) => opt !== orig.options[j]);
+      });
+    
+    return (
+      form.name !== originalData.name ||
+      form.sku !== originalData.sku ||
+      uploadedImageUrl !== (originalData.imageUrl || null) ||
+      categoriesChanged ||
+      attributesChanged
+    );
   };
 
   // Category Handlers
@@ -511,47 +579,100 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   };
 
   const handleVariableProductSubmit = async () => {
-    if (mode === 'edit') {
-      // TODO: Update variable product logic
-      throw new Error('تعديل المنتجات المتعددة قيد التطوير');
+    // 🔥 التحقق من تغيير المنتج الأساسي في حالة التعديل
+    const shouldUpdateParent = mode === 'create' || hasParentProductChanged();
+    
+    let parentId = mode === 'edit' ? productId : null;
+    
+    if (shouldUpdateParent) {
+      const parentResponse = await fetch(
+        mode === 'edit' 
+          ? `/api/products/${productId}`
+          : '/api/warehouse/create-product',
+        {
+          method: mode === 'edit' ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: form.name,
+            sku: form.sku,
+            type: 'variable',
+            categories: form.categories.length > 0 ? form.categories : null,
+            imageUrl: uploadedImageUrl,
+            attributes: attributes.map(attr => ({
+              name: attr.name,
+            options: attr.options,
+            visible: true,
+            variation: true
+          }))
+        })
+      });
+
+      if (!parentResponse.ok) {
+        let errorMessage = `فشل ${mode === 'edit' ? 'تحديث' : 'إنشاء'} المنتج الأساسي`;
+        const responseText = await parentResponse.text();
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch {
+          if (responseText) errorMessage = responseText;
+        }
+        throw new Error(errorMessage);
+      }
+
+      if (mode === 'create') {
+        let parentResult;
+        try {
+          parentResult = await parentResponse.json();
+        } catch (e) {
+          throw new Error('استجابة غير صحيحة من الخادم: ' + e.message);
+        }
+        
+        parentId = parentResult?.product?.id || parentResult?.id;
+        
+        if (!parentId) {
+          throw new Error('فشل الحصول على ID المنتج');
+        }
+      }
     }
 
-    // Create parent variable product
-    const parentResponse = await fetch('/api/warehouse/create-product', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: form.name,
-        sku: form.sku,
-        type: 'variable',
-        categories: form.categories.length > 0 ? form.categories : null,
-        imageUrl: uploadedImageUrl,
-        attributes: attributes.map(attr => ({
-          name: attr.name,
-          options: attr.options,
-          visible: true,
-          variation: true
-        }))
-      })
-    });
-
-    const parentResult = await parentResponse.json();
-
-    if (!parentResponse.ok || !parentResult.success) {
-      throw new Error(parentResult.error || 'فشل إنشاء المنتج الأساسي');
-    }
-
-    const parentId = parentResult.product.id;
-
-    // Create variations
+    // Create/Update variations (فقط المتغيرة)
     let successCount = 0;
     let failCount = 0;
-    const createdVariations = []; // 🆕 لحفظ IDs المتغيرات
+    let skippedCount = 0;
+    const createdVariations = [];
     
     for (const variation of variations) {
       try {
-        const variationResponse = await fetch(`/api/products/${parentId}/variations`, {
-          method: 'POST',
+        const variationId = variation.id && !variation.id.toString().startsWith('temp_') ? variation.id : null;
+        
+        // 🔥 في حالة التعديل، نتحقق من التغيير
+        if (mode === 'edit' && variationId) {
+          const originalVariation = originalData?.variations?.find(v => v.id === variationId);
+          if (!hasVariationChanged(variation, originalVariation)) {
+            skippedCount++;
+            // حفظ للمخزون المحلي حتى لو مفيش تغيير
+            if (variation.localStock) {
+              createdVariations.push({
+                id: variationId,
+                localStock: variation.localStock || 0
+              });
+            }
+            continue; // تخطي الـ variation لأنها مش متغيرة
+          }
+        }
+        
+        const url = variationId 
+          ? `/api/products/${parentId}/variations/${variationId}`
+          : `/api/products/${parentId}/variations`;
+        const method = variationId ? 'PUT' : 'POST';
+        
+        // استخراج URL الصورة (قد يكون string أو object)
+        const imageUrl = typeof variation.image === 'string' 
+          ? variation.image 
+          : variation.image?.src;
+
+        const variationResponse = await fetch(url, {
+          method: method,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             sku: variation.sku,
@@ -563,7 +684,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
               name: attr.name,
               option: attr.option
             })),
-            image: variation.image ? { src: variation.image } : null
+            image: imageUrl ? { src: imageUrl } : null
           })
         });
 
@@ -606,7 +727,19 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       });
     }
 
-    alert(`✅ تم إنشاء المنتج المتعدد بنجاح!\n\n🆔 ID: ${parentId}\n📦 الاسم: ${form.name}\n🔀 Variations: ${successCount} نجحت، ${failCount} فشلت`);
+    const actionText = mode === 'edit' ? 'تحديث' : 'إنشاء';
+    let message = `✅ تم ${actionText} المنتج المتعدد بنجاح!\n\n🆔 ID: ${parentId}\n📦 الاسم: ${form.name}`;
+    
+    if (mode === 'edit') {
+      message += `\n\n🔄 تحديث المتغيرات:`;
+      if (successCount > 0) message += `\n✓ ${successCount} متغير تم تحديثه`;
+      if (skippedCount > 0) message += `\n⊝ ${skippedCount} متغير بدون تغيير`;
+      if (failCount > 0) message += `\n✗ ${failCount} متغير فشل`;
+    } else {
+      message += `\n🔀 Variations: ${successCount} نجحت، ${failCount} فشلت`;
+    }
+    
+    alert(message);
   };
 
   if (loadingData) {
@@ -1182,14 +1315,14 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
         {/* Submit Button */}
         <div className="md:col-span-2 flex gap-4 pt-4">
-          <button
+          {/* <button
             type="button"
-            onClick={() => router.back()}
+            onClick={onClose || (() => router.back())}
             className="flex-1 px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all font-semibold"
             disabled={loading}
           >
-            ← رجوع
-          </button>
+            ← {onClose ? 'إغلاق' : 'رجوع'}
+          </button> */}
           <button
             type="submit"
             className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"

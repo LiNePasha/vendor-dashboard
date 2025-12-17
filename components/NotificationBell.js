@@ -10,7 +10,9 @@ export default function NotificationBell({ onToggleSidebar, onOpenSidebar, sound
   const audioContextRef = useRef(null);
   const audioElRef = useRef(null);
   const lastCountRef = useRef(0);
-  const isFetchingRef = useRef(false); // 🆕 Request guard بسيط
+  const lastOrderIdsRef = useRef(new Set()); // 🔥 تتبع IDs بدل count
+  const hasInitializedRef = useRef(false); // 🔥 منع الصوت أول مرة
+  const isFetchingRef = useRef(false);
   
   // 🔥 استخدام Global State
   const fetchOrders = usePOSStore((state) => state.fetchOrders);
@@ -128,24 +130,35 @@ export default function NotificationBell({ onToggleSidebar, onOpenSidebar, sound
   useEffect(() => {
     const readNotifications = JSON.parse(localStorage.getItem('readNotifications') || '[]');
     
-    // فلترة الطلبات الغير مقروءة (بدون تنظيف localStorage كل مرة)
+    // فلترة الطلبات الغير مقروءة
     const unreadOrders = processingOrders.filter(order => 
       !readNotifications.includes(order.id.toString())
     );
-    const count = unreadOrders.length;
     
-    setNotificationCount(count);
+    // 🔥 تتبع الـ order IDs الفعلية
+    const currentOrderIds = new Set(unreadOrders.map(order => order.id.toString()));
     
-    // Play sound if count increased
-    if (count > lastCountRef.current && lastCountRef.current > 0 && soundEnabled) {
+    // 🔥 البحث عن orders جديدة فعلاً
+    const newOrderIds = [...currentOrderIds].filter(id => !lastOrderIdsRef.current.has(id));
+    
+    setNotificationCount(currentOrderIds.size);
+    
+    // 🔥 شغل الصوت فقط لو في orders جديدة وبعد التهيئة
+    if (newOrderIds.length > 0 && hasInitializedRef.current && soundEnabled) {
       playNotificationSound();
       if (typeof onOpenSidebar === 'function') {
         onOpenSidebar();
       }
     }
     
-    lastCountRef.current = count;
-  }, [processingOrders, soundEnabled]); // ❌ شلت onOpenSidebar من dependencies
+    // 🔥 حفظ الـ IDs الحالية
+    lastOrderIdsRef.current = currentOrderIds;
+    
+    // 🔥 بعد أول fetch، نعتبر initialized
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+    }
+  }, [processingOrders, soundEnabled, onOpenSidebar]);
 
   // Poll for new orders every 60 seconds
   useEffect(() => {

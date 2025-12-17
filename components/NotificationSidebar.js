@@ -289,13 +289,8 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
                         <span className="font-bold text-gray-800 text-lg">
                           #{order.id}
                         </span>
-                        {!isRead && (
-                          <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-medium">
-                            جديد
-                          </span>
-                        )}
                       </div>
-                      <span className="text-xs text-gray-500">{timeAgo}</span>
+                      <span className="text-sm font-medium text-gray-600">{timeAgo}</span>
                     </div>
 
                     {/* Customer Info */}
@@ -433,15 +428,24 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
 
 // Helper function for time ago
 function getTimeAgo(dateString) {
-  // تحويل التاريخ من UTC لتوقيت مصر (UTC+2)
   const date = new Date(dateString);
-  date.setHours(date.getHours() + 2); // إضافة ساعتين لتوقيت مصر
+  date.setHours(date.getHours() + 2); // توقيت مصر
   
   const now = new Date();
   const seconds = Math.floor((now - date) / 1000);
   
+  // 🔥 التحقق من نفس اليوم
+  const isToday = date.toDateString() === now.toDateString();
+  
   if (seconds < 60) return 'الآن';
   if (seconds < 3600) return `منذ ${Math.floor(seconds / 60)} دقيقة`;
+  
+  // 🔥 لو نفس اليوم نعرض "اليوم" بدل "منذ X ساعة"
+  if (isToday) {
+    const hours = Math.floor(seconds / 3600);
+    return `اليوم ${date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  
   if (seconds < 86400) return `منذ ${Math.floor(seconds / 3600)} ساعة`;
   if (seconds < 604800) return `منذ ${Math.floor(seconds / 86400)} يوم`;
   

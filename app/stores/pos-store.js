@@ -15,6 +15,7 @@ const getDaysSinceLastOrder = (dateString) => {
 let __pos_lastProductsFetchKey = '';
 let __pos_lastProductsFetchAt = 0;
 let __pos_vendorFetchInFlight = false;
+let __pos_ordersFetchInFlight = false; // 🔥 منع concurrent orders fetching
 
 const usePOSStore = create(persist((set, get) => ({
   // State
@@ -596,7 +597,13 @@ const usePOSStore = create(persist((set, get) => ({
 
   // 🔥 Fetch Orders (Global State)
   fetchOrders: async (filters = {}) => {
+    // 🔥 Request guard - منع multiple concurrent requests
+    if (__pos_ordersFetchInFlight) {
+      return { success: false, message: 'Already fetching' };
+    }
+    
     try {
+      __pos_ordersFetchInFlight = true;
       set({ ordersLoading: true });
       
       const params = new URLSearchParams();
@@ -613,25 +620,33 @@ const usePOSStore = create(persist((set, get) => ({
       const data = await res.json();
       const fetchedOrders = data.orders || data || [];
       
-      // 🔥 تبسيط - Direct replacement بدون merge
-      if (filters.status === 'processing') {
-        // 🆕 فلترة وترتيب مباشر
-        const validOrders = fetchedOrders
-          .filter(order => order.status === 'processing') // تأكد من الـ status
-          .sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
-        
+      // 🔥 دايماً نحدث orders العامة
+      set({ orders: fetchedOrders });
+      
+      // 🔥 استخراج processing orders بشكل آمن
+      const newProcessingOrders = fetchedOrders
+        .filter(order => order.status === 'processing')
+        .sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
+      
+      // 🔥 قارن بشكل دقيق باستخدام Set
+      const current = get().processingOrders;
+      const currentIds = new Set(current.map(o => o.id));
+      const newIds = new Set(newProcessingOrders.map(o => o.id));
+      
+      // تحقق من تغيير فعلي
+      const hasChanges = 
+        current.length !== newProcessingOrders.length ||
+        [...newIds].some(id => !currentIds.has(id)) ||
+        [...currentIds].some(id => !newIds.has(id));
+      
+      if (hasChanges) {
         set({ 
-          processingOrders: validOrders,
-          lastOrdersFetch: Date.now()
-        });
-      } else {
-        set({ 
-          orders: fetchedOrders,
-          processingOrders: fetchedOrders.filter(o => o.status === 'processing'),
+          processingOrders: newProcessingOrders,
           lastOrdersFetch: Date.now()
         });
       }
       
+      __pos_ordersFetchInFlight = false; // 🔥 Release lock
       return { success: true, orders: fetchedOrders };
     } catch (error) {
       console.error('Error fetching orders:', error);

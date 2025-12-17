@@ -28,13 +28,18 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [toast, setToast] = useState(null);
 
-  // Fetch orders on mount
+  // 🔥 Auto-refresh orders كل 30 ثانية
   useEffect(() => {
-    // جلب كل الطلبات أول مرة بس
-    if (orders.length === 0) {
+    // جلب الطلبات أول مرة
+    fetchOrders();
+
+    // تحديث تلقائي كل 30 ثانية
+    const interval = setInterval(() => {
       fetchOrders();
-    }
-  }, []);
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [fetchOrders]);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -161,7 +166,14 @@ export default function OrdersPage() {
           // Orders List
           filteredOrders.map((order) => {
             const statusObj = STATUS_OPTIONS.find((s) => s.value === order.status);
-            const isNew = order.status === "on-hold";
+            
+            // 🔥 تحديد الطلبات الجديدة فعلاً حسب التاريخ (اليوم فقط)
+            const orderDate = new Date(order.date_created);
+            orderDate.setHours(orderDate.getHours() + 2); // توقيت مصر
+            const today = new Date();
+            const isToday = orderDate.toDateString() === today.toDateString();
+            const isNew = isToday && order.status === 'on-hold'; // جديد فقط لو معلق واليوم
+            
             const items = order.line_items || [];
             const itemsCount = items.length;
 
@@ -218,8 +230,17 @@ export default function OrdersPage() {
               const now = new Date();
               const seconds = Math.floor((now - date) / 1000);
               
+              // 🔥 التحقق من نفس اليوم
+              const isToday = date.toDateString() === now.toDateString();
+              
               if (seconds < 60) return 'الآن';
               if (seconds < 3600) return `منذ ${Math.floor(seconds / 60)} دقيقة`;
+              
+              // 🔥 لو نفس اليوم نعرض "اليوم" بدل "منذ X ساعة"
+              if (isToday) {
+                return `اليوم ${date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}`;
+              }
+              
               if (seconds < 86400) return `منذ ${Math.floor(seconds / 3600)} ساعة`;
               if (seconds < 604800) return `منذ ${Math.floor(seconds / 86400)} يوم`;
               
