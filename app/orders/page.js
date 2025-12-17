@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import usePOSStore from "@/app/stores/pos-store";
 import OrderDetailsModal from "@/components/OrderDetailsModal";
 
@@ -16,6 +16,7 @@ const STATUS_OPTIONS = [
 
 export default function OrdersPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   // 🔥 استخدام Global State
   const orders = usePOSStore((state) => state.orders);
@@ -26,19 +27,46 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [toast, setToast] = useState(null);
 
-  // 🔥 Auto-refresh orders كل 30 ثانية
+  // 🆕 قراءة search من URL أول مرة وجلب الطلب مباشرة
+  useEffect(() => {
+    const searchFromUrl = searchParams.get('search');
+    if (searchFromUrl) {
+      setSearchTerm(searchFromUrl);
+      // 🆕 جلب الطلبات مع search filter من الـ API مباشرة
+      fetchOrders({ search: searchFromUrl, per_page: 50 });
+    }
+  }, [searchParams]);
+
+  // 🔥 Auto-refresh orders كل 30 ثانية (بس لو الصفحة مفتوحة)
   useEffect(() => {
     // جلب الطلبات أول مرة
     fetchOrders();
 
     // تحديث تلقائي كل 30 ثانية
     const interval = setInterval(() => {
-      fetchOrders();
+      // 🆕 تحقق لو الصفحة مفتوحة (visible) قبل ما نعمل fetch
+      if (document.visibilityState === 'visible') {
+        fetchOrders();
+      }
     }, 30000); // 30 seconds
 
-    return () => clearInterval(interval);
+    // 🆕 لو المستخدم رجع للصفحة، حدث فوراً
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchOrders();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [fetchOrders]);
 
   const showToast = (message, type = "success") => {
@@ -71,7 +99,24 @@ export default function OrdersPage() {
     const fullName = `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.toLowerCase();
     const matchesSearch = fullName.includes(searchTerm.toLowerCase()) || order.id.toString().includes(searchTerm);
     const matchesStatus = statusFilter ? order.status === statusFilter : true;
-    return matchesSearch && matchesStatus;
+    
+    // Date filtering
+    let matchesDate = true;
+    if (dateFrom || dateTo) {
+      const orderDate = new Date(order.date_created);
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        matchesDate = matchesDate && orderDate >= fromDate;
+      }
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && orderDate <= toDate;
+      }
+    }
+    
+    return matchesSearch && matchesStatus && matchesDate;
   });
 
   return (
@@ -91,32 +136,108 @@ export default function OrdersPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-800">📦 الطلبات</h1>
         <p className="text-gray-500 mt-1">
-          {ordersLoading ? 'جاري التحميل...' : `${orders.length} طلب`}
+          {ordersLoading ? 'جاري التحميل...' : (
+            <>
+              {filteredOrders.length} {filteredOrders.length !== orders.length && `من ${orders.length}`} طلب
+              {(searchTerm || statusFilter || dateFrom || dateTo) && filteredOrders.length !== orders.length && (
+                <span className="text-blue-600 font-medium"> (مفلتر)</span>
+              )}
+            </>
+          )}
         </p>
       </div>
 
       {/* Search & Filter */}
       <div className="mb-6 bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-        <div className="flex flex-col md:flex-row gap-4">
-          <input
-            type="text"
-            placeholder="🔍 ابحث بالرقم أو اسم العميل..."
-            className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <select
-            className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[180px]"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="">📊 كل الحالات</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+        <div className="flex flex-col gap-4">
+          {/* Search and Status Filter Row */}
+          <div className="flex flex-col md:flex-row gap-4">
+            <input
+              type="text"
+              placeholder="🔍 ابحث بالرقم أو اسم العميل..."
+              className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <select
+              className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[180px]"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">📊 كل الحالات</option>
+              {STATUS_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date Filter Row */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 flex items-center gap-2">
+              <label className="text-sm text-gray-600 font-medium whitespace-nowrap">📅 من:</label>
+              <input
+                type="date"
+                className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+              />
+            </div>
+            <div className="flex-1 flex items-center gap-2">
+              <label className="text-sm text-gray-600 font-medium whitespace-nowrap">📅 إلى:</label>
+              <input
+                type="date"
+                className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+              />
+            </div>
+            {(searchTerm || statusFilter || dateFrom || dateTo) && (
+              <button
+                onClick={() => {
+                  setSearchTerm("");
+                  setStatusFilter("");
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium whitespace-nowrap"
+              >
+                🔄 مسح الفلاتر
+              </button>
+            )}
+          </div>
+
+          {/* Active Filters Display */}
+          {(searchTerm || statusFilter || dateFrom || dateTo) && (
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+              <span className="text-xs text-gray-500 font-medium">الفلاتر النشطة:</span>
+              {searchTerm && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                  🔍 {searchTerm}
+                  <button onClick={() => setSearchTerm("")} className="hover:text-blue-900">×</button>
+                </span>
+              )}
+              {statusFilter && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                  📊 {STATUS_OPTIONS.find(s => s.value === statusFilter)?.label}
+                  <button onClick={() => setStatusFilter("")} className="hover:text-purple-900">×</button>
+                </span>
+              )}
+              {dateFrom && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                  📅 من: {new Date(dateFrom).toLocaleDateString('ar-EG')}
+                  <button onClick={() => setDateFrom("")} className="hover:text-green-900">×</button>
+                </span>
+              )}
+              {dateTo && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                  📅 إلى: {new Date(dateTo).toLocaleDateString('ar-EG')}
+                  <button onClick={() => setDateTo("")} className="hover:text-green-900">×</button>
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -265,6 +386,19 @@ export default function OrdersPage() {
                       {isNew && (
                         <span className="inline-flex items-center gap-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">
                           <span className="relative">🔔 جديد</span>
+                        </span>
+                      )}
+                      {/* 🆕 بادج نوع التوصيل */}
+                      {order.meta_data?.some(m => 
+                        (m.key === '_is_store_pickup' && m.value === 'yes') || 
+                        (m.key === '_delivery_type' && m.value === 'store_pickup')
+                      ) ? (
+                        <span className="inline-flex items-center gap-1 bg-purple-500 text-white text-xs px-2 py-1 rounded-full">
+                          🏪 استلام
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                          🚚 توصيل
                         </span>
                       )}
                     </div>

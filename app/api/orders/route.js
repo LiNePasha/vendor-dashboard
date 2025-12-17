@@ -12,22 +12,56 @@ export async function GET(req) {
   try {
     // قراءة query parameters
     const { searchParams } = new URL(req.url);
+    const orderId = searchParams.get('id');
     const status = searchParams.get('status') || '';
     const perPage = searchParams.get('per_page') || '20';
     const page = searchParams.get('page') || '1';
-    const after = searchParams.get('after') || ''; // 🆕 فلتر بالتاريخ
+    const after = searchParams.get('after') || '';
+    const before = searchParams.get('before') || '';
+    const search = searchParams.get('search') || '';
 
     // بناء URL مع الـ parameters
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
-    let apiUrl = `${API_BASE}/wp-json/wcfmmp/v1/orders?per_page=${perPage}&page=${page}`;
     
-    if (status) {
-      apiUrl += `&status=${status}`;
+    // 🆕 لو في orderId يبقى نجيب order واحد بس
+    if (orderId) {
+      const singleOrderUrl = `${API_BASE}/wp-json/wcfmmp/v1/orders/${orderId}`;
+      const res = await fetch(singleOrderUrl, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        return new Response(JSON.stringify({ error: `API Error ${res.status}` }), {
+          status: res.status,
+        });
+      }
+
+      const order = await res.json();
+      return new Response(JSON.stringify(order), { status: 200 });
     }
     
-    // 🆕 إضافة فلتر التاريخ (جلب الطلبات بعد تاريخ معين)
+    // 🔥 استخدام WCFM API - بيدعم الـ parameters بشكل أفضل
+    let apiUrl = `${API_BASE}/wp-json/wcfmmp/v1/orders?per_page=${perPage}&page=${page}`;
+    
+    // ملحوظة: WCFM مبيدعمش status filter في orders endpoint
+    // لكن بيرجع كل الـ orders ونفلترها client-side
+    
+    // 🆕 إضافة فلتر التاريخ (ISO 8601 format)
     if (after) {
-      apiUrl += `&after=${after}`;
+      apiUrl += `&after=${encodeURIComponent(after)}`;
+    }
+    
+    if (before) {
+      apiUrl += `&before=${encodeURIComponent(before)}`;
+    }
+    
+    // Search filter
+    if (search) {
+      apiUrl += `&search=${encodeURIComponent(search)}`;
     }
 
     const res = await fetch(apiUrl, {

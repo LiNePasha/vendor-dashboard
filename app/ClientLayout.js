@@ -2,8 +2,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import NotificationBell from "../components/NotificationBell";
+import NotificationCenter from "../components/NotificationCenter";
 import { useState } from "react";
-import NotificationSidebar from "@/components/NotificationSidebar";
 import Sidebar from "@/components/Sidebar";
 import NetworkStatus from "@/components/NetworkStatus";
 import usePOSStore from "@/app/stores/pos-store";
@@ -29,7 +29,7 @@ export default function ClientLayout({ children }) {
   const isLoginPage = pathname === '/login';
   const isPrintPage = pathname?.includes('/print');
   const shouldHideLayout = isLoginPage || isPrintPage;
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -42,14 +42,14 @@ export default function ClientLayout({ children }) {
     }
   }, []);
   
-  // Keyboard shortcut: Ctrl+N to toggle notifications
+  // Keyboard shortcut: Ctrl+N to toggle NotificationCenter
   useEffect(() => {
     if (shouldHideLayout) return;
     
     const handleKeyboard = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
-        setIsSidebarOpen(prev => !prev);
+        setIsNotificationCenterOpen(prev => !prev);
       }
     };
     
@@ -111,23 +111,19 @@ export default function ClientLayout({ children }) {
               </div>
               <div className="flex items-center gap-2 md:gap-3">
                 <NotificationBell 
-                  onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-                  onOpenSidebar={() => setIsSidebarOpen(true)}
+                  onToggleSidebar={() => setIsNotificationCenterOpen(!isNotificationCenterOpen)}
+                  onOpenSidebar={() => setIsNotificationCenterOpen(true)}
+                  onOpenNotificationCenter={() => setIsNotificationCenterOpen(true)}
                   soundEnabled={soundEnabled}
                 />
               </div>
             </div>
           </div>
 
-          {/* Notification Sidebar */}
-          <NotificationSidebar 
-            isOpen={isSidebarOpen} 
-            onClose={() => setIsSidebarOpen(false)}
-            soundEnabled={soundEnabled}
-            onSoundToggle={(enabled) => {
-              setSoundEnabled(enabled);
-              localStorage.setItem('notificationSoundEnabled', enabled.toString());
-            }}
+          {/* Notification Center - الجديدة فقط */}
+          <NotificationCenter 
+            isOpen={isNotificationCenterOpen}
+            onClose={() => setIsNotificationCenterOpen(false)}
           />
         </>
       )}

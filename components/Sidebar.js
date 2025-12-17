@@ -19,7 +19,7 @@ const menuItems = [
     title: "الطلبات",
     icon: "📦",
     href: "/orders",
-    badge: "new",
+    badge: null,
   },
   {
     title: "العملاء",

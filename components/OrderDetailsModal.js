@@ -16,6 +16,16 @@ export default function OrderDetailsModal({
 
   if (!isOpen || !order) return null;
 
+  // 🆕 التحقق من نوع التوصيل
+  const isStorePickup = order.meta_data?.some(
+    m => (m.key === '_is_store_pickup' && m.value === 'yes') || 
+         (m.key === '_delivery_type' && m.value === 'store_pickup')
+  );
+
+  const deliveryType = isStorePickup ? 'استلام من المتجر' : 'توصيل';
+  const deliveryIcon = isStorePickup ? '🏪' : '🚚';
+  const deliveryColor = isStorePickup ? 'bg-purple-50 border-purple-200' : 'bg-orange-50 border-orange-200';
+
   // Handle status change
   const handleStatusChange = async (newStatus) => {
     setUpdatingStatus(true);
@@ -175,6 +185,19 @@ export default function OrderDetailsModal({
 
         {/* Modal Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* 🆕 نوع التوصيل Badge */}
+          <section className={`${deliveryColor} border-2 rounded-xl p-4`}>
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">{deliveryIcon}</span>
+              <div>
+                <p className="font-bold text-lg">{deliveryType}</p>
+                {isStorePickup && (
+                  <p className="text-sm text-gray-600">العميل سيستلم الطلب من المتجر</p>
+                )}
+              </div>
+            </div>
+          </section>
+
           {/* Status & Actions */}
           <section className="flex items-center gap-3">
             <div className="flex-1">
@@ -318,7 +341,8 @@ export default function OrderDetailsModal({
           {/* Total */}
           <section className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-5">
             <div className="space-y-3">
-              {order.shipping_total && parseFloat(order.shipping_total) > 0 && (
+              {/* 🆕 إخفاء الشحن لو استلام من المتجر */}
+              {!isStorePickup && order.shipping_total && parseFloat(order.shipping_total) > 0 && (
                 <div className="flex justify-between items-center text-gray-700">
                   <span className="font-medium">🚚 الشحن</span>
                   <span className="font-semibold">{order.shipping_total} {order.currency}</span>

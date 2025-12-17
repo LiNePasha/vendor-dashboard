@@ -57,36 +57,3 @@ export async function GET(req) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
 }
-
-// Mark notification as read
-export async function PATCH(req) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get("token")?.value;
-
-  if (!token) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
-  }
-
-  try {
-    const { notificationId } = await req.json();
-
-    const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
-    const res = await fetch(`${API_BASE}/wp-json/wcfmmp/v1/notifications/${notificationId}/read`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!res.ok) {
-      return new Response(JSON.stringify({ error: `API Error ${res.status}` }), {
-        status: res.status,
-      });
-    }
-
-    return new Response(JSON.stringify({ success: true }), { status: 200 });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
-  }
-}

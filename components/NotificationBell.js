@@ -5,7 +5,7 @@ import usePOSStore from "@/app/stores/pos-store";
 
 const SOUND_SRC = "/sounds/notify.mp3"; // ضع ملف الصوت هنا: public/sounds/notify.mp3
 
-export default function NotificationBell({ onToggleSidebar, onOpenSidebar, soundEnabled = true }) {
+export default function NotificationBell({ onToggleSidebar, onOpenSidebar, onOpenNotificationCenter, soundEnabled = true }) {
   const [notificationCount, setNotificationCount] = useState(0);
   const audioContextRef = useRef(null);
   const audioElRef = useRef(null);
@@ -109,57 +109,49 @@ export default function NotificationBell({ onToggleSidebar, onOpenSidebar, sound
     try {
       isFetchingRef.current = true;
       
-      // 🆕 جلب الطلبات من آخر 48 ساعة فقط
-      const twoDaysAgo = new Date();
-      twoDaysAgo.setHours(twoDaysAgo.getHours() - 48);
-      const afterDate = twoDaysAgo.toISOString();
-      
-      await fetchOrders({ 
-        status: 'processing', 
-        per_page: 100,
-        after: afterDate
+      // 🔥🔥🔥 استخدام الـ API الجديد مع unread_count من database
+      const notificationsRes = await fetch('/api/notifications-v2?filter=unread&per_page=100&vendor_id=22', {
+        credentials: 'include',
       });
+      
+      if (notificationsRes.ok) {
+        const notifData = await notificationsRes.json();
+        const orderNotifications = notifData.notifications || [];
+        
+        // 🔥 استخدام unread_count من الـ API (العدد الحقيقي)
+        const unreadCount = notifData.unread_count || 0;
+        const currentOrderIds = new Set(orderNotifications.map(n => n.ID?.toString()).filter(Boolean));
+        const previousOrderIds = lastOrderIdsRef.current;
+        
+        // 🔥 البحث عن orders جديدة
+        const trulyNewOrderIds = [...currentOrderIds].filter(id => !previousOrderIds.has(id));
+        
+        setNotificationCount(unreadCount);
+        
+        // 🔥 شغل الصوت فقط لو في orders جديدة
+        if (trulyNewOrderIds.length > 0 && hasInitializedRef.current && soundEnabled) {
+          console.log(`🔔 New order detected! Count: ${unreadCount}`);
+          playNotificationSound();
+          // 🆕 فتح NotificationCenter الجديدة لما يجي order جديد
+          if (typeof onOpenNotificationCenter === 'function') {
+            onOpenNotificationCenter();
+          }
+        }
+        
+        // 🔥 تحديث lastOrderIdsRef
+        lastOrderIdsRef.current = currentOrderIds;
+        hasInitializedRef.current = true;
+      } else {
+        setNotificationCount(0);
+      }
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
       isFetchingRef.current = false;
     }
   };
-  
-  // 🔥 تحديث العداد لما processingOrders يتغير
-  useEffect(() => {
-    const readNotifications = JSON.parse(localStorage.getItem('readNotifications') || '[]');
-    
-    // فلترة الطلبات الغير مقروءة
-    const unreadOrders = processingOrders.filter(order => 
-      !readNotifications.includes(order.id.toString())
-    );
-    
-    // 🔥 تتبع الـ order IDs الفعلية
-    const currentOrderIds = new Set(unreadOrders.map(order => order.id.toString()));
-    
-    // 🔥 البحث عن orders جديدة فعلاً
-    const newOrderIds = [...currentOrderIds].filter(id => !lastOrderIdsRef.current.has(id));
-    
-    setNotificationCount(currentOrderIds.size);
-    
-    // 🔥 شغل الصوت فقط لو في orders جديدة وبعد التهيئة
-    if (newOrderIds.length > 0 && hasInitializedRef.current && soundEnabled) {
-      playNotificationSound();
-      if (typeof onOpenSidebar === 'function') {
-        onOpenSidebar();
-      }
-    }
-    
-    // 🔥 حفظ الـ IDs الحالية
-    lastOrderIdsRef.current = currentOrderIds;
-    
-    // 🔥 بعد أول fetch، نعتبر initialized
-    if (!hasInitializedRef.current) {
-      hasInitializedRef.current = true;
-    }
-  }, [processingOrders, soundEnabled, onOpenSidebar]);
 
+  // Poll for new orders every 60 seconds
   // Poll for new orders every 60 seconds
   useEffect(() => {
     fetchProcessingOrders();
@@ -169,8 +161,9 @@ export default function NotificationBell({ onToggleSidebar, onOpenSidebar, sound
 
   return (
     <button
-      onClick={onToggleSidebar}
+      onClick={onOpenNotificationCenter || onToggleSidebar}
       className="relative p-2 hover:bg-gray-100 rounded-full transition-all hover:scale-110"
+      title="الإشعارات"
     >
       <span className="text-2xl animate-ring">🔔</span>
       {notificationCount > 0 && (

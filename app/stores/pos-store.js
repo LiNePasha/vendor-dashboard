@@ -604,12 +604,18 @@ const usePOSStore = create(persist((set, get) => ({
     
     try {
       __pos_ordersFetchInFlight = true;
-      set({ ordersLoading: true });
+      
+      // 🔥 فقط حدّث ordersLoading لو مش loading بالفعل
+      const currentState = get();
+      if (!currentState.ordersLoading) {
+        set({ ordersLoading: true });
+      }
       
       const params = new URLSearchParams();
       if (filters.status) params.append('status', filters.status);
       if (filters.per_page) params.append('per_page', filters.per_page);
       if (filters.after) params.append('after', filters.after);
+      if (filters.search) params.append('search', filters.search); // 🆕 دعم البحث
       
       const res = await fetch(`/api/orders?${params}`, {
         credentials: 'include',
@@ -620,8 +626,21 @@ const usePOSStore = create(persist((set, get) => ({
       const data = await res.json();
       const fetchedOrders = data.orders || data || [];
       
-      // 🔥 دايماً نحدث orders العامة
-      set({ orders: fetchedOrders });
+      // 🔥🔥🔥 CRITICAL FIX: مقارنة orders قبل التحديث - منع unnecessary re-renders
+      const state = get();
+      const currentOrderIds = new Set(state.orders.map(o => o.id));
+      const fetchedOrderIds = new Set(fetchedOrders.map(o => o.id));
+      
+      // تحقق من تغيير في orders العامة
+      const ordersChanged = 
+        state.orders.length !== fetchedOrders.length ||
+        [...fetchedOrderIds].some(id => !currentOrderIds.has(id)) ||
+        [...currentOrderIds].some(id => !fetchedOrderIds.has(id));
+      
+      // 🔥 فقط حدّث orders لو فيه تغيير فعلي
+      if (ordersChanged) {
+        set({ orders: fetchedOrders });
+      }
       
       // 🔥 استخراج processing orders بشكل آمن
       const newProcessingOrders = fetchedOrders
@@ -629,17 +648,17 @@ const usePOSStore = create(persist((set, get) => ({
         .sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
       
       // 🔥 قارن بشكل دقيق باستخدام Set
-      const current = get().processingOrders;
-      const currentIds = new Set(current.map(o => o.id));
-      const newIds = new Set(newProcessingOrders.map(o => o.id));
+      const currentProcessing = state.processingOrders;
+      const currentProcessingIds = new Set(currentProcessing.map(o => o.id));
+      const newProcessingIds = new Set(newProcessingOrders.map(o => o.id));
       
-      // تحقق من تغيير فعلي
-      const hasChanges = 
-        current.length !== newProcessingOrders.length ||
-        [...newIds].some(id => !currentIds.has(id)) ||
-        [...currentIds].some(id => !newIds.has(id));
+      // تحقق من تغيير فعلي في processing orders
+      const processingChanged = 
+        currentProcessing.length !== newProcessingOrders.length ||
+        [...newProcessingIds].some(id => !currentProcessingIds.has(id)) ||
+        [...currentProcessingIds].some(id => !newProcessingIds.has(id));
       
-      if (hasChanges) {
+      if (processingChanged) {
         set({ 
           processingOrders: newProcessingOrders,
           lastOrdersFetch: Date.now()
@@ -647,12 +666,22 @@ const usePOSStore = create(persist((set, get) => ({
       }
       
       __pos_ordersFetchInFlight = false; // 🔥 Release lock
+      
+      // 🔥 فقط حدّث ordersLoading لو كان true
+      if (get().ordersLoading) {
+        set({ ordersLoading: false });
+      }
+      
       return { success: true, orders: fetchedOrders };
     } catch (error) {
       console.error('Error fetching orders:', error);
+      __pos_ordersFetchInFlight = false; // 🔥 Release lock في حالة error
+      
+      if (get().ordersLoading) {
+        set({ ordersLoading: false });
+      }
+      
       return { error: error.message };
-    } finally {
-      set({ ordersLoading: false });
     }
   },
 
