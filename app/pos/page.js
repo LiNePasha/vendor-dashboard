@@ -128,6 +128,20 @@ export default function POSPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]); // نشتغل بس لما السيرش يتغير
 
+  // 🆕 تحميل المنتجات عند تغيير الفئة
+  useEffect(() => {
+    if (!initialized) return;
+    if (viewMode !== 'products') return;
+    
+    // تحميل المنتجات حسب الفئة المختارة
+    fetchProducts({ page: 1, search, category }).then((result) => {
+      if (result?.error) {
+        setToast({ message: result.error, type: 'error' });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]); // 🔥 نشتغل لما الفئة تتغير
+
   // 🆕 دالة اختيار التصنيف
   const handleSelectCategory = (categoryId) => {
     setCategory(categoryId);

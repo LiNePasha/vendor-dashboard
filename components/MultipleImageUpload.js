@@ -212,7 +212,7 @@ export default function MultipleImageUpload({ images = [], onChange, maxImages =
       </div>
 
       {/* ملاحظات */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-gray-700 space-y-1">
+      <div className="bg-blue-50 hidden md:block border border-blue-200 rounded-lg p-3 text-xs text-gray-700 space-y-1">
         <p className="flex items-start gap-2">
           <span className="text-blue-600">💡</span>
           <span>الصورة الأولى ستكون الصورة الرئيسية للمنتج</span>

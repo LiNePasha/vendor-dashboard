@@ -782,7 +782,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Product Type Selector */}
-        <div className="md:col-span-2 border-2 border-dashed border-blue-300 rounded-xl p-4 bg-gradient-to-r from-blue-50 to-cyan-50">
+        <div className="hidden md:block md:col-span-2 border-2 border-dashed border-blue-300 rounded-xl p-4 bg-gradient-to-r from-blue-50 to-cyan-50">
           <label className="block text-sm font-semibold mb-3 text-blue-900">📦 نوع المنتج</label>
           <div className="flex gap-4">
             <label className="flex-1 flex items-center gap-3 p-4 border-2 rounded-xl cursor-pointer transition-all hover:shadow-md"
@@ -832,6 +832,16 @@ export default function ProductForm({ mode = 'create', productId = null, initial
           </p>
         </div>
 
+        {/* Product Images - 🆕 Multiple Images */}
+        <div className="md:col-span-2">
+          <MultipleImageUpload 
+            images={images}
+            onChange={setImages}
+            maxImages={8}
+            uploading={uploadingImage}
+          />
+        </div>
+
         {/* Product Name */}
         <div className="md:col-span-2">
           <label className="block text-sm font-semibold mb-2">اسم المنتج *</label>
@@ -846,7 +856,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         </div>
 
         {/* SKU */}
-        <div>
+        <div className='hidden md:block'>
           <label className="block text-sm font-semibold mb-2">كود المنتج (SKU)</label>
           <input
             type="text"
@@ -858,7 +868,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         </div>
 
         {/* Categories */}
-        <div className="md:col-span-2">
+        <div className="md:col-span-2 hidden md:block">
           <div className="flex items-center justify-between mb-3">
             <label className="block text-sm font-semibold">
               🏷️ التصنيفات (اختياري)
@@ -1172,7 +1182,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
               <p className="text-xs text-gray-500 mt-1">💡 سعر العرض (إذا كان أقل من السعر الأساسي)</p>
             </div>
 
-            <div>
+            <div className='hidden md:block'>
               <label className="block text-sm font-semibold mb-2">سعر الشراء (ج.م)</label>
               <input
                 type="text"
@@ -1189,7 +1199,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
               />
             </div>
 
-            <div>
+            <div className='hidden md:block'>
               <label className="block text-sm font-semibold mb-2">المورد</label>
               <div className="flex gap-2">
                 <select
@@ -1236,7 +1246,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
               <p className="text-xs text-gray-500 mt-1">💡 الكمية التي ستكون متاحة للبيع من الكاشير</p>
             </div>
 
-            <div>
+            <div className='hidden md:block'>
               <label className="block text-sm font-semibold mb-2">الكمية في المخزن المحلي 📦</label>
               <input
                 type="text"
@@ -1256,16 +1266,6 @@ export default function ProductForm({ mode = 'create', productId = null, initial
             </div>
           </>
         )}
-
-        {/* Product Images - 🆕 Multiple Images */}
-        <div className="md:col-span-2">
-          <MultipleImageUpload 
-            images={images}
-            onChange={setImages}
-            maxImages={8}
-            uploading={uploadingImage}
-          />
-        </div>
 
         {/* Submit Button */}
         <div className="md:col-span-2 flex gap-4 pt-4">

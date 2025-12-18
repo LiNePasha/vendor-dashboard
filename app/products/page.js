@@ -549,6 +549,19 @@ export default function ProductsPage() {
                       🔥 تخفيض
                     </div>
                   )}
+
+                  {/* Variable Product Badge - Bottom Left */}
+                  {product.type === 'variable' && (
+                    <div className="absolute bottom-2 left-2 bg-purple-600 text-white px-2.5 py-1 rounded-full text-[10px] font-bold shadow-lg flex items-center gap-1">
+                      <span>🎨</span>
+                      <span>متعدد الأنواع</span>
+                      {product.variations_count && (
+                        <span className="bg-white/20 px-1.5 py-0.5 rounded-full">
+                          {product.variations_count}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Content */}
