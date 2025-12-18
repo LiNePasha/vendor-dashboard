@@ -209,62 +209,6 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     }
   };
 
-  // Image Upload Handler
-  const handleImageChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('⚠️ يرجى اختيار صورة فقط');
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      alert('⚠️ حجم الصورة يجب أن يكون أقل من 5 ميجابايت');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result);
-    };
-    reader.readAsDataURL(file);
-
-    setUploadingImage(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const uploadRes = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!uploadRes.ok) throw new Error('فشل رفع الصورة');
-
-      const uploadData = await uploadRes.json();
-      let imageUrl = uploadData.url;
-      
-      if (imageUrl && !imageUrl.includes('.webp')) {
-        imageUrl = imageUrl.replace(/\.(jpg|jpeg|png|gif)$/i, '.webp');
-      }
-      
-      setUploadedImageUrl(imageUrl);
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      alert('⚠️ فشل رفع الصورة');
-      setImagePreview(null);
-      setUploadedImageUrl(null);
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const removeImage = () => {
-    setImagePreview(null);
-    setUploadedImageUrl(null);
-  };
-
   // Variation Handlers
   const generateVariations = () => {
     if (attributes.length === 0 || attributes.some(a => a.options.length === 0)) {
@@ -368,10 +312,22 @@ export default function ProductForm({ mode = 'create', productId = null, initial
           attr.options.some((opt, j) => opt !== orig.options[j]);
       });
     
+    // 🔥 التحقق من تغيير الصور
+    const imagesChanged = () => {
+      if (!originalData.images && images.length === 0) return false;
+      if (!originalData.images && images.length > 0) return true;
+      if (originalData.images && images.length !== originalData.images.length) return true;
+      
+      // مقارنة URLs
+      const originalUrls = (originalData.images || []).map(img => img.url || img.src).sort();
+      const currentUrls = images.filter(img => !img.uploading).map(img => img.url).sort();
+      return originalUrls.some((url, i) => url !== currentUrls[i]);
+    };
+    
     return (
       form.name !== originalData.name ||
       form.sku !== originalData.sku ||
-      uploadedImageUrl !== (originalData.imageUrl || null) ||
+      imagesChanged() ||
       categoriesChanged ||
       attributesChanged
     );
@@ -518,13 +474,13 @@ export default function ProductForm({ mode = 'create', productId = null, initial
           supplierName: selectedSupplier?.name || ''
         });
         alert('✅ تم إضافة المنتج للمخزن المحلي بنجاح!');
-      }
-
-      // Call onSuccess callback if provided
-      if (onSuccess) {
-        onSuccess(form);
-      } else {
-        router.push('/warehouse');
+        
+        // Call onSuccess callback if provided
+        if (onSuccess) {
+          onSuccess(form);
+        } else {
+          router.push('/warehouse');
+        }
       }
     } catch (error) {
       console.error('Error submitting product:', error);
@@ -580,6 +536,11 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
     const actionText = mode === 'edit' ? 'تحديث' : 'إنشاء';
     alert(`✅ تم ${actionText} المنتج بنجاح!\n\n🆔 ID: ${productId}\n📦 الاسم: ${result.product.name}`);
+    
+    // 🔥 استدعاء callback للتحديث
+    if (onSuccess) {
+      onSuccess(result.product);
+    }
   };
 
   const handleVariableProductSubmit = async () => {
@@ -601,7 +562,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
             sku: form.sku,
             type: 'variable',
             categories: form.categories.length > 0 ? form.categories : null,
-            imageUrl: uploadedImageUrl,
+            images: images.filter(img => !img.uploading).map(img => img.url), // 🆕 استخدام الصور المتعددة
             attributes: attributes.map(attr => ({
               name: attr.name,
             options: attr.options,
@@ -744,6 +705,11 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     }
     
     alert(message);
+    
+    // 🔥 استدعاء callback للتحديث
+    if (onSuccess) {
+      onSuccess({ id: parentId, name: form.name, type: 'variable' });
+    }
   };
 
   if (loadingData) {

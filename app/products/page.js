@@ -142,7 +142,8 @@ export default function ProductsPage() {
     perPageNum,
     searchTerm = "",
     status = "all",
-    categoryId = "all"
+    categoryId = "all",
+    forceRefresh = false // 🆕 Force refresh من السيرفر
   ) => {
     // Skip if already fetching to avoid duplicate calls
     if (__products_fetch_in_flight) {
@@ -153,7 +154,7 @@ export default function ProductsPage() {
 
     try {
       // 🚀 Stale-While-Revalidate: عرض الـ cache فوراً (بدون فلاتر)
-      if (!searchTerm && status === "all" && categoryId === "all" && pageNum === 1) {
+      if (!forceRefresh && !searchTerm && status === "all" && categoryId === "all" && pageNum === 1) {
         const cache = await productsCacheStorage.getCache();
         if (cache && cache.products && cache.products.length > 0) {
           // عرض البيانات من الـ cache فوراً
@@ -174,7 +175,7 @@ export default function ProductsPage() {
           setLoading(true);
         }
       } else {
-        setLoading(true); // فقط عند البحث أو الفلترة
+        setLoading(true); // فقط عند البحث أو الفلترة أو force refresh
       }
 
       const query = new URLSearchParams();
@@ -428,7 +429,7 @@ export default function ProductsPage() {
                   setCategory('all');
                   setFilterStatus('all');
                   setPage(1);
-                  fetchProducts(1, perPage, '', 'all', 'all');
+                  fetchProducts(1, perPage, '', 'all', 'all', true); // 🔥 Force refresh
                 }}
                 disabled={loading}
                 className="col-span-2 md:col-span-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all font-medium text-sm"
