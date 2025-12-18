@@ -518,11 +518,11 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       throw new Error(result.error || 'فشل في حفظ المنتج');
     }
 
-    const productId = result.product.id;
+    const savedProductId = result.product.id; // 🔥 استخدام اسم مختلف
     const selectedSupplier = suppliers.find(s => s.id === form.supplierId);
 
     if (form.purchasePrice || form.supplierId || form.localStock) {
-      await warehouseStorage.setProductData(productId, {
+      await warehouseStorage.setProductData(savedProductId, {
         purchasePrice: parseFloat(form.purchasePrice) || 0,
         localStock: parseInt(form.localStock) || 0,
         notes: '',
@@ -534,13 +534,17 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       });
     }
 
-    const actionText = mode === 'edit' ? 'تحديث' : 'إنشاء';
-    alert(`✅ تم ${actionText} المنتج بنجاح!\n\n🆔 ID: ${productId}\n📦 الاسم: ${result.product.name}`);
-    
-    // 🔥 استدعاء callback للتحديث
+    // 🔥 استدعاء callback للتحديث أولاً
     if (onSuccess) {
       onSuccess(result.product);
     }
+    
+    // 🔥 إغلاق الـ modal فوراً
+    if (onClose) {
+      onClose();
+    }
+    
+    // Toast message سيظهر من الصفحة الأم
   };
 
   const handleVariableProductSubmit = async () => {
@@ -704,12 +708,17 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       message += `\n🔀 Variations: ${successCount} نجحت، ${failCount} فشلت`;
     }
     
-    alert(message);
-    
-    // 🔥 استدعاء callback للتحديث
+    // 🔥 استدعاء callback للتحديث أولاً
     if (onSuccess) {
       onSuccess({ id: parentId, name: form.name, type: 'variable' });
     }
+    
+    // 🔥 إغلاق الـ modal فوراً
+    if (onClose) {
+      onClose();
+    }
+    
+    // Toast message سيظهر من الصفحة الأم
   };
 
   if (loadingData) {

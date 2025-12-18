@@ -692,7 +692,9 @@ export default function ProductsPage() {
         productId={editingProduct}
         onSuccess={(data) => {
           setToast({ message: '✅ تم تعديل المنتج بنجاح', type: 'success' });
-          fetchProducts(page, perPage, search, filterStatus, category);
+          setTimeout(() => setToast(null), 3000);
+          // 🔥 Force refresh من السيرفر
+          fetchProducts(page, perPage, search, filterStatus, category, true);
         }}
       />
 
@@ -703,7 +705,9 @@ export default function ProductsPage() {
         mode="create"
         onSuccess={(data) => {
           setToast({ message: '✅ تم إضافة المنتج بنجاح', type: 'success' });
-          fetchProducts(page, perPage, search, filterStatus, category);
+          setTimeout(() => setToast(null), 3000);
+          // 🔥 Force refresh من السيرفر
+          fetchProducts(page, perPage, search, filterStatus, category, true);
         }}
       />
 
