@@ -226,9 +226,14 @@ export default function ProductsPage() {
 
   const handleUpdateProduct = async (updatedData) => {
     // 1) Optimistic UI update immediately (state + cache)
-    const isManageStock = typeof updatedData.manage_stock !== 'undefined' ? !!updatedData.manage_stock : !!selectedProduct?.manage_stock;
-    const newQty = isManageStock ? Number(updatedData.stock_quantity ?? selectedProduct?.stock_quantity ?? 0) : null;
     const productId = updatedData.id;
+    
+    // 🔥 الحصول على المنتج الحالي من القائمة
+    const currentProduct = products.find(p => p.id === productId);
+    if (!currentProduct) return; // لو المنتج مش موجود
+    
+    const isManageStock = typeof updatedData.manage_stock !== 'undefined' ? !!updatedData.manage_stock : !!currentProduct?.manage_stock;
+    const newQty = isManageStock ? Number(updatedData.stock_quantity ?? currentProduct?.stock_quantity ?? 0) : null;
 
     const optimisticUpdate = (p) => {
       if (p.id !== productId) return p;
@@ -261,10 +266,9 @@ export default function ProductsPage() {
       images: updatedData.imageUrl ? [{ src: updatedData.imageUrl }] : undefined,
     });
 
-    // Close modal fast and show lightweight toast
-    setSelectedProduct(null);
-  setToast({ message: 'تم حفظ التعديل مؤقتًا وسيتم التحقق خلال 15 ثانية', type: 'success' });
-  setTimeout(() => setToast(null), 2500);
+    // Show lightweight toast
+    setToast({ message: 'تم حفظ التعديل مؤقتًا وسيتم التحقق خلال 15 ثانية', type: 'success' });
+    setTimeout(() => setToast(null), 2500);
     // Do not block UI
     setUpdating(false);
 
@@ -501,11 +505,11 @@ export default function ProductsPage() {
                 {/* Image Container */}
                 <div className="relative w-full h-44 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 cursor-pointer">
                   <img
-                    src={product.images[0]?.src || vendorLogo || "/placeholder.webp"}
+                    src={product.images?.[0]?.src || vendorLogo || "/placeholder.webp"}
                     alt={product.name}
                     className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-110"
                     loading="lazy"
-                    onClick={() => setSelectedProduct(product)}
+                    onClick={() => setImageModal(product.images?.[0]?.src || vendorLogo)}
                   />
                   
                   {/* Status Badge - Top Left */}
@@ -570,7 +574,7 @@ export default function ProductsPage() {
                   {/* Product Name */}
                   <h2 
                     className="font-bold text-sm mb-2 line-clamp-2 min-h-[2.5rem] text-gray-800 group-hover:text-blue-600 transition-colors cursor-pointer"
-                    onClick={() => setSelectedProduct(product)}
+                    onClick={() => setEditingProduct(product.id)}
                     title={product.name}
                   >
                     {product.name}

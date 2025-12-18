@@ -68,7 +68,7 @@ async function fetchCategories(token) {
 }
 
 // جلب المنتجات من WooCommerce (مع دعم pagination للأرقام الكبيرة)
-async function fetchProducts({ page = 1, per_page = 12, search = "", status = "all", category = "" }) {
+async function fetchProducts({ page = 1, per_page = 12, search = "", status = "any", category = "" }) {
   const token = await getToken();
   if (!token) throw new Error("Unauthorized");
 
@@ -86,7 +86,7 @@ async function fetchProducts({ page = 1, per_page = 12, search = "", status = "a
     query.set("page", "1");
     query.set("per_page", maxPerPage.toString());
     if (search) query.set("search", search);
-    if (status !== "all") query.set("status", status);
+    if (status && status !== "all") query.set("status", status);
     if (category) query.set("category", category);
 
     // جلب الصفحة الأولى
@@ -127,7 +127,7 @@ async function fetchProducts({ page = 1, per_page = 12, search = "", status = "a
         pageQuery.set("page", p.toString());
         pageQuery.set("per_page", maxPerPage.toString());
         if (search) pageQuery.set("search", search);
-        if (status !== "all") pageQuery.set("status", status);
+        if (status && status !== "all") pageQuery.set("status", status);
         if (category) pageQuery.set("category", category);
         
         pagePromises.push(
@@ -166,7 +166,7 @@ async function fetchProducts({ page = 1, per_page = 12, search = "", status = "a
   query.set("page", page);
   query.set("per_page", per_page);
   if (search) query.set("search", search);
-  if (status !== "all") query.set("status", status);
+  if (status && status !== "all") query.set("status", status);
   if (category) query.set("category", category);
 
   const res = await fetch(
@@ -245,8 +245,8 @@ export async function GET(req) {
   const per_page = parseInt(searchParams.get("per_page") || "12");
   const search = searchParams.get("search") || "";
   const category = searchParams.get("category") || "";
-  // دائماً نجلب المنتجات المنشورة فقط
-  const status = "publish";
+  // 🔥 دعم كل الحالات: publish, draft, pending, أو all
+  const status = searchParams.get("status") || "any"; // any = كل الحالات
 
   try {
     const token = await getToken();
@@ -383,18 +383,22 @@ export async function PATCH(req) {
     const body = await req.json();
     const { id, name, price, status, sale_price, manage_stock, stock_quantity, sku, imageUrl } = body;
 
-    // 🆕 بناء بيانات المنتج
-    const productData = {
-      name,
-      sku: sku || "",
-      price,
-      regular_price: price,   // السعر الأساسي
-      sale_price: sale_price || "", // لو محدد سعر عرض
-      status,
-      manage_stock: manage_stock || false,
-      stock_quantity: manage_stock ? stock_quantity : null,
-    };
-
+    // 🔥 بناء بيانات المنتج - فقط الحقول المُرسلة
+    const productData = {};
+    
+    if (typeof name !== 'undefined') productData.name = name;
+    if (typeof sku !== 'undefined') productData.sku = sku;
+    if (typeof price !== 'undefined') {
+      productData.price = price;
+      productData.regular_price = price;
+    }
+    if (typeof sale_price !== 'undefined') productData.sale_price = sale_price || "";
+    if (typeof status !== 'undefined') productData.status = status;
+    if (typeof manage_stock !== 'undefined') {
+      productData.manage_stock = manage_stock;
+      productData.stock_quantity = manage_stock ? stock_quantity : null;
+    }
+    
     // 🆕 إضافة الصورة لو موجودة
     if (imageUrl) {
       productData.images = [{ src: imageUrl }];
