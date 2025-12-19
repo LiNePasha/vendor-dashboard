@@ -77,22 +77,18 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   const loadCategories = async () => {
     setCategoriesLoading(true);
     try {
-      console.log('� Starting to load ALL WooCommerce categories from /api/warehouse/categories...');
-      
+      console.log('[ProductForm] 🚀 Sending request to /api/warehouse/categories ...');
       const res = await fetch('/api/warehouse/categories', {
         credentials: 'include',
       });
-
-      console.log('📡 API Response status:', res.status);
-
+      console.log('[ProductForm] 📡 API Response status:', res.status);
       if (!res.ok) {
         const errorText = await res.text();
-        console.error('API Error:', errorText);
+        console.error('[ProductForm] API Error:', errorText);
         throw new Error('فشل تحميل التصنيفات');
       }
-
       const data = await res.json();
-
+      console.log('[ProductForm] ✅ Categories response:', data);
       // Extract categories array from response
       let categoriesArray = [];
       if (data && data.categories && Array.isArray(data.categories)) {
@@ -100,13 +96,13 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       } else if (Array.isArray(data)) {
         categoriesArray = data;
       } else {
-        console.error('Invalid data format:', data);
+        console.error('[ProductForm] Invalid data format:', data);
         throw new Error('البيانات المستلمة غير صالحة');
       }
-      
+      console.log('[ProductForm] ✅ Final categories array:', categoriesArray);
       setCategories(categoriesArray);
     } catch (error) {
-      console.error('❌ Error loading categories:', error);
+      console.error('[ProductForm] ❌ Error loading categories:', error);
       alert('⚠️ فشل تحميل التصنيفات: ' + error.message);
       setCategories([]);
     } finally {

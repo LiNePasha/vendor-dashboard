@@ -78,6 +78,7 @@ function ImageModal({ src, onClose }) {
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [loading, setLoading] = useState(true); // 🔥 Start true للتحميل الأولي
   const [searching, setSearching] = useState(false); // 🔍 Loading للبحث
   const [page, setPage] = useState(1);
@@ -125,11 +126,34 @@ export default function ProductsPage() {
   useEffect(() => {
     if (!initialized) {
       fetchProducts(1, perPage, "", "all", "all");
+      loadCategories();
       setInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // دالة تحميل الفئات من /api/warehouse/categories
+  const loadCategories = async () => {
+    setCategoriesLoading(true);
+    try {
+      const res = await fetch('/api/warehouse/categories', { credentials: 'include' });
+      if (!res.ok) throw new Error('فشل تحميل التصنيفات');
+      const data = await res.json();
+      let categoriesArray = [];
+      if (data && data.categories && Array.isArray(data.categories)) {
+        categoriesArray = data.categories;
+      } else if (Array.isArray(data)) {
+        categoriesArray = data;
+      } else {
+        throw new Error('البيانات المستلمة غير صالحة');
+      }
+      setCategories(categoriesArray);
+    } catch (error) {
+      setCategories([]);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
   // Handle filter/search changes (skip initial render)
   useEffect(() => {
     if (!initialized) return;
@@ -413,9 +437,13 @@ export default function ProductsPage() {
                 disabled={loading}
               >
                 <option value="all">{loading ? 'جاري التحميل...' : '🏷️ كل الفئات'}</option>
-                {Array.isArray(categories) && categories.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}{c.count ? ` (${c.count})` : ''}</option>
-                ))}
+                {Array.isArray(categories) &&
+                  categories
+                    .filter(c => c.count > 0)
+                    .sort((a, b) => a.name.localeCompare(b.name, 'ar'))
+                    .map(c => (
+                      <option key={c.id} value={c.id}>{c.name}{c.count ? ` (${c.count})` : ''}</option>
+                    ))}
               </select>
               <select
                 className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white font-medium text-sm"
