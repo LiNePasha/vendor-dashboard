@@ -1,6 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+
+// دالة مساعدة لجلب vendorId من localStorage
+function getVendorIdFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem('pos-store');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.vendorInfo?.id || null;
+  } catch {
+    return null;
+  }
+}
 import usePOSStore from "@/app/stores/pos-store";
 
 const SOUND_SRC = "/sounds/notify.mp3"; // ضع ملف الصوت هنا: public/sounds/notify.mp3
@@ -110,7 +122,8 @@ export default function NotificationBell({ onToggleSidebar, onOpenSidebar, onOpe
       isFetchingRef.current = true;
       
       // 🔥🔥🔥 استخدام الـ API الجديد مع unread_count من database
-      const notificationsRes = await fetch('/api/notifications-v2?filter=unread&per_page=100&vendor_id=22', {
+      const vendorId = getVendorIdFromLocalStorage() || '22';
+      const notificationsRes = await fetch(`/api/notifications-v2?filter=unread&per_page=100&vendor_id=${vendorId}`, {
         credentials: 'include',
       });
       

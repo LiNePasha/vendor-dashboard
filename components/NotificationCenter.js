@@ -2,6 +2,18 @@
 
 import { useState, useEffect } from "react";
 
+// دالة مساعدة لجلب vendorId من localStorage
+function getVendorIdFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem('pos-store');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.vendorInfo?.id || null;
+  } catch {
+    return null;
+  }
+}
+
 export default function NotificationCenter({ isOpen, onClose }) {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -17,8 +29,9 @@ export default function NotificationCenter({ isOpen, onClose }) {
     setLoading(true);
     try {
       // استخدام الـ API الجديد مع read status من database
+      const vendorId = getVendorIdFromLocalStorage() || '22';
       const res = await fetch(
-        `/api/notifications-v2?filter=${filter}&per_page=50&vendor_id=22`,
+        `/api/notifications-v2?filter=${filter}&per_page=50&vendor_id=${vendorId}`,
         { credentials: 'include' }
       );
       const data = await res.json();
@@ -32,23 +45,20 @@ export default function NotificationCenter({ isOpen, onClose }) {
 
   const markAsRead = async (notificationId, orderId = null) => {
     console.log('🔔 markAsRead called:', { notificationId, orderId });
-    
     try {
       // استخدام الـ API الجديد لعمل mark as read في database
+      const vendorId = getVendorIdFromLocalStorage() || '22';
       const res = await fetch(
-        `/api/notifications-v2?id=${notificationId}&vendor_id=22`,
+        `/api/notifications-v2?id=${notificationId}&vendor_id=${vendorId}`,
         { 
           method: 'POST',
           credentials: 'include' 
         }
       );
-      
       console.log('✅ Mark as read response:', res.status);
-      
       if (res.ok) {
         // إعادة تحميل الـ notifications بعد التحديث
         fetchNotifications();
-        
         // لو في orderId, اروح على صفحة الأوردرات مع البحث
         if (orderId) {
           console.log('🚀 Navigating to orders page with search:', orderId);

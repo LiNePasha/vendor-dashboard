@@ -1,6 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+
+// دالة مساعدة لجلب vendorId من localStorage
+function getVendorIdFromLocalStorage() {
+  try {
+    const raw = localStorage.getItem('pos-store');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.vendorInfo?.id || null;
+  } catch {
+    return null;
+  }
+}
 import { useRouter } from "next/navigation";
 import OrderDetailsModal from "./OrderDetailsModal";
 import usePOSStore from "@/app/stores/pos-store";
@@ -51,10 +63,13 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
       twoDaysAgo.setHours(twoDaysAgo.getHours() - 48);
       const afterDate = twoDaysAgo.toISOString();
       
+      // جلب vendorId من localStorage
+      const vendorId = getVendorIdFromLocalStorage();
       await fetchOrders({ 
         status: 'processing', 
         per_page: 100,
-        after: afterDate // 🔥 فلتر التاريخ
+        after: afterDate, // 🔥 فلتر التاريخ
+        ...(vendorId ? { vendor_id: vendorId } : {})
       });
     } catch (error) {
       console.error('Error fetching orders:', error);
