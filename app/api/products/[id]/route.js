@@ -141,23 +141,30 @@ export async function PATCH(req, { params }) {
 
     if (body.name) updatePayload.name = body.name;
     if (body.sku) updatePayload.sku = body.sku;
-    
+
     // 🔥 Handle product type
     if (body.type) updatePayload.type = body.type;
-    
+
     // 🔥 Handle attributes for variable products
     if (body.attributes && Array.isArray(body.attributes)) {
       updatePayload.attributes = body.attributes;
     }
-    
+
     // Only set prices for simple products
     if (body.type !== 'variable') {
       if (body.sellingPrice) updatePayload.regular_price = String(body.sellingPrice);
       if (body.stock !== undefined) updatePayload.stock_quantity = Number(body.stock);
     }
-    
+
     if (body.categories) updatePayload.categories = body.categories.map(catId => ({ id: parseInt(catId) }));
-    if (body.imageUrl) updatePayload.images = [{ src: body.imageUrl }];
+
+    // دعم images كمصفوفة روابط
+    if (Array.isArray(body.images) && body.images.length > 0) {
+      updatePayload.images = body.images.map(src => ({ src }));
+    } else if (body.imageUrl) {
+      // دعم القديم imageUrl
+      updatePayload.images = [{ src: body.imageUrl }];
+    }
 
     // Add purchase price to meta_data
     if (body.purchasePrice !== undefined) {
