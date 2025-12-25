@@ -164,27 +164,28 @@ function PrintInvoiceContent() {
         lineHeight: '1.2',
         direction: 'rtl',
         backgroundColor: 'white',
+        color: '#222',
         padding: '3mm',
         margin: 0
       }}>
         {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '2mm', borderBottom: '1px dashed #000', paddingBottom: '2mm' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2mm', borderBottom: '1px dashed #000', paddingBottom: '2mm', color: '#222' }}>
           <img src={logoSrc} alt="Logo" style={{ width: '45px', height: 'auto', margin: '0 auto 2mm', display: 'block' }}
             onError={(e) => { e.target.style.display = 'none'; }} />
           {vendorInfo?.name && (
-            <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '1mm' }}>{vendorInfo.name}</div>
+            <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '1mm', color: '#111' }}>{vendorInfo.name}</div>
           )}
           {vendorInfo?.phone && (
-            <div style={{ fontSize: '9px', marginBottom: '1mm' }}>📞 {vendorInfo.phone}</div>
+            <div style={{ fontSize: '9px', marginBottom: '1mm', color: '#222' }}>📞 {vendorInfo.phone}</div>
           )}
           {vendorInfo?.address && typeof vendorInfo.address === 'string' && (
-            <div style={{ fontSize: '8px', marginTop: '1mm', color: '#555' }}>{vendorInfo.address}</div>
+            <div style={{ fontSize: '8px', marginTop: '1mm', color: '#222' }}>{vendorInfo.address}</div>
           )}
         </div>
 
         {/* Title */}
-        <div style={{ textAlign: 'center', marginBottom: '2mm', fontSize: '11px', fontWeight: 'bold' }}>فاتورة بيع</div>
-        
+        <div style={{ textAlign: 'center', marginBottom: '2mm', fontSize: '11px', fontWeight: 'bold', color: '#111' }}>فاتورة بيع</div>
+
         {/* Online Order Badge */}
         {invoice.source === 'order' && (
           <div style={{ 
@@ -301,7 +302,7 @@ function PrintInvoiceContent() {
 
         {/* Footer */}
         <div style={{ textAlign: 'center', borderTop: '1px dashed #000', paddingTop: '2mm', fontSize: '9px' }}>
-          <div style={{ fontSize: '8px' }}>(معا لتطوير مجال الموتوسيكلات في مصر)</div>
+          <div style={{ fontSize: '8px' }}>موقع {vendorInfo.name} الرسمي</div>
           <div style={{ fontSize: '8px', fontWeight: 'bold', marginTop: '1mm' }}>{storeLink}</div>
         </div>
       </div>
