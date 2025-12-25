@@ -157,7 +157,7 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse, isMob
       )}
       
       <aside
-        className={`fixed right-0 top-0 h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-white transition-all duration-300 z-40 shadow-2xl print:hidden flex flex-col ${
+        className={`fixed right-0 top-0 h-screen bg-[#111827] text-white transition-all duration-300 z-40 shadow-2xl print:hidden flex flex-col ${
           isCollapsed ? "w-20" : "w-72"
         } ${
           isMobileOpen ? 'translate-x-0' : 'translate-x-full'

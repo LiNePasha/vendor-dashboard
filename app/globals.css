@@ -1,22 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&display=swap');
 @import "tailwindcss";
 
+/* Force dark mode always */
+/* ألوان ثابتة للنظام بالكامل */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --background: #111827; /* غامق ثابت */
+  --foreground: #fff;    /* نص أبيض ثابت */
+  --color-background: #111827;
+  --color-foreground: #fff;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #1E3A8A;
-  }
-}
+
 
 body {
-  background: var(--background);
   font-family: "Cairo", sans-serif;
 }
 
