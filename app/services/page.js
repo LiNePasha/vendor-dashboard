@@ -101,7 +101,7 @@ export default function ServicesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6 max-w-5xl mx-auto">
+    <div className="min-h-screen bg-[#181f2a] p-6 max-w-5xl mx-auto">
       {toast && (
         <Toast
           message={toast.message}
@@ -112,22 +112,22 @@ export default function ServicesPage() {
 
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">إدارة الخدمات</h1>
-        <p className="text-gray-600 dark:text-gray-300">
+        <h1 className="text-3xl font-bold text-white mb-2">إدارة الخدمات</h1>
+        <p className="text-gray-300">
           أضف وحفظ الخدمات التي تقدمها لاستخدامها بسرعة في الكاشير
         </p>
       </div>
 
       {/* Add New Service */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-6 border border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+      <div className="bg-[#232b3b] rounded-xl shadow-md p-6 mb-6 border border-gray-700">
+        <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
           <span className="text-2xl">➕</span>
           <span>إضافة خدمة جديدة</span>
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               اسم الخدمة
             </label>
             <input
@@ -137,13 +137,13 @@ export default function ServicesPage() {
                 setNewService({ ...newService, name: e.target.value })
               }
               placeholder="مثال: تركيب، صيانة، توصيل..."
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+              className="w-full px-4 py-3 border border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-[#232b3b] text-white placeholder-gray-400"
               onKeyDown={(e) => e.key === "Enter" && handleAddService()}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
               السعر (ج.م)
             </label>
             <input
@@ -157,7 +157,7 @@ export default function ServicesPage() {
                 }
               }}
               placeholder="0.00"
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+              className="w-full px-4 py-3 border border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-[#232b3b] text-white placeholder-gray-400"
               onKeyDown={(e) => e.key === "Enter" && handleAddService()}
             />
           </div>
@@ -172,9 +172,9 @@ export default function ServicesPage() {
       </div>
 
       {/* Services List */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+      <div className="bg-[#232b3b] rounded-xl shadow-md border border-gray-700 overflow-hidden">
+        <div className="bg-[#232b3b] px-6 py-4 border-b border-gray-700">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <span className="text-2xl">📋</span>
             <span>الخدمات المحفوظة ({services.length})</span>
           </h2>
@@ -183,17 +183,17 @@ export default function ServicesPage() {
         {services.length === 0 ? (
           <div className="p-12 text-center">
             <div className="text-6xl mb-4">📦</div>
-            <p className="text-gray-500 dark:text-gray-400 text-lg">لا توجد خدمات محفوظة</p>
-            <p className="text-gray-400 dark:text-gray-500 text-sm mt-2">
+            <p className="text-gray-400 text-lg">لا توجد خدمات محفوظة</p>
+            <p className="text-gray-500 text-sm mt-2">
               ابدأ بإضافة خدمة جديدة من الأعلى
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="divide-y divide-gray-700">
             {services.map((service) => (
               <div
                 key={service.id}
-                className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                className="p-6 hover:bg-gray-800 transition-colors"
               >
                 {editingId === service.id ? (
                   // Edit Mode
@@ -205,7 +205,7 @@ export default function ServicesPage() {
                         onChange={(e) =>
                           handleUpdateService(service.id, "name", e.target.value)
                         }
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        className="w-full px-4 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-[#232b3b] text-white"
                         placeholder="اسم الخدمة"
                       />
                     </div>
@@ -224,7 +224,7 @@ export default function ServicesPage() {
                             );
                           }
                         }}
-                        className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        className="flex-1 px-4 py-2 border border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-[#232b3b] text-white"
                         placeholder="السعر"
                       />
                       <div className="flex gap-2">
@@ -249,17 +249,17 @@ export default function ServicesPage() {
                   // View Mode
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      <h3 className="text-lg font-semibold text-white">
                         {service.name}
                       </h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      <p className="text-sm text-gray-400 mt-1">
                         تم الإنشاء: {new Date(service.createdAt).toLocaleDateString("ar-EG")}
                       </p>
                     </div>
                     
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                        <div className="text-2xl font-bold text-purple-400">
                           {service.price.toFixed(2)} ج.م
                         </div>
                       </div>
@@ -290,12 +290,12 @@ export default function ServicesPage() {
       </div>
 
       {/* Info Box */}
-      <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="mt-6 bg-[#1e293b] border border-blue-900 rounded-lg p-4">
         <div className="flex items-start gap-3">
           <span className="text-2xl">💡</span>
           <div>
-            <h4 className="font-semibold text-blue-900 mb-1">نصيحة</h4>
-            <p className="text-blue-800 text-sm">
+            <h4 className="font-semibold text-blue-300 mb-1">نصيحة</h4>
+            <p className="text-blue-200 text-sm">
               الخدمات المحفوظة هنا ستظهر تلقائيًا في صفحة الكاشير (POS) لسهولة الاختيار السريع.
               يمكنك إضافة خدمات مثل: التركيب، الصيانة، التوصيل، الضمان، وغيرها.
             </p>

@@ -21,7 +21,8 @@ export default function EmployeeSelector({ employees, selectedEmployee, onChange
           </p>
           <Link
             href="/employees/add"
-            className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+            className="inline-block px-4 py-2 rounded-lg font-semibold transition-colors border border-blue-900 bg-[#232b3b] text-white hover:bg-blue-900 hover:text-white shadow-md"
+            style={{ background: '#232b3b', color: '#fff', border: '1px solid #2d3748' }}
           >
             ➕ إضافة موظف الآن
           </Link>
