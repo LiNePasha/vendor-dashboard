@@ -404,7 +404,7 @@ export default function POSPage() {
               <div className="mb-4">
                 <button
                   onClick={handleBackToCategories}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all font-semibold shadow-sm"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-[#232b3b] border-2 border-blue-900 text-white rounded-lg hover:bg-[#181f2a] hover:border-blue-500 transition-all font-semibold shadow-sm"
                 >
                   <span className="text-xl">🏪</span>
                   <span>رجوع للتصنيفات</span>
@@ -436,7 +436,7 @@ export default function POSPage() {
 
             {/* Search - Full width on mobile */}
             <div className="relative w-full">
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300">
                 {searching ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
                 ) : (
@@ -475,7 +475,7 @@ export default function POSPage() {
               <button
                 onClick={() => fetchProducts({ page: 1, search: '', category: 'all' })}
                 disabled={loading}
-                className="px-3 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors text-sm font-medium"
+                className="px-3 py-2.5 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:bg-gray-700 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors text-sm font-medium"
                 title="تحديث المنتجات من السيرفر"
               >
                 <span className={loading ? 'animate-spin' : ''}>🔄</span>
@@ -483,7 +483,7 @@ export default function POSPage() {
               </button>
               <button
                 onClick={() => setShowQuickAdd(true)}
-                className="col-span-2 md:col-span-1 px-3 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 transition-colors text-sm font-medium"
+                className="col-span-2 md:col-span-1 px-3 py-2.5 bg-green-900 text-white rounded-lg hover:bg-green-800 flex items-center justify-center gap-2 transition-colors text-sm font-medium"
                 title="إضافة منتج سريع"
               >
                 <span>⚡</span>
@@ -504,9 +504,9 @@ export default function POSPage() {
               {!loading && Array.isArray(products) && products.length > 0 && (
                 <div className="mt-6 text-center pb-20 md:pb-6">
                   {hasMore ? (
-                    <button onClick={loadMore} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">تحميل المزيد</button>
+                    <button onClick={loadMore} className="px-6 py-2.5 bg-blue-900 text-white rounded-lg hover:bg-blue-800 font-medium">تحميل المزيد</button>
                   ) : (
-                    <p className="text-gray-500">لا يوجد المزيد من المنتجات</p>
+                    <p className="text-gray-300">لا يوجد المزيد من المنتجات</p>
                   )}
                 </div>
               )}
@@ -563,12 +563,12 @@ export default function POSPage() {
           {/* Floating Cart Button */}
           <button
             onClick={() => setShowMobileCart(true)}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-4 rounded-full shadow-2xl hover:shadow-3xl transition-all z-40 flex items-center gap-3 font-bold text-lg"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-900 to-indigo-900 text-white px-6 py-4 rounded-full shadow-2xl hover:shadow-3xl transition-all z-40 flex items-center gap-3 font-bold text-lg"
           >
             <span className="text-2xl">🛒</span>
             <span>السلة ({(cart?.length || 0) + (services?.length || 0)})</span>
             {((cart?.length || 0) + (services?.length || 0)) > 0 && (
-              <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
+              <span className="bg-red-700 text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
                 {(cart?.length || 0) + (services?.length || 0)}
               </span>
             )}
@@ -581,7 +581,7 @@ export default function POSPage() {
               <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl md:max-h-[90vh] md:overflow-hidden animate-slideUp">
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
-                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
                     <span>🛒</span>
                     <span>السلة</span>
                   </h2>

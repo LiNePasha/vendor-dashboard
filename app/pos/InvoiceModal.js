@@ -21,7 +21,7 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
     <>
       {/* Modal View */}
       <div className="fixed overflow-y-scroll inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 print:hidden modal-screen">
-        <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6 relative">
+        <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6 relative text-gray-800">
           <button
             className="absolute top-2 right-2 text-gray-500 hover:text-red-600"
             onClick={onClose}
@@ -39,10 +39,10 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
               }}
             />
             {vendorInfo?.name && (
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">{vendorInfo.name}</h3>
+              <h3 className="text-sm font-semibold text-gray-800 mb-1">{vendorInfo.name}</h3>
             )}
-            <h2 className="text-xl font-bold mb-1">فاتورة بيع</h2>
-            <span className="text-xs text-gray-500">{new Date(invoice.date).toLocaleString('ar-EG')}</span>
+            <h2 className="text-xl font-bold mb-1 text-gray-900">فاتورة بيع</h2>
+            <span className="text-xs text-gray-600">{new Date(invoice.date).toLocaleString('ar-EG')}</span>
             {invoice.synced !== undefined && (
               <span className={`mt-2 px-3 py-1 rounded-full text-xs font-medium ${
                 invoice.synced 
@@ -54,7 +54,7 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
             )}
           </div>
           <div className="mb-4">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm text-gray-800">
               <thead>
                 <tr className="border-b">
                   <th className="text-right">المنتج</th>
@@ -79,15 +79,15 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
           {/* Services Section */}
           {invoice.services?.length > 0 && (
             <div className="mb-4 bg-purple-50 p-3 rounded-lg border border-purple-100">
-              <h4 className="font-semibold text-purple-700 mb-2 text-sm">رسوم خدمات:</h4>
+              <h4 className="font-semibold text-purple-800 mb-2 text-sm">رسوم خدمات:</h4>
               <div className="space-y-2">
                 {invoice.services.map((service, index) => (
-                  <div key={index} className="flex justify-between text-sm">
+                  <div key={index} className="flex justify-between text-sm text-gray-800">
                     <span className="flex items-center gap-1">
-                      <span className="text-purple-600">🔧</span>
+                      <span className="text-purple-700">🔧</span>
                       {service.description}
                     </span>
-                    <span className="font-semibold text-purple-600">
+                    <span className="font-semibold text-purple-700">
                       {Number(service.amount).toFixed(2)} ج.م
                     </span>
                   </div>
@@ -96,7 +96,7 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
             </div>
           )}
 
-          <div className="mb-2 text-sm">
+          <div className="mb-2 text-sm text-gray-800">
             {invoice.summary?.productsSubtotal > 0 && (
               <div className="flex justify-between">
                 <span>مجموع المنتجات:</span>
@@ -104,7 +104,7 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
               </div>
             )}
             {invoice.summary?.servicesTotal > 0 && (
-              <div className="flex justify-between text-purple-600">
+              <div className="flex justify-between text-purple-700">
                 <span>مجموع الخدمات:</span>
                 <span>{invoice.summary.servicesTotal.toFixed(2)} ج.م</span>
               </div>
@@ -114,7 +114,7 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
               <span>{invoice.summary.subtotal.toFixed(2)} ج.م</span>
             </div>
             {invoice.summary.discount.amount > 0 && (
-              <div className="flex justify-between text-red-600">
+              <div className="flex justify-between text-red-700">
                 <span>الخصم ({invoice.summary.discount.type === 'percentage' ? `${invoice.summary.discount.value}%` : `${invoice.summary.discount.value} ج.م`}):</span>
                 <span>- {invoice.summary.discount.amount.toFixed(2)} ج.م</span>
               </div>
@@ -136,7 +136,7 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
           </div>
           
           {vendorInfo && (
-            <div className="mt-4 pt-3 border-t text-center text-xs text-gray-600">
+            <div className="mt-4 pt-3 border-t text-center text-xs text-gray-700">
               {vendorInfo.phone && <div>📞 {vendorInfo.phone}</div>}
               {vendorInfo.email && <div>📧 {vendorInfo.email}</div>}
             </div>
@@ -150,7 +150,7 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
               طباعة
             </button>
             <button
-              className="flex-1 py-2 bg-gray-200 rounded-lg font-bold"
+              className="flex-1 py-2 bg-gray-300 text-gray-800 rounded-lg font-bold"
               onClick={onClose}
             >
               إغلاق
