@@ -302,8 +302,9 @@ function PrintInvoiceContent() {
 
         {/* Footer */}
         <div style={{ textAlign: 'center', borderTop: '1px dashed #000', paddingTop: '2mm', fontSize: '9px' }}>
-          <div style={{ fontSize: '8px' }}>موقع {vendorInfo.name} الرسمي</div>
-          <div style={{ fontSize: '8px', fontWeight: 'bold', marginTop: '1mm' }}>{storeLink}</div>
+          <div style={{ fontSize: '8px', color: '#222' }}>موقع {vendorInfo.name} الرسمي</div>
+          <div style={{ fontSize: '8px', fontWeight: 'bold', marginTop: '1mm', color: '#111' }}>{storeLink}</div>
+          <div style={{ fontSize: '9px', marginTop: '2mm', color: '#222', fontWeight: 'bold' }}>شكراً لزيارتكم ونتمنى لكم يوماً سعيداً!</div>
         </div>
       </div>
     </>
