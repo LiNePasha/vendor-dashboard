@@ -132,9 +132,9 @@ export default function POSPage() {
   useEffect(() => {
     if (!initialized) return;
     if (viewMode !== 'products') return;
-    
-    // تحميل المنتجات حسب الفئة المختارة
+    setSearching(true); // Show spinner
     fetchProducts({ page: 1, search, category }).then((result) => {
+      setSearching(false);
       if (result?.error) {
         setToast({ message: result.error, type: 'error' });
       }
@@ -147,8 +147,9 @@ export default function POSPage() {
     setCategory(categoryId);
     setViewMode('products');
     setSearch(''); // مسح البحث
-    // 🔥 جلب المنتجات حسب التصنيف
+    setSearching(true); // Show spinner
     fetchProducts({ page: 1, search: '', category: categoryId }).then((result) => {
+      setSearching(false);
       if (result?.error) {
         setToast({ message: result.error, type: 'error' });
       }
@@ -393,8 +394,11 @@ export default function POSPage() {
             <>
               <CategoryGrid
                 categories={categories}
-                loading={categoriesLoading}
-                onSelectCategory={handleSelectCategory}
+                loading={categoriesLoading || searching}
+                onSelectCategory={(catId) => {
+                  setSearching(true); // Show spinner instantly
+                  handleSelectCategory(catId);
+                }}
                 totalProducts={products.length}
               />
             </>

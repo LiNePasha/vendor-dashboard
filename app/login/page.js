@@ -6,12 +6,13 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
-
+    setLoading(true);
     try {
       const res = await fetch("/api/login", {
         method: "POST",
@@ -26,6 +27,8 @@ export default function LoginPage() {
       }
     } catch {
       setError("في مشكلة في السيرفر، حاول تاني");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -35,7 +38,7 @@ export default function LoginPage() {
         onSubmit={handleLogin}
         className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm"
       >
-        <h1 className="text-2xl font-bold mb-6 text-center">تسجيل الدخول</h1>
+        <h1 className="text-2xl font-bold mb-6 text-black text-center">تسجيل الدخول</h1>
         {error && <p className="text-red-500 mb-4">{error}</p>}
         <input
           type="email"
@@ -55,8 +58,12 @@ export default function LoginPage() {
         />
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition"
+          className={`w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition flex items-center justify-center ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+          disabled={loading}
         >
+          {loading ? (
+            <span className="animate-spin mr-2 text-xl">🔄</span>
+          ) : null}
           دخول
         </button>
       </form>

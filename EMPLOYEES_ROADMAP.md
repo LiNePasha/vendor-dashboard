@@ -974,7 +974,7 @@ export default function AuditLogPage() {
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-3xl font-bold mb-2">
           📝 سجل التدقيق الشامل
         </h1>
         <p className="text-gray-600">

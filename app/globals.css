@@ -256,3 +256,7 @@ select option {
   color: #fff !important;
   background: #232b3b !important;
 }
+
+label {
+  color: #0c0c0c;
+}

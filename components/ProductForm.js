@@ -391,7 +391,6 @@ export default function ProductForm({ mode = 'create', productId = null, initial
             <span className={`text-sm ${isSelected ? 'font-semibold text-blue-700' : 'text-gray-700'}`}>
               {cat.name}
             </span>
-            <span className="text-xs text-gray-400">({cat.count || 0})</span>
           </label>
         </div>
         
@@ -815,7 +814,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
         {/* Product Name */}
         <div className="md:col-span-2">
-          <label className="block text-sm font-semibold mb-2">اسم المنتج *</label>
+          <label className="block text-sm font-semibold mb-2 text-gray-800">اسم المنتج *</label>
           <input
             type="text"
             value={form.name}
@@ -828,7 +827,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
         {/* SKU */}
         <div className='hidden md:block'>
-          <label className="block text-sm font-semibold mb-2">كود المنتج (SKU)</label>
+          <label className="block text-sm font-semibold mb-2 text-gray-800">كود المنتج (SKU)</label>
           <input
             type="text"
             value={form.sku}
@@ -1032,7 +1031,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
                   <div className="grid md:grid-cols-6 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">SKU *</label>
+                      <label className="block text-xs font-semibold text-gray-800 mb-1">SKU *</label>
                       <input
                         type="text"
                         value={variation.sku}
@@ -1042,7 +1041,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">السعر (ج.م) *</label>
+                      <label className="block text-xs font-semibold text-gray-800 mb-1">السعر (ج.م) *</label>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -1058,7 +1057,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">💰 سعر العرض</label>
+                      <label className="block text-xs font-semibold text-gray-800 mb-1">💰 سعر العرض</label>
                       <input
                         type="text"
                         inputMode="decimal"

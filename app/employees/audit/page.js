@@ -254,7 +254,7 @@ export default function AuditLogPage() {
       {showFilters && (
         <div className="bg-white p-6 rounded-xl shadow-lg border mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-bold flex items-center gap-2">
+            <h3 className="text-lg font-bold flex items-center gap-2 text-black">
               <span>🔍</span>
               <span>تصفية السجلات</span>
             </h3>
@@ -332,7 +332,7 @@ export default function AuditLogPage() {
       {/* قائمة السجلات */}
       <div className="bg-white rounded-xl shadow-lg border overflow-hidden">
         <div className="p-6 border-b bg-gray-50 flex justify-between items-center">
-          <h3 className="text-xl font-bold flex items-center gap-2">
+          <h3 className="text-xl font-bold flex items-center gap-2 text-black">
             <span>📋</span>
             <span>السجلات ({logs.length})</span>
           </h3>

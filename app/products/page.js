@@ -132,11 +132,11 @@ export default function ProductsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // دالة تحميل الفئات من /api/warehouse/categories
+  // دالة تحميل الفئات من /api/categories
   const loadCategories = async () => {
     setCategoriesLoading(true);
     try {
-      const res = await fetch('/api/warehouse/categories', { credentials: 'include' });
+      const res = await fetch('/api/categories', { credentials: 'include' });
       if (!res.ok) throw new Error('فشل تحميل التصنيفات');
       const data = await res.json();
       let categoriesArray = [];
