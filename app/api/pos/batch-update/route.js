@@ -3,8 +3,14 @@ import { cookies } from 'next/headers';
 
 async function processUpdate(update, headers, WC_BASE) {
     try {
-        const url = `${WC_BASE}/products/${update.productId}`;
-        
+        // إذا كان هناك variationId استخدم endpoint المتغير
+        let url;
+        if (update.variationId) {
+            url = `${WC_BASE}/products/${update.productId}/variations/${update.variationId}`;
+        } else {
+            url = `${WC_BASE}/products/${update.productId}`;
+        }
+
         const response = await fetch(url, {
             method: 'PUT',
             headers,
@@ -24,13 +30,20 @@ async function processUpdate(update, headers, WC_BASE) {
         if (response.ok && data?.id) {
             return {
                 productId: update.productId,
+                variationId: update.variationId,
                 status: 'updated',
                 newQuantity: update.newQuantity
             };
         }
 
         // Quick verification if update seems to have failed
-        const verifyRes = await fetch(`${WC_BASE}/products/${update.productId}`, {
+        let verifyUrl;
+        if (update.variationId) {
+            verifyUrl = `${WC_BASE}/products/${update.productId}/variations/${update.variationId}`;
+        } else {
+            verifyUrl = `${WC_BASE}/products/${update.productId}`;
+        }
+        const verifyRes = await fetch(verifyUrl, {
             method: 'GET',
             headers
         });
@@ -40,6 +53,7 @@ async function processUpdate(update, headers, WC_BASE) {
             if (verifyData && Number(verifyData.stock_quantity) === Number(update.newQuantity)) {
                 return {
                     productId: update.productId,
+                    variationId: update.variationId,
                     status: 'updated',
                     newQuantity: update.newQuantity
                 };
@@ -48,6 +62,7 @@ async function processUpdate(update, headers, WC_BASE) {
 
         return {
             productId: update.productId,
+            variationId: update.variationId,
             status: 'failed',
             error: data?.message || `HTTP ${response.status}`,
             raw: text
@@ -56,6 +71,7 @@ async function processUpdate(update, headers, WC_BASE) {
     } catch (error) {
         return {
             productId: update.productId,
+            variationId: update.variationId,
             status: 'failed',
             error: error.message
         };

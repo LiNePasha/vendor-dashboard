@@ -34,6 +34,12 @@ const menuItems = [
     badge: null,
   },
   {
+    title: "الكاشير",
+    icon: "🛒",
+    href: "/pos",
+    badge: null,
+  },
+  {
     title: "المخزن",
     icon: "📦",
     href: "/warehouse",
@@ -55,12 +61,6 @@ const menuItems = [
     title: "الخدمات",
     icon: "⚙️",
     href: "/services",
-    badge: null,
-  },
-  {
-    title: "الكاشير",
-    icon: "🛒",
-    href: "/pos",
     badge: null,
   },
   {
@@ -158,13 +158,13 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse, isMob
       
       <aside
         className={`fixed right-0 top-0 h-screen bg-[#111827] text-white transition-all duration-300 z-40 shadow-2xl print:hidden flex flex-col ${
-          isCollapsed ? "w-20" : "w-72"
+          isCollapsed ? "w-20" : "w-52"
         } ${
           isMobileOpen ? 'translate-x-0' : 'translate-x-full'
         } md:translate-x-0`}
       >
       {/* Header - Fixed */}
-      <div className="p-6 border-b border-gray-700/50 flex-shrink-0">
+      <div className="p-2 border-b border-gray-700/50 flex-shrink-0">
         {/* Mobile Close Button */}
         <button
           onClick={onMobileClose}
@@ -205,7 +205,7 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse, isMob
                   </a>
                 ) : (
                   <>
-                    <h1 className="font-bold text-lg">Spare2App</h1>
+                    <h1 className="font-bold">Spare2App</h1>
                     <p className="text-xs text-gray-400">لوحة التحكم</p>
                   </>
                 )}
@@ -327,15 +327,6 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse, isMob
       <div className="p-4 border-t border-gray-700/50 bg-gray-900/50 backdrop-blur-sm flex-shrink-0">
         {!isCollapsed ? (
           <div className="space-y-3">
-            {/* <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center font-bold shadow-lg">
-                V
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">Vendor</p>
-                <p className="text-xs text-gray-400">مدير المتجر</p>
-              </div>
-            </div> */}
             <button
               onClick={async () => {
                 try {
@@ -373,26 +364,6 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse, isMob
         )}
       </div>
 
-      {/* Old Footer - User Info (Commented) */}
-      {/* <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-700/50 bg-gray-900/50 backdrop-blur-sm">
-        {!isCollapsed ? (
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center font-bold shadow-lg">
-              V
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-sm truncate">Vendor</p>
-              <p className="text-xs text-gray-400">مدير المتجر</p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex justify-center">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center font-bold shadow-lg">
-              V
-            </div>
-          </div>
-        )}
-      </div> */}
       </aside>
     </>
   );

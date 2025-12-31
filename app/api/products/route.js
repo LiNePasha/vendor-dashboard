@@ -68,7 +68,7 @@ async function fetchCategories(token) {
 }
 
 // جلب المنتجات من WooCommerce (مع دعم pagination للأرقام الكبيرة)
-async function fetchProducts({ page = 1, per_page = 12, search = "", status = "any", category = "" }) {
+async function fetchProducts({ page = 1, per_page = 100, search = "", status = "any", category = "" }) {
   const token = await getToken();
   if (!token) throw new Error("Unauthorized");
 
@@ -242,7 +242,7 @@ async function fetchVariations(productId, token) {
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const page = parseInt(searchParams.get("page") || "1");
-  const per_page = parseInt(searchParams.get("per_page") || "12");
+  const per_page = parseInt(searchParams.get("per_page") || "100");
   const search = searchParams.get("search") || "";
   const category = searchParams.get("category") || "";
   // 🔥 دعم كل الحالات: publish, draft, pending, أو all

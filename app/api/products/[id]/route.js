@@ -154,6 +154,14 @@ export async function PATCH(req, { params }) {
     if (body.type !== 'variable') {
       if (body.sellingPrice) updatePayload.regular_price = String(body.sellingPrice);
       if (body.stock !== undefined) updatePayload.stock_quantity = Number(body.stock);
+      // Handle salePrice as string only if valid
+      if (
+        body.salePrice !== undefined &&
+        body.salePrice !== null &&
+        String(body.salePrice).trim() !== ''
+      ) {
+        updatePayload.sale_price = String(body.salePrice);
+      }
     }
 
     if (body.categories) updatePayload.categories = body.categories.map(catId => ({ id: parseInt(catId) }));

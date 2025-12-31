@@ -83,7 +83,7 @@ export default function ProductsPage() {
   const [searching, setSearching] = useState(false); // 🔍 Loading للبحث
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [perPage, setPerPage] = useState(12);
+  const [perPage, setPerPage] = useState(100);
   const [updating, setUpdating] = useState(false);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -99,26 +99,30 @@ export default function ProductsPage() {
   const vendorInfo = usePOSStore((s) => s.vendorInfo);
   const vendorLogo = getVendorLogo(vendorInfo?.id);
 
-  // Debounce للبحث - يبحث بعد 300ms من آخر حرف
+  // Debounce + AbortController + Ignore old results
   const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const [searchRequestId, setSearchRequestId] = useState(0);
+  const abortControllerRef = useState(() => ({ current: null }))[0];
+
   useEffect(() => {
-    // لو السيرش فاضي - بحث فوري بدون delay
+    // بحث فوري إذا فاضي
     if (search === '') {
       setDebouncedSearch('');
       setSearching(false);
       return;
     }
-    
-    // إظهار loading indicator
+    // لا تبحث عن كلمات أقل من 2 حرف
+    if (search.length < 2) {
+      setSearching(false);
+      return;
+    }
     if (search !== debouncedSearch) {
       setSearching(true);
     }
-    
     const handler = setTimeout(() => {
       setDebouncedSearch(search);
       setSearching(false);
-    }, 300); // أسرع للاستجابة الفورية
-    
+    }, 400); // 400ms أكثر واقعية
     return () => clearTimeout(handler);
   }, [search]);
 
@@ -157,65 +161,73 @@ export default function ProductsPage() {
   // Handle filter/search changes (skip initial render)
   useEffect(() => {
     if (!initialized) return;
-    fetchProducts(page, perPage, debouncedSearch, filterStatus, category);
+    // إلغاء أي طلب سابق
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    // لكل طلب بحث رقم تسلسلي
+    const reqId = searchRequestId + 1;
+    setSearchRequestId(reqId);
+    // البحث فقط إذا كان البحث فارغ أو >= 2 أحرف
+    if (debouncedSearch === '' || debouncedSearch.length >= 2) {
+      fetchProducts(page, perPage, debouncedSearch, filterStatus, category, false, controller.signal, reqId);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, perPage, debouncedSearch, filterStatus, category]);
 
+  // تطوير fetchProducts لدعم AbortController وطلب id
   const fetchProducts = async (
     pageNum,
     perPageNum,
     searchTerm = "",
     status = "all",
     categoryId = "all",
-    forceRefresh = false // 🆕 Force refresh من السيرفر
+    forceRefresh = false, // 🆕 Force refresh من السيرفر
+    signal = undefined,
+    reqId = undefined
   ) => {
-    // Skip if already fetching to avoid duplicate calls
     if (__products_fetch_in_flight) {
       return;
     }
-
     __products_fetch_in_flight = true;
-
     try {
-      // 🚀 Stale-While-Revalidate: عرض الـ cache فوراً (بدون فلاتر)
       if (!forceRefresh && !searchTerm && status === "all" && categoryId === "all" && pageNum === 1) {
         const cache = await productsCacheStorage.getCache();
         if (cache && cache.products && cache.products.length > 0) {
-          // عرض البيانات من الـ cache فوراً
           setProducts(cache.products);
           setCategories(cache.categories || []);
           setTotalPages(cache.pagination?.totalPages || 1);
-          setLoading(false); // ✅ أوقف اللودر بعد عرض الـ cache
-          
-          // فحص: هل الـ cache حديث؟
-          const isStale = await productsCacheStorage.isCacheStale(3 * 60 * 1000); // 3 دقائق
+          setLoading(false);
+          const isStale = await productsCacheStorage.isCacheStale(3 * 60 * 1000);
           if (!isStale) {
             __products_fetch_in_flight = false;
-            return; // الـ cache حديث، لا داعي للتحديث
+            return;
           }
-          // الـ cache قديم - التحديث في الخلفية (بدون لودر)
         } else {
-          // مفيش cache - اعرض loader
           setLoading(true);
         }
       } else {
-        setLoading(true); // فقط عند البحث أو الفلترة أو force refresh
+        setLoading(true);
       }
-
       const query = new URLSearchParams();
       query.set("page", pageNum);
       query.set("per_page", searchTerm || status !== "all" || categoryId !== "all" ? perPageNum : "100");
       if (searchTerm) query.set("search", searchTerm);
       if (status !== "all") query.set("status", status);
       if (categoryId && categoryId !== "all") query.set("category", categoryId);
-
       const res = await fetch(`/api/products?${query.toString()}`, {
         credentials: "include",
+        signal
       });
-
       if (!res.ok) throw new Error("فشل جلب المنتجات");
-
       const data = await res.json();
+      // تجاهل النتائج القديمة
+      if (typeof reqId !== 'undefined' && reqId !== searchRequestId + 1) {
+        __products_fetch_in_flight = false;
+        return;
+      }
       setProducts(data.products);
       if (data.categories && Array.isArray(data.categories)) {
         setCategories(data.categories);
@@ -225,8 +237,6 @@ export default function ProductsPage() {
       if (data.pagination) {
         setTotalPages(data.pagination.totalPages);
       }
-
-      // تحديث الـ cache (فقط للقائمة الكاملة بدون فلاتر)
       if (!searchTerm && status === "all" && categoryId === "all" && pageNum === 1) {
         await productsCacheStorage.saveCache(
           data.products,
@@ -235,7 +245,9 @@ export default function ProductsPage() {
         );
       }
     } catch (err) {
-      setToast({ message: "فشل تحميل المنتجات", type: "error" });
+      if (err.name !== 'AbortError') {
+        setToast({ message: "فشل تحميل المنتجات", type: "error" });
+      }
     } finally {
       setLoading(false);
       __products_fetch_in_flight = false;

@@ -187,12 +187,12 @@ export default function OrderDetailsModal({
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* 🆕 نوع التوصيل Badge */}
           <section className={`${deliveryColor} border-2 rounded-xl p-4`}>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 text-gray-600">
               <span className="text-3xl">{deliveryIcon}</span>
               <div>
                 <p className="font-bold text-lg">{deliveryType}</p>
                 {isStorePickup && (
-                  <p className="text-sm text-gray-600">العميل سيستلم الطلب من المتجر</p>
+                  <p className="text-sm">العميل سيستلم الطلب من المتجر</p>
                 )}
               </div>
             </div>
@@ -240,12 +240,12 @@ export default function OrderDetailsModal({
           </section>
 
           {/* Customer Info */}
-          <section className="bg-blue-50 rounded-xl p-5">
+          <section className="bg-blue-50 rounded-xl p-5 text-gray-600">
             <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
               <span>👤</span> بيانات العميل
             </h3>
             <div className="space-y-2">
-              <p className="text-gray-700">
+              <p>
                 <span className="font-medium">الاسم:</span>{" "}
                 {order.billing?.first_name} {order.billing?.last_name}
               </p>
@@ -293,7 +293,7 @@ export default function OrderDetailsModal({
           </section>
 
           {/* Payment Method */}
-          <section className="bg-green-50 rounded-xl p-5">
+          <section className="bg-green-50 rounded-xl p-5 text-gray-600">
             <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
               <span>💳</span> طريقة الدفع
             </h3>
@@ -302,7 +302,7 @@ export default function OrderDetailsModal({
 
           {/* Products */}
           <section>
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-gray-600">
               <span>📦</span> المنتجات ({order.line_items?.length || 0})
             </h3>
             <div className="space-y-3">

@@ -272,12 +272,6 @@ function DashboardContent() {
             )}
           </div>
           <h3 className="text-gray-600 font-medium">قيد التجهيز</h3>
-          {/* <button
-            onClick={() => router.push('/orders')}
-            className="text-yellow-600 text-sm mt-2 hover:underline"
-          >
-            معالجة الآن →
-          </button> */}
         </div>
 
         {/* Total Revenue */}

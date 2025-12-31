@@ -19,28 +19,34 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
   useEffect(() => {
     const newQuantities = {};
     cart.forEach(item => {
-      newQuantities[item.id] = item.quantity;
+      // إذا كان العنصر variation استخدم variation_id كمفتاح، وإلا id
+      const key = item.is_variation && item.variation_id ? `var_${item.variation_id}` : `prod_${item.id}`;
+      newQuantities[key] = item.quantity;
     });
     setQuantities(newQuantities);
   }, [cart]);
 
   // Get actual cart quantity from props if available
-  const getCartQuantity = (productId) => {
-    return quantities[productId] || 0;
+  // product: قد يكون منتج أو variation
+  const getCartQuantity = (product) => {
+    if (product.is_variation && product.variation_id) {
+      return quantities[`var_${product.variation_id}`] || 0;
+    }
+    return quantities[`prod_${product.id}`] || 0;
   };
 
   const handleDecrease = (product) => {
-    const currentQty = getCartQuantity(product.id);
+    const currentQty = getCartQuantity(product);
     const newQty = currentQty - 1;
-    
+    const key = product.is_variation && product.variation_id ? `var_${product.variation_id}` : `prod_${product.id}`;
     if (newQty <= 0) {
-      setQuantities(prev => ({ ...prev, [product.id]: 0 }));
+      setQuantities(prev => ({ ...prev, [key]: 0 }));
       // Remove from cart by setting quantity to 0
       if (onAddToCart) {
         onAddToCart({ ...product, _setQuantity: 0 });
       }
     } else {
-      setQuantities(prev => ({ ...prev, [product.id]: newQty }));
+      setQuantities(prev => ({ ...prev, [key]: newQty }));
       // Update cart quantity
       if (onAddToCart) {
         onAddToCart({ ...product, _setQuantity: newQty });
@@ -49,10 +55,11 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
   };
 
   const handleIncrease = (product) => {
-    const currentQty = getCartQuantity(product.id);
+    const currentQty = getCartQuantity(product);
     if (currentQty < product.stock_quantity) {
       const newQty = currentQty + 1;
-      setQuantities(prev => ({ ...prev, [product.id]: newQty }));
+      const key = product.is_variation && product.variation_id ? `var_${product.variation_id}` : `prod_${product.id}`;
+      setQuantities(prev => ({ ...prev, [key]: newQty }));
       onAddToCart(product);
     }
   };
@@ -85,7 +92,10 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
       {products.map((product) => {
-        const currentQty = quantities[product.id] || 0;
+        // دعم المنتجات المتغيرة: استخدم مفتاح خاص لكل variation
+        const isVariation = product.is_variation && product.variation_id;
+        const key = isVariation ? `var_${product.variation_id}` : `prod_${product.id}`;
+        const currentQty = quantities[key] || 0;
         const isInCart = currentQty > 0;
 
         return (
@@ -117,21 +127,34 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                   : 'bg-red-500 text-white'
               }`}
             >
-              {product.stock_quantity > 0 ? `📦 ${product.stock_quantity}` : 'نفذ'}
+              {product.stock_quantity > 0
+                ? `📦 ${product.stock_quantity}`
+                : (product.type === 'variable' ? 'اختر اولا' : 'نفذ')}
             </span>
           </div>
           
-          <div className="p-3 md:p-4">
+          <div className="p-2 text-center">
             <h3 className="font-semibold text-gray-900 mb-2 text-sm md:text-base line-clamp-2 min-h-[2.5rem]" title={product.name}>
               {product.name}
             </h3>
             
             {/* 🆕 Variable Product Badge */}
             {product.type === 'variable' && (
-              <div className="mb-2 flex items-center gap-1">
-                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-bold rounded-full flex items-center gap-1">
-                  🔀 {product.variations_count || product.variations?.length || 0} متغير
-                </span>
+              <div className="mb-2 flex flex-col gap-1">
+                {Array.isArray(product.attributes) && product.attributes.length > 0 ? (
+                  product.attributes.map((attr, idx) => (
+                    <span
+                      key={attr.id || idx}
+                      className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-bold rounded-full flex items-center gap-1 mb-1"
+                    >
+                      {attr.name}: {Array.isArray(attr.options) ? attr.options.join('، ') : ''}
+                    </span>
+                  ))
+                ) : (
+                  <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-bold rounded-full flex items-center gap-1">
+                    لا يوجد متغيرات
+                  </span>
+                )}
               </div>
             )}
             
@@ -170,7 +193,8 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                   <button
                     onClick={() => {
                       onAddToCart(product);
-                      setQuantities(prev => ({ ...prev, [product.id]: 1 }));
+                      const key = product.is_variation && product.variation_id ? `var_${product.variation_id}` : `prod_${product.id}`;
+                      setQuantities(prev => ({ ...prev, [key]: 1 }));
                     }}
                     disabled={product.stock_quantity === 0}
                     className={`px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-semibold transition-all

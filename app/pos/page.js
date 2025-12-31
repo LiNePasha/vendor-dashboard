@@ -132,7 +132,7 @@ export default function POSPage() {
   useEffect(() => {
     if (!initialized) return;
     if (viewMode !== 'products') return;
-    setSearching(true); // Show spinner
+    setSearching(true); // Always show spinner before fetching
     fetchProducts({ page: 1, search, category }).then((result) => {
       setSearching(false);
       if (result?.error) {
@@ -144,10 +144,10 @@ export default function POSPage() {
 
   // 🆕 دالة اختيار التصنيف
   const handleSelectCategory = (categoryId) => {
+    setSearching(true); // Always show spinner before fetching
     setCategory(categoryId);
     setViewMode('products');
     setSearch(''); // مسح البحث
-    setSearching(true); // Show spinner
     fetchProducts({ page: 1, search: '', category: categoryId }).then((result) => {
       setSearching(false);
       if (result?.error) {
@@ -231,7 +231,7 @@ export default function POSPage() {
   const handleVariationSelect = async (product, variation) => {
     // إنشاء product object مدمج مع variation
     const variationProduct = {
-      id: product.id,
+      id: variation.id, // استخدم id الخاص بالـ variation كبند منفصل في السلة
       variation_id: variation.id,
       name: `${product.name} - ${variation.description}`,
       price: variation.price,
@@ -247,71 +247,13 @@ export default function POSPage() {
       variation_attributes: variation.attributes,
       is_variation: true
     };
-    
+
     const res = await addToCart(variationProduct);
     if (res?.error) {
       setToast({ message: res.error, type: 'error' });
     } else {
       setToast({ message: `✅ تمت إضافة "${variationProduct.name}"`, type: 'success' });
       setTimeout(() => setToast(null), 2000);
-    }
-  };
-
-  // 🆕 دالة البحث بالباركود/SKU
-  const handleBarcodeSearch = async (sku) => {
-    if (!sku || sku.trim() === '') return;
-
-    // 🆕 تحويل الأحرف العربية للإنجليزية (في حالة السكانر بيكتب عربي)
-    const arabicToEnglishMap = {
-      'ض': 'q', 'ص': 'w', 'ث': 'e', 'ق': 'r', 'ف': 't', 'غ': 'y', 'ع': 'u', 'ه': 'i', 'خ': 'o', 'ح': 'p',
-      'ج': '[', 'د': ']', 'ش': 'a', 'س': 's', 'ي': 'd', 'ب': 'f', 'ل': 'g', 'ا': 'h', 'ت': 'j', 'ن': 'k',
-      'م': 'l', 'ك': ';', 'ط': "'", 'ئ': 'z', 'ء': 'x', 'ؤ': 'c', 'ر': 'v', 'لا': 'b', 'ى': 'n', 'ة': 'm',
-      'و': ',', 'ز': '.', 'ظ': '/'
-    };
-    
-    const convertedSku = sku.split('').map(char => arabicToEnglishMap[char] || char).join('');
-
-    // البحث في المنتجات المحملة أولاً
-    const foundProduct = products.find(p => 
-      p.sku && (p.sku.toLowerCase() === sku.toLowerCase() || p.sku.toLowerCase() === convertedSku.toLowerCase())
-    );
-
-    if (foundProduct) {
-      // إضافة المنتج للسلة مباشرة
-      const res = await addToCart(foundProduct);
-      if (res?.error) {
-        setToast({ message: res.error, type: 'error' });
-      } else {
-        setToast({ message: `✅ تمت إضافة "${foundProduct.name}"`, type: 'success' });
-        setTimeout(() => setToast(null), 2000);
-      }
-      setBarcodeInput(''); // مسح الحقل
-    } else {
-      // البحث في السيرفر
-      setToast({ message: '🔍 جاري البحث عن المنتج...', type: 'info' });
-      setTimeout(() => setToast(null), 1500);
-      
-      // محاولة جلب المنتج من السيرفر
-      const result = await fetchProducts({ page: 1, search: convertedSku });
-      
-      setTimeout(() => {
-        const serverProduct = products.find(p => 
-          p.sku && (p.sku.toLowerCase() === sku.toLowerCase() || p.sku.toLowerCase() === convertedSku.toLowerCase())
-        );
-        
-        if (serverProduct) {
-          addToCart(serverProduct);
-          setToast({ message: `✅ تمت إضافة "${serverProduct.name}"`, type: 'success' });
-          setTimeout(() => setToast(null), 2000);
-        } else {
-          // المنتج مش موجود - إعادة تحميل المنتجات الأصلية
-          setToast({ message: '❌ المنتج غير موجود - SKU: ' + convertedSku, type: 'error' });
-          setTimeout(() => setToast(null), 3000);
-          // إعادة تحميل المنتجات الأصلية
-          fetchProducts({ page: 1, search: '', category });
-        }
-        setBarcodeInput('');
-      }, 500);
     }
   };
 
@@ -396,7 +338,6 @@ export default function POSPage() {
                 categories={categories}
                 loading={categoriesLoading || searching}
                 onSelectCategory={(catId) => {
-                  setSearching(true); // Show spinner instantly
                   handleSelectCategory(catId);
                 }}
                 totalProducts={products.length}
@@ -477,12 +418,16 @@ export default function POSPage() {
                 ))}
               </select>
               <button
-                onClick={() => fetchProducts({ page: 1, search: '', category: 'all' })}
-                disabled={loading}
+                onClick={async () => {
+                  setSearching(true);
+                  await fetchProducts({ page: 1, search: '', category });
+                  setSearching(false);
+                }}
+                disabled={searching}
                 className="px-3 py-2.5 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:bg-gray-700 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors text-sm font-medium"
                 title="تحديث المنتجات من السيرفر"
               >
-                <span className={loading ? 'animate-spin' : ''}>🔄</span>
+                <span className={searching ? 'animate-spin' : ''}>🔄</span>
                 <span>تحديث</span>
               </button>
               <button
@@ -498,7 +443,7 @@ export default function POSPage() {
 
               <ProductGrid 
                 products={products} 
-                loading={loading} 
+                loading={searching} 
                 onAddToCart={handleAddToCart}
                 onEdit={(product) => setEditingProductId(product.id)}
                 onSelectVariation={handleSelectVariation}

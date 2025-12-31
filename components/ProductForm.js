@@ -492,6 +492,16 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     
     const method = mode === 'edit' ? 'PATCH' : 'POST';
 
+    // تجهيز salePrice كسلسلة نصية فقط إذا كانت قيمة رقمية وصحيحة
+    let salePriceToSend = undefined;
+    if (
+      form.salePrice !== undefined &&
+      form.salePrice !== null &&
+      String(form.salePrice).trim() !== '' &&
+      !isNaN(Number(form.salePrice))
+    ) {
+      salePriceToSend = String(form.salePrice);
+    }
     const response = await fetch(endpoint, {
       method,
       headers: { 'Content-Type': 'application/json' },
@@ -499,11 +509,11 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         name: form.name,
         sku: form.sku,
         sellingPrice: parseFloat(form.sellingPrice),
-        salePrice: form.salePrice ? parseFloat(form.salePrice) : null,
+        ...(salePriceToSend !== undefined ? { salePrice: salePriceToSend } : {}),
         purchasePrice: parseFloat(form.purchasePrice) || 0,
         stock: parseInt(form.apiStock) || 0,
         categories: form.categories.length > 0 ? form.categories : null,
-        images: images.filter(img => !img.uploading).map(img => img.url) // 🆕 إرسال كل الصور
+        images: images.filter(img => !img.uploading).map(img => img.url)
       })
     });
 

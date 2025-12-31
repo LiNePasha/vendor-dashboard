@@ -101,7 +101,7 @@ export default function ClientLayout({ children }) {
           {/* Top Bar */}
           <div 
             className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md shadow-sm z-30 print:hidden transition-all duration-300"
-            style={{ marginRight: !shouldHideLayout ? (isCollapsed ? '80px' : '288px') : '0' }}
+            style={{ marginRight: !shouldHideLayout ? (isCollapsed ? '5rem' : '13rem') : '0' }}
           >
             <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
               <div className="md:flex items-center gap-4 hidden">
@@ -128,7 +128,7 @@ export default function ClientLayout({ children }) {
         </>
       )}
       <main 
-        className={`print:p-0 transition-all duration-300 ${!shouldHideLayout ? (isCollapsed ? 'md:mr-20' : 'md:mr-72') : ''}`} 
+        className={`print:p-0 transition-all duration-300 ${!shouldHideLayout ? (isCollapsed ? 'md:mr-20' : 'md:mr-52') : ''}`} 
         style={{ 
           marginTop: shouldHideLayout ? '0' : '72px',
           padding: shouldHideLayout ? '0' : '0'

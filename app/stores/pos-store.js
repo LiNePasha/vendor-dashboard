@@ -266,17 +266,27 @@ const usePOSStore = create(persist((set, get) => ({
       const successCount = data.updated || 0;
       const failedUpdates = data.details?.filter(d => d.status === 'failed') || [];
 
-      // Update local product stock quantities (both in state and cache)
+      // Update local product/variation stock quantities (both in state and cache)
       const stockUpdates = updates.map(update => ({
-        id: update.productId,
+        id: update.variationId || update.productId,
         stock_quantity: update.newQuantity
       }));
 
-      // Update state
+      // Update state for both products and variations if present
       set(state => ({
         products: state.products.map(p => {
+          // إذا كان المنتج نفسه أو أحد الـ variations
           const update = stockUpdates.find(u => u.id === p.id);
-          return update ? { ...p, stock_quantity: update.stock_quantity } : p;
+          if (update) return { ...p, stock_quantity: update.stock_quantity };
+          // إذا كان المنتج يحتوي على variations
+          if (Array.isArray(p.variations)) {
+            const newVariations = p.variations.map(v => {
+              const vUpdate = stockUpdates.find(u => u.id === v.id);
+              return vUpdate ? { ...v, stock_quantity: vUpdate.stock_quantity } : v;
+            });
+            return { ...p, variations: newVariations };
+          }
+          return p;
         })
       }));
 
@@ -483,11 +493,22 @@ const usePOSStore = create(persist((set, get) => ({
 
       // Process stock updates immediately (only if there are products)
       if (cart.length > 0) {
-        const updates = cart.map(item => ({
-          productId: item.id,
-          variationId: item.variation_id, // 🆕 إضافة variation_id إذا كان موجود
-          newQuantity: Math.max(0, item.stock_quantity - item.quantity)
-        }));
+        const updates = cart.map(item => {
+          // إذا كان العنصر متغير (is_variation أو variation_id موجود)
+          if (item.is_variation || item.variation_id) {
+            return {
+              productId: item.parent_id || item.parentId || item.product_id || item.productId, // id المنتج الأب
+              variationId: item.variation_id || item.id, // id الـ variation
+              newQuantity: Math.max(0, item.stock_quantity - item.quantity)
+            };
+          } else {
+            // منتج عادي
+            return {
+              productId: item.id,
+              newQuantity: Math.max(0, item.stock_quantity - item.quantity)
+            };
+          }
+        });
 
         // Update stock and wait for response
         const { successCount } = await processStockUpdates(updates);
