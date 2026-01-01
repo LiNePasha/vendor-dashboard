@@ -79,8 +79,8 @@ export default function EditProductModal({
       sku: sku || "",
       status: product.status,
       external_url: externalUrl || "",
-      manage_stock: manageStock,
-      stock_quantity: manageStock ? stockQuantity : null,
+      manage_stock: true, // 🆕 تفعيل إدارة المخزون تلقائياً
+      stock_quantity: stockQuantity,
       imageUrl, // 🆕 إضافة رابط الصورة
     };
 

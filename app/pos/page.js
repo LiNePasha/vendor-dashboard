@@ -82,8 +82,17 @@ export default function POSPage() {
       loadEmployees();
       setInitialized(true);
     }
+    
+    // 🆕 Auto-refresh المنتجات كل 30 ثانية
+    const refreshInterval = setInterval(() => {
+      if (viewMode === 'products' && !searching) {
+        fetchProducts({ page: 1, search, category }, false, true); // silent refresh
+      }
+    }, 30000); // 30 seconds
+    
+    return () => clearInterval(refreshInterval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initialized, viewMode, search, category, searching]);
 
   const loadEmployees = async () => {
     try {
@@ -431,7 +440,7 @@ export default function POSPage() {
               <button
                 onClick={async () => {
                   setSearching(true);
-                  await fetchProducts({ page: 1, search: '', category });
+                  await fetchProducts({ page: 1, search: '', category }, false, true); // forceRefresh = true
                   setSearching(false);
                 }}
                 disabled={searching}
@@ -689,7 +698,7 @@ export default function POSPage() {
         mode="create"
         onSuccess={(data) => {
           setToast({ message: '✅ تم إضافة المنتج بنجاح', type: 'success' });
-          fetchProducts({ page: 1, search, category });
+          fetchProducts({ page: 1, search, category }, false, true); // forceRefresh = true
         }}
       />
 
@@ -701,7 +710,8 @@ export default function POSPage() {
         productId={editingProductId}
         onSuccess={(data) => {
           setToast({ message: '✅ تم تعديل المنتج بنجاح', type: 'success' });
-          fetchProducts({ page: 1, search, category });
+          setEditingProductId(null);
+          fetchProducts({ page: 1, search, category }, false, true); // forceRefresh = true
         }}
       />
 

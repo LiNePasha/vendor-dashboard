@@ -136,6 +136,22 @@ export async function PATCH(req, { params }) {
 
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
 
+    // 🔥 Fetch current product to compare images
+    let currentProduct = null;
+    try {
+      const productRes = await fetch(`${API_BASE}/wp-json/wc/v3/products/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (productRes.ok) {
+        currentProduct = await productRes.json();
+      }
+    } catch (err) {
+      console.error('Failed to fetch current product:', err);
+    }
+
     // Build update payload
     const updatePayload = {};
 
@@ -153,7 +169,10 @@ export async function PATCH(req, { params }) {
     // Only set prices for simple products
     if (body.type !== 'variable') {
       if (body.sellingPrice) updatePayload.regular_price = String(body.sellingPrice);
-      if (body.stock !== undefined) updatePayload.stock_quantity = Number(body.stock);
+      if (body.stock !== undefined) {
+        updatePayload.stock_quantity = Number(body.stock);
+        updatePayload.manage_stock = true; // 🆕 تفعيل إدارة المخزون تلقائياً
+      }
       // Handle salePrice as string only if valid
       if (
         body.salePrice !== undefined &&
@@ -166,12 +185,26 @@ export async function PATCH(req, { params }) {
 
     if (body.categories) updatePayload.categories = body.categories.map(catId => ({ id: parseInt(catId) }));
 
-    // دعم images كمصفوفة روابط
+    // 🔥 دعم images مع منع التكرار
+    // Only update images if they actually changed
     if (Array.isArray(body.images) && body.images.length > 0) {
-      updatePayload.images = body.images.map(src => ({ src }));
+      const currentImages = currentProduct?.images?.map(img => img.src) || [];
+      const newImages = body.images;
+      
+      // Compare arrays - only update if different
+      const imagesChanged = 
+        currentImages.length !== newImages.length ||
+        !currentImages.every((src, idx) => src === newImages[idx]);
+      
+      if (imagesChanged) {
+        updatePayload.images = newImages.map(src => ({ src }));
+      }
     } else if (body.imageUrl) {
       // دعم القديم imageUrl
-      updatePayload.images = [{ src: body.imageUrl }];
+      const currentImageUrl = currentProduct?.images?.[0]?.src;
+      if (currentImageUrl !== body.imageUrl) {
+        updatePayload.images = [{ src: body.imageUrl }];
+      }
     }
 
     // Add purchase price to meta_data

@@ -212,20 +212,23 @@ const usePOSStore = create(persist((set, get) => ({
   },
 
   // Products Actions
-  fetchProducts: async (query = {}, append = false) => {
+  fetchProducts: async (query = {}, append = false, forceRefresh = false) => {
     try {
       // Dedupe identical requests within a short window to avoid double fetch in dev
-      const key = `${query.page || 1}|${query.search || ''}|${query.category || 'all'}`;
-      const now = Date.now();
-      if (key === __pos_lastProductsFetchKey && now - __pos_lastProductsFetchAt < 800) {
-        return { success: true, deduped: true };
+      // Skip dedupe if forceRefresh
+      if (!forceRefresh) {
+        const key = `${query.page || 1}|${query.search || ''}|${query.category || 'all'}`;
+        const now = Date.now();
+        if (key === __pos_lastProductsFetchKey && now - __pos_lastProductsFetchAt < 800) {
+          return { success: true, deduped: true };
+        }
+        __pos_lastProductsFetchKey = key;
+        __pos_lastProductsFetchAt = now;
       }
-      __pos_lastProductsFetchKey = key;
-      __pos_lastProductsFetchAt = now;
 
       // 🚀 Stale-While-Revalidate Strategy
-      // 1️⃣ عرض الـ cache أولاً (إذا متاح)
-      if (!append && !query.search && query.category === 'all') {
+      // 1️⃣ عرض الـ cache أولاً (إذا متاح) - unless forceRefresh
+      if (!forceRefresh && !append && !query.search && query.category === 'all') {
         const cache = await productsCacheStorage.getCache();
         if (cache && cache.products && cache.products.length > 0) {
           // عرض البيانات من الـ cache فوراً

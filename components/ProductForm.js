@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { warehouseStorage, suppliersStorage } from '@/app/lib/warehouse-storage';
+import usePOSStore from '@/app/stores/pos-store';
 import AttributeSelector from './AttributeSelector';
 import VariationImageUpload from './VariationImageUpload';
 import MultipleImageUpload from './MultipleImageUpload';
@@ -19,6 +20,10 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(mode === 'edit');
+  
+  // 🆕 استخدام categories من POS store
+  const categoriesFromStore = usePOSStore((state) => state.categories);
+  const fetchCategories = usePOSStore((state) => state.fetchCategories);
   
   // Basic States
   const [suppliers, setSuppliers] = useState([]);
@@ -74,41 +79,34 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     setSuppliers(suppliersList);
   };
 
-  const loadCategories = async () => {
+  const loadCategories = async (forceRefresh = false) => {
+    // 🆕 استخدام categories من store لو موجودة ومش forceRefresh
+    if (!forceRefresh && categoriesFromStore && categoriesFromStore.length > 0) {
+      console.log('[ProductForm] ✅ Using cached categories from store');
+      setCategories(categoriesFromStore);
+      return;
+    }
+    
+    // لو forceRefresh أو مش موجودة، نجيبها من الـ store function
     setCategoriesLoading(true);
     try {
-      console.log('[ProductForm] 🚀 Sending request to /api/warehouse/categories ...');
-      const res = await fetch('/api/warehouse/categories', {
-        credentials: 'include',
-      });
-      console.log('[ProductForm] 📡 API Response status:', res.status);
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('[ProductForm] API Error:', errorText);
-        throw new Error('فشل تحميل التصنيفات');
-      }
-      const data = await res.json();
-      console.log('[ProductForm] ✅ Categories response:', data);
-      // Extract categories array from response
-      let categoriesArray = [];
-      if (data && data.categories && Array.isArray(data.categories)) {
-        categoriesArray = data.categories;
-      } else if (Array.isArray(data)) {
-        categoriesArray = data;
-      } else {
-        console.error('[ProductForm] Invalid data format:', data);
-        throw new Error('البيانات المستلمة غير صالحة');
-      }
-      console.log('[ProductForm] ✅ Final categories array:', categoriesArray);
-      setCategories(categoriesArray);
+      console.log('[ProductForm] 🚀 Fetching categories from POS store...');
+      await fetchCategories();
+      // الـ categories هتتحدث في الـ store تلقائياً
     } catch (error) {
       console.error('[ProductForm] ❌ Error loading categories:', error);
       alert('⚠️ فشل تحميل التصنيفات: ' + error.message);
-      setCategories([]);
     } finally {
       setCategoriesLoading(false);
     }
   };
+  
+  // 🆕 Update local categories عند تغير categoriesFromStore
+  useEffect(() => {
+    if (categoriesFromStore && categoriesFromStore.length > 0) {
+      setCategories(categoriesFromStore);
+    }
+  }, [categoriesFromStore]);
 
   const loadProductData = async () => {
     setLoadingData(true);

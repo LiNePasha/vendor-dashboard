@@ -315,12 +315,39 @@ export default function ProductsPage() {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify(updatedData),
+          body: JSON.stringify({
+            ...updatedData,
+            manage_stock: true // 🆕 تأكيد تفعيل إدارة المخزون
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           setToast({ message: data?.error || data?.message || 'تعذر تحديث المنتج على الخادم، سيُعاد التحقق قريبًا', type: 'error' });
           setTimeout(() => setToast(null), 2500);
+        } else {
+          // 🆕 Re-fetch المنتج من السيرفر بعد نجاح التحديث
+          try {
+            const fetchRes = await fetch(`/api/products/${productId}`, {
+              credentials: "include",
+            });
+            if (fetchRes.ok) {
+              const fetchData = await fetchRes.json();
+              const serverProduct = fetchData.product;
+              
+              // Update state with server data
+              setProducts((prev) => prev.map((p) => 
+                p.id === productId ? { ...p, ...serverProduct } : p
+              ));
+              
+              // Update cache
+              await productsCacheStorage.updateProductInCache(productId, serverProduct);
+              
+              setToast({ message: 'تم تحديث المنتج بنجاح ✓', type: 'success' });
+              setTimeout(() => setToast(null), 2500);
+            }
+          } catch (fetchErr) {
+            console.error('Failed to re-fetch product:', fetchErr);
+          }
         }
       } catch (err) {
         setToast({ message: 'حدث خطأ أثناء تحديث الخادم، سيُعاد التحقق قريبًا', type: 'error' });
