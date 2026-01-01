@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import usePOSStore from "@/app/stores/pos-store";
 import { useRouter } from "next/navigation";
+import offlineCustomersStorage from "@/app/lib/offline-customers-storage";
+import CustomerModal from "@/components/CustomerModal";
 
 export default function CustomersPage() {
   const router = useRouter();
@@ -14,31 +16,80 @@ export default function CustomersPage() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState(""); // all, active, inactive
+  const [typeFilter, setTypeFilter] = useState("all"); // all, online, offline
   const [sortBy, setSortBy] = useState("total_spent"); // total_spent, orders_count, last_order_date
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [offlineCustomers, setOfflineCustomers] = useState([]);
+  const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(null);
 
   // Fetch orders if not loaded
   useEffect(() => {
     if (orders.length === 0) {
       fetchOrders();
     }
+    loadOfflineCustomers();
   }, []);
 
-  // Get customers from orders
-  const customers = useMemo(() => getCustomers(), [orders]);
-  const stats = useMemo(() => getCustomersStats(), [orders]);
+  const loadOfflineCustomers = async () => {
+    const customers = await offlineCustomersStorage.getAllOfflineCustomers();
+    setOfflineCustomers(customers);
+  };
+
+  // Get online customers from orders
+  const onlineCustomers = useMemo(() => getCustomers(), [orders]);
+  // دمج العملاء الأونلاين والأوفلاين
+  const allCustomers = useMemo(() => {
+    const online = onlineCustomers.map(c => ({ ...c, type: 'online', source: 'وردبريس' }));
+    const offline = offlineCustomers.map(c => ({ 
+      ...c, 
+      type: 'offline',
+      source: 'محلي',
+      total_spent: c.totalSpent || 0,
+      orders_count: c.totalOrders || 0,
+      last_order_date: c.lastOrderAt || c.updatedAt
+    }));
+    return [...online, ...offline];
+  }, [onlineCustomers, offlineCustomers]);
+
+  const stats = useMemo(() => {
+    const onlineStats = getCustomersStats();
+    
+    // حساب إجمالي الإيرادات من كل العملاء
+    const totalRevenue = allCustomers.reduce((sum, c) => sum + (c.total_spent || 0), 0);
+    
+    // حساب إجمالي الطلبات
+    const totalOrders = allCustomers.reduce((sum, c) => sum + (c.orders_count || 0), 0);
+    
+    // حساب متوسط الطلب
+    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    
+    return {
+      total: allCustomers.length,
+      online: onlineCustomers.length,
+      offline: offlineCustomers.length,
+      active: onlineStats.active + offlineCustomers.filter(c => c.totalOrders > 0).length,
+      total_revenue: totalRevenue,
+      average_order_value: averageOrderValue
+    };
+  }, [allCustomers, onlineCustomers, offlineCustomers, orders]);
 
   // Filter and sort customers
   const filteredCustomers = useMemo(() => {
-    let filtered = customers;
+    let filtered = allCustomers;
+
+    // Type filter
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter((c) => c.type === typeFilter);
+    }
 
     // Search filter
     if (searchTerm) {
       filtered = filtered.filter(
         (c) =>
-          c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          c.phone.includes(searchTerm)
+          c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          c.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          c.phone?.includes(searchTerm)
       );
     }
 
@@ -49,15 +100,49 @@ export default function CustomersPage() {
 
     // Sort
     filtered = [...filtered].sort((a, b) => {
-      if (sortBy === "total_spent") return b.total_spent - a.total_spent;
-      if (sortBy === "orders_count") return b.orders_count - a.orders_count;
+      if (sortBy === "total_spent") return (b.total_spent || 0) - (a.total_spent || 0);
+      if (sortBy === "orders_count") return (b.orders_count || 0) - (a.orders_count || 0);
       if (sortBy === "last_order_date")
-        return new Date(b.last_order_date) - new Date(a.last_order_date);
+        return new Date(b.last_order_date || 0) - new Date(a.last_order_date || 0);
       return 0;
     });
 
     return filtered;
-  }, [customers, searchTerm, statusFilter, sortBy]);
+  }, [allCustomers, searchTerm, statusFilter, sortBy, typeFilter]);
+
+  const handleAddCustomer = () => {
+    setEditingCustomer(null);
+    setShowCustomerModal(true);
+  };
+
+  const handleEditCustomer = (customer) => {
+    if (customer.type === 'offline') {
+      setEditingCustomer(customer);
+      setShowCustomerModal(true);
+    } else {
+      alert('لا يمكن تعديل العملاء من وردبريس');
+    }
+  };
+
+  const handleDeleteCustomer = async (customer) => {
+    if (customer.type === 'offline') {
+      if (confirm(`هل تريد حذف العميل "${customer.name}"؟`)) {
+        try {
+          await offlineCustomersStorage.deleteOfflineCustomer(customer.id);
+          await loadOfflineCustomers();
+          alert('✅ تم حذف العميل بنجاح');
+        } catch (error) {
+          alert('❌ فشل في حذف العميل');
+        }
+      }
+    } else {
+      alert('لا يمكن حذف العملاء من وردبريس');
+    }
+  };
+
+  const handleCustomerSaved = async () => {
+    await loadOfflineCustomers();
+  };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("ar-EG", {
@@ -78,16 +163,25 @@ export default function CustomersPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2 flex items-center gap-3">
-            <span className="text-4xl">👥</span>
-            العملاء
-          </h1>
-          <p className="text-gray-600">
-            {ordersLoading
-              ? "جاري التحميل..."
-              : `${customers.length} عميل - ${stats.active} نشط`}
-          </p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2 flex items-center gap-3">
+              <span className="text-4xl">👥</span>
+              العملاء
+            </h1>
+            <p className="text-gray-600">
+              {ordersLoading
+                ? "جاري التحميل..."
+                : `${allCustomers.length} عميل - ${stats.online} أونلاين، ${stats.offline} أوفلاين`}
+            </p>
+          </div>
+          <button
+            onClick={handleAddCustomer}
+            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 font-bold transition-all shadow-lg flex items-center gap-2"
+          >
+            <span className="text-xl">➕</span>
+            إضافة عميل
+          </button>
         </div>
 
         {/* Stats Cards */}
@@ -95,6 +189,14 @@ export default function CustomersPage() {
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
             <div className="text-sm text-gray-500 mb-1">إجمالي العملاء</div>
             <div className="text-2xl font-bold text-gray-800">{stats.total}</div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+            <div className="text-sm text-gray-500 mb-1">عملاء أونلاين</div>
+            <div className="text-2xl font-bold text-blue-600">{stats.online}</div>
+          </div>
+          <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+            <div className="text-sm text-gray-500 mb-1">عملاء أوفلاين</div>
+            <div className="text-2xl font-bold text-green-600">{stats.offline}</div>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
             <div className="text-sm text-gray-500 mb-1">عملاء نشطون</div>
@@ -116,7 +218,7 @@ export default function CustomersPage() {
 
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6 border border-gray-100">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Search */}
             <div className="relative">
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xl">
@@ -130,6 +232,17 @@ export default function CustomersPage() {
                 className="w-full pr-12 pl-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               />
             </div>
+
+            {/* Type Filter */}
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            >
+              <option value="all">كل الأنواع</option>
+              <option value="online">أونلاين (وردبريس)</option>
+              <option value="offline">أوفلاين (محلي)</option>
+            </select>
 
             {/* Status Filter */}
             <select
@@ -174,10 +287,10 @@ export default function CustomersPage() {
                 <thead className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white">
                   <tr>
                     <th className="px-6 py-4 text-right font-bold">العميل</th>
+                    <th className="px-6 py-4 text-right font-bold">النوع</th>
                     <th className="px-6 py-4 text-right font-bold">التواصل</th>
                     <th className="px-6 py-4 text-right font-bold">عدد الطلبات</th>
                     <th className="px-6 py-4 text-right font-bold">إجمالي الإنفاق</th>
-                    <th className="px-6 py-4 text-right font-bold">متوسط الطلب</th>
                     <th className="px-6 py-4 text-right font-bold">آخر طلب</th>
                     <th className="px-6 py-4 text-right font-bold">الحالة</th>
                     <th className="px-6 py-4 text-center font-bold">إجراءات</th>
@@ -193,11 +306,22 @@ export default function CustomersPage() {
                         <div className="font-semibold text-gray-800">
                           {customer.name}
                         </div>
-                        {customer.city && (
+                        {(customer.address?.city || customer.city) && (
                           <div className="text-sm text-gray-500">
-                            📍 {customer.city}
+                            📍 {customer.address?.city || customer.city}
                           </div>
                         )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            customer.type === "online"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-green-100 text-green-700"
+                          }`}
+                        >
+                          {customer.type === "online" ? "🌐 أونلاين" : "🏪 أوفلاين"}
+                        </span>
                       </td>
                       <td className="px-6 py-4">
                         {customer.phone && (
@@ -212,34 +336,21 @@ export default function CustomersPage() {
                         )}
                       </td>
                       <td className="px-6 py-4">
-                        <div>
-                          <span className="font-semibold text-gray-800">
-                            {customer.orders_count}
-                          </span>
-                          {customer.orders.length > customer.orders_count && (
-                            <span className="text-xs text-gray-500 mr-1">
-                              ({customer.orders.length} إجمالي)
-                            </span>
-                          )}
-                        </div>
+                        <span className="font-semibold text-gray-800">
+                          {customer.orders_count || 0}
+                        </span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-bold text-green-600">
-                          {formatCurrency(customer.total_spent)}
+                          {formatCurrency(customer.total_spent || 0)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-gray-700">
-                          {formatCurrency(customer.average_order)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-700">
-                          {formatDate(customer.last_order_date)}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          منذ {customer.days_since_last_order} يوم
-                        </div>
+                        {customer.last_order_date && (
+                          <div className="text-sm text-gray-700">
+                            {formatDate(customer.last_order_date)}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <span
@@ -253,12 +364,30 @@ export default function CustomersPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <button
-                          onClick={() => setSelectedCustomer(customer)}
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors text-sm font-semibold"
-                        >
-                          التفاصيل
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => setSelectedCustomer(customer)}
+                            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg transition-colors text-sm font-semibold"
+                          >
+                            التفاصيل
+                          </button>
+                          {customer.type === 'offline' && (
+                            <>
+                              <button
+                                onClick={() => handleEditCustomer(customer)}
+                                className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1.5 rounded-lg transition-colors text-sm font-semibold"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCustomer(customer)}
+                                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition-colors text-sm font-semibold"
+                              >
+                                🗑️
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -295,7 +424,7 @@ export default function CustomersPage() {
                       <div className="text-gray-500">طلبات مدفوعة</div>
                       <div className="font-semibold text-gray-800">
                         {customer.orders_count}
-                        {customer.orders.length > customer.orders_count && (
+                        {customer.orders && customer.orders.length > customer.orders_count && (
                           <span className="text-xs text-gray-500">
                             {" "}/ {customer.orders.length}
                           </span>
@@ -480,6 +609,17 @@ export default function CustomersPage() {
           </div>
         </div>
       )}
+
+      {/* Customer Modal */}
+      <CustomerModal
+        isOpen={showCustomerModal}
+        onClose={() => {
+          setShowCustomerModal(false);
+          setEditingCustomer(null);
+        }}
+        customer={editingCustomer}
+        onSuccess={handleCustomerSaved}
+      />
     </div>
   );
 }

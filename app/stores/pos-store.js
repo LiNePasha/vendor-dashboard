@@ -32,6 +32,12 @@ const usePOSStore = create(persist((set, get) => ({
   processingOrders: [], // 🔥 الطلبات قيد التجهيز فقط
   ordersLoading: false,
   lastOrdersFetch: null,
+  
+  // 🆕 Delivery System State
+  orderType: 'pickup', // 'pickup' | 'delivery'
+  selectedCustomer: null, // العميل المختار
+  deliveryFee: 0, // رسوم التوصيل
+  deliveryNotes: '', // ملاحظات التوصيل
 
   // Cart Actions
   addToCart: async (product) => {
@@ -56,7 +62,19 @@ const usePOSStore = create(persist((set, get) => ({
       set({ cart: updatedCart });
       return { success: true };
     } else {
-      const newCart = [...cart, { ...product, quantity: 1 }];
+      // تحديد السعر الحالي والأصلي بشكل صحيح
+      const currentPrice = Number(product.price); // السعر الفعلي الحالي
+      const regularPrice = product.regular_price ? Number(product.regular_price) : null;
+      
+      // التحقق من وجود خصم: لو regular_price أكبر من price
+      const hasDiscount = regularPrice && regularPrice > currentPrice;
+      
+      const newCart = [...cart, { 
+        ...product, 
+        quantity: 1,
+        price: currentPrice, // السعر الفعلي
+        originalPrice: hasDiscount ? regularPrice : null // السعر الأصلي فقط لو فيه خصم
+      }];
       await cartStorage.saveCart(newCart);
       set({ cart: newCart });
       return { success: true };
@@ -120,6 +138,36 @@ const usePOSStore = create(persist((set, get) => ({
 
   clearServices: () => {
     set({ services: [] });
+  },
+
+  // 🆕 Delivery System Actions
+  setOrderType: (type) => {
+    set({ orderType: type });
+    // إذا تم التحويل لـ pickup، امسح بيانات التوصيل
+    if (type === 'pickup') {
+      set({ selectedCustomer: null, deliveryFee: 0, deliveryNotes: '' });
+    }
+  },
+
+  selectCustomer: (customer) => {
+    set({ selectedCustomer: customer });
+  },
+
+  setDeliveryFee: (fee) => {
+    set({ deliveryFee: parseFloat(fee) || 0 });
+  },
+
+  setDeliveryNotes: (notes) => {
+    set({ deliveryNotes: notes });
+  },
+
+  clearDeliveryData: () => {
+    set({
+      orderType: 'pickup',
+      selectedCustomer: null,
+      deliveryFee: 0,
+      deliveryNotes: ''
+    });
   },
 
   // 🆕 Update single product locally (for optimistic updates)
@@ -301,10 +349,20 @@ const usePOSStore = create(persist((set, get) => ({
 
   // Checkout Process
   processCheckout: async (paymentDetails) => {
-    const { cart, services, clearCart, clearServices, processStockUpdates } = get();
+    const { cart, services, clearCart, clearServices, processStockUpdates, orderType, selectedCustomer, deliveryFee, deliveryNotes } = get();
     
     if (cart.length === 0 && services.length === 0) {
       return { error: 'السلة والخدمات فارغة - أضف منتجات أو خدمات' };
+    }
+
+    // التحقق من بيانات التوصيل إذا كان الطلب توصيل
+    if (orderType === 'delivery') {
+      if (!selectedCustomer) {
+        return { error: 'يجب اختيار عميل للتوصيل' };
+      }
+      if (!selectedCustomer.phone || !selectedCustomer.phone.trim()) {
+        return { error: 'يجب إدخال رقم هاتف العميل' };
+      }
     }
 
     try {
@@ -347,7 +405,9 @@ const usePOSStore = create(persist((set, get) => ({
         ? (discountBase * (Number(paymentDetails.discount) / 100))
         : Number(paymentDetails.discount);
 
-      const finalTotal = subtotal - discountAmount + Number(paymentDetails.extraFee);
+      // إضافة رسوم التوصيل إذا كان الطلب توصيل
+      const finalDeliveryFee = orderType === 'delivery' ? Number(deliveryFee) : 0;
+      const finalTotal = subtotal - discountAmount + Number(paymentDetails.extraFee) + finalDeliveryFee;
 
       if (finalTotal < 0) {
         return { error: 'إجمالي الفاتورة لا يمكن أن يكون سالباً' };
@@ -387,6 +447,7 @@ const usePOSStore = create(persist((set, get) => ({
           id: item.id,
           name: item.name,
           price: item.price,
+          originalPrice: item.originalPrice || null, // 🆕 حفظ السعر الأصلي للعرض في الفاتورة
           quantity: item.quantity,
           totalPrice: Number(item.price) * item.quantity,
           stock_quantity: item.stock_quantity,
@@ -437,7 +498,8 @@ const usePOSStore = create(persist((set, get) => ({
       // - ربح المنتجات (بعد الخصم)
       // - الرسوم الإضافية (إيراد كامل)
       // - إيرادات الخدمات (بعد الخصم)
-      const totalProfit = finalProductsProfit + Number(paymentDetails.extraFee) + finalServicesProfit;
+      // - رسوم التوصيل (إيراد كامل)
+      const totalProfit = finalProductsProfit + Number(paymentDetails.extraFee) + finalServicesProfit + finalDeliveryFee;
 
       // Create invoice
       const invoice = {
@@ -445,6 +507,19 @@ const usePOSStore = create(persist((set, get) => ({
         date: new Date().toISOString(),
         items: invoiceItems,
         services: validServices,
+        // 🆕 معلومات التوصيل
+        delivery: orderType === 'delivery' ? {
+          customer: {
+            id: selectedCustomer.id,
+            name: selectedCustomer.name,
+            phone: selectedCustomer.phone,
+            email: selectedCustomer.email || '',
+            address: selectedCustomer.address || {}
+          },
+          fee: finalDeliveryFee,
+          notes: deliveryNotes || ''
+        } : null,
+        orderType: orderType, // 'pickup' | 'delivery'
         summary: {
           productsSubtotal,
           servicesTotal,
@@ -456,6 +531,7 @@ const usePOSStore = create(persist((set, get) => ({
             applyMode: discountApplyMode // 🆕 وضع تطبيق الخصم
           },
           extraFee: Number(paymentDetails.extraFee),
+          deliveryFee: finalDeliveryFee, // 🆕 رسوم التوصيل
           total: finalTotal,
           totalProfit: totalProfit, // الربح الكلي (بعد الخصم والرسوم)
           productsProfit: totalProductsProfit, // ربح المنتجات الأصلي (قبل الخصم)
@@ -490,6 +566,27 @@ const usePOSStore = create(persist((set, get) => ({
       // Clear cart and services immediately
       await clearCart();
       clearServices();
+
+      // 🆕 مسح بيانات التوصيل بعد نجاح الطلب
+      if (orderType === 'delivery' && selectedCustomer) {
+        // تحديث إحصائيات العميل إذا كان أوفلاين
+        if (selectedCustomer.type === 'offline') {
+          try {
+            const offlineCustomersStorage = await import('@/app/lib/offline-customers-storage');
+            await offlineCustomersStorage.default.updateCustomerStats(selectedCustomer.id, finalTotal);
+          } catch (error) {
+            console.error('Failed to update customer stats:', error);
+          }
+        }
+      }
+      
+      // مسح بيانات التوصيل
+      set({
+        orderType: 'pickup',
+        selectedCustomer: null,
+        deliveryFee: 0,
+        deliveryNotes: ''
+      });
 
       // Process stock updates immediately (only if there are products)
       if (cart.length > 0) {

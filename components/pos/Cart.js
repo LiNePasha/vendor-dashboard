@@ -16,10 +16,13 @@ export function Cart({
   discount = 0,
   discountType = 'amount', // 'amount' or 'percentage'
   discountApplyMode = 'both', // 'both', 'products', 'services'
+  extraFee = 0, // 🆕 الرسوم الإضافية
+  deliveryFee = 0, // 🆕 رسوم التوصيل
   paymentMethod = 'cash',
   onDiscountChange,
   onDiscountTypeChange,
   onDiscountApplyModeChange,
+  onExtraFeeChange,
   onPaymentMethodChange,
   employees = [] // 🆕 قائمة الموظفين
 }) {
@@ -39,8 +42,8 @@ export function Cart({
     ? (subtotal * (discount / 100))
     : discount;
 
-  // Calculate final total
-  const total = subtotal - discountAmount;
+  // Calculate final total with extra fee and delivery fee
+  const total = subtotal - discountAmount + Number(extraFee) + Number(deliveryFee);
 
   // Load saved services from LocalForage
   const [savedServices, setSavedServices] = useState([]);
@@ -97,11 +100,26 @@ export function Cart({
                 className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors"
               >
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-gray-800 truncate text-sm">{item.name}</h3>
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-medium text-gray-800 truncate text-sm">{item.name}</h3>
+                    {item.originalPrice && item.originalPrice > item.price && (
+                      <span className="text-xs bg-red-500 text-white px-1.5 py-0.5 rounded font-semibold">
+                        🏷️ {Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}%
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-gray-500 mt-0.5">
-                    {item.regular_price || item.price} ج.م × {item.quantity} = 
+                    {item.originalPrice && item.originalPrice > item.price ? (
+                      <>
+                        <span className="line-through text-gray-400 ml-1">{item.originalPrice} ج.م</span>
+                        <span className="text-red-600 font-bold">{item.price} ج.م</span>
+                      </>
+                    ) : (
+                      <span>{item.price} ج.م</span>
+                    )}
+                    {" × "}{item.quantity} = 
                     <span className="font-semibold text-gray-700 mr-1">
-                      {((item.regular_price || item.price) * item.quantity).toFixed(2)} ج.م
+                      {(item.price * item.quantity).toFixed(2)} ج.م
                     </span>
                   </div>
                 </div>
@@ -361,6 +379,20 @@ export function Cart({
                   : `${discount} ج.م`}):
               </span>
               <span className="font-medium">- {discountAmount.toFixed(2)} ج.م</span>
+            </div>
+          )}
+
+          {extraFee > 0 && (
+            <div className="flex justify-between text-sm text-green-600">
+              <span>رسوم إضافية:</span>
+              <span className="font-medium">+ {Number(extraFee).toFixed(2)} ج.م</span>
+            </div>
+          )}
+
+          {deliveryFee > 0 && (
+            <div className="flex justify-between text-sm text-blue-600">
+              <span>🚚 رسوم التوصيل:</span>
+              <span className="font-medium">+ {Number(deliveryFee).toFixed(2)} ج.م</span>
             </div>
           )}
           

@@ -558,8 +558,8 @@ export default function EmployeeDetailsPage() {
                     key={day.id}
                     className={`px-3 py-1 rounded-lg text-sm font-semibold ${
                       employee.workSchedule?.workDays?.includes(day.id)
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-100 text-gray-400'
+                        ? '!bg-blue-500 !text-white'
+                        : '!bg-gray-100 !text-gray-400'
                     }`}
                   >
                     {day.label}
@@ -1141,8 +1141,8 @@ export default function EmployeeDetailsPage() {
                       onClick={() => handleWorkDayToggle(day.id)}
                       className={`px-4 py-2 rounded-lg font-semibold transition-colors ${
                         formData.workDays.includes(day.id)
-                          ? "bg-blue-500 text-white"
-                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          ? "!bg-blue-500 !text-white"
+                          : "!bg-gray-100 !text-gray-700 hover:!bg-gray-200"
                       }`}
                     >
                       {day.label}

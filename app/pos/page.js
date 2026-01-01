@@ -10,6 +10,7 @@ import VariationSelector from '@/components/pos/VariationSelector';
 import usePOSStore from '@/app/stores/pos-store';
 import InvoiceModal from './InvoiceModal';
 import EmployeeSelector from '@/components/EmployeeSelector';
+import CustomerSelector from '@/components/CustomerSelector';
 import { productsCacheStorage } from '@/app/lib/localforage';
 
 export default function POSPage() {
@@ -45,6 +46,16 @@ export default function POSPage() {
     loading = false,
     processing = false,
     hasMore = false,
+    // 🆕 Delivery state
+    orderType,
+    selectedCustomer,
+    deliveryFee,
+    deliveryNotes,
+    setOrderType,
+    selectCustomer,
+    setDeliveryFee,
+    setDeliveryNotes,
+    // Actions
     fetchProducts,
     fetchCategories,
     addToCart,
@@ -482,6 +493,81 @@ export default function POSPage() {
               required={true}
             />
           </div>
+
+          {/* 🆕 نوع الطلب والتوصيل */}
+          <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+            {/* <h3 className="font-bold text-sm text-gray-700 mb-3">📦 نوع الطلب</h3> */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setOrderType('pickup')}
+                className={`flex-1 py-2.5 rounded-lg font-bold transition-all ${
+                  orderType === 'pickup'
+                    ? '!bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg border-2 border-blue-500'
+                    : '!bg-white !text-gray-600 border-2 border-gray-300 hover:border-blue-400'
+                }`}
+              >
+                <span className={orderType === 'pickup' ? 'text-xl' : 'text-lg'}>🏪</span>
+                <span className="mr-1.5">استلام</span>
+              </button>
+              <button
+                onClick={() => setOrderType('delivery')}
+                className={`flex-1 py-2.5 rounded-lg font-bold transition-all ${
+                  orderType === 'delivery'
+                    ? '!bg-gradient-to-r from-green-600 to-green-700 text-white shadow-lg border-2 border-green-500'
+                    : '!bg-white !text-gray-600 border-2 border-gray-300 hover:border-green-400'
+                }`}
+              >
+                <span className={orderType === 'delivery' ? 'text-xl' : 'text-lg'}>🚚</span>
+                <span className="mr-1.5">توصيل</span>
+              </button>
+            </div>
+
+            {orderType === 'delivery' && (
+              <div className="space-y-3">
+                {/* اختيار العميل */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    العميل <span className="text-red-500">*</span>
+                  </label>
+                  <CustomerSelector
+                    selectedCustomer={selectedCustomer}
+                    onSelect={selectCustomer}
+                    onClear={() => selectCustomer(null)}
+                  />
+                </div>
+
+                {/* رسوم التوصيل */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    رسوم التوصيل (ج.م)
+                  </label>
+                  <input
+                    type="number"
+                    value={deliveryFee}
+                    onChange={(e) => setDeliveryFee(parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200"
+                    placeholder="0"
+                    min="0"
+                    step="5"
+                  />
+                </div>
+
+                {/* ملاحظات التوصيل */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    ملاحظات التوصيل
+                  </label>
+                  <textarea
+                    value={deliveryNotes}
+                    onChange={(e) => setDeliveryNotes(e.target.value)}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200"
+                    placeholder="ملاحظات إضافية للتوصيل..."
+                    rows={2}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
           
           <Cart
             items={cart}
@@ -498,6 +584,7 @@ export default function POSPage() {
             discountType={discountType}
             discountApplyMode={discountApplyMode}
             extraFee={extraFee}
+            deliveryFee={deliveryFee}
             paymentMethod={paymentMethod}
             onDiscountChange={(v) => setDiscount(Number(v))}
             onDiscountTypeChange={(v) => setDiscountType(v)}

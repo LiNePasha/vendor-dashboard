@@ -16,6 +16,23 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
 
   // Use STATIC logo based on vendor ID (not from API)
   const logoSrc = getVendorLogo(vendorInfo?.id);
+  
+  // التحقق من نوع الطلب
+  const isDelivery = invoice.orderType === 'delivery';
+  const customer = invoice.delivery?.customer;
+  const address = customer?.address || {};
+  const deliveryNotes = invoice.delivery?.notes;
+  
+  // تنسيق العنوان الكامل
+  const fullAddress = [
+    address.state,
+    address.city,
+    address.area,
+    address.street,
+    address.building && `عقار ${address.building}`,
+    address.floor && `دور ${address.floor}`,
+    address.apartment && `شقة ${address.apartment}`,
+  ].filter(Boolean).join(' - ');
 
   return (
     <>
@@ -41,7 +58,9 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
             {vendorInfo?.name && (
               <h3 className="text-sm font-semibold text-gray-800 mb-1">{vendorInfo.name}</h3>
             )}
-            <h2 className="text-xl font-bold mb-1 text-gray-900">فاتورة بيع</h2>
+            <h2 className="text-xl font-bold mb-1 text-gray-900">
+              {isDelivery ? '🚚 فاتورة توصيل' : '🏪 فاتورة بيع'}
+            </h2>
             <span className="text-xs text-gray-600">{new Date(invoice.date).toLocaleString('ar-EG')}</span>
             {invoice.synced !== undefined && (
               <span className={`mt-2 px-3 py-1 rounded-full text-xs font-medium ${
@@ -53,6 +72,32 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
               </span>
             )}
           </div>
+
+          {/* معلومات العميل والتوصيل */}
+          {isDelivery && customer && (
+            <div className="mb-4 p-3 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-lg">
+              <h4 className="font-bold text-sm text-green-800 mb-2 flex items-center gap-1">
+                <span>👤</span> معلومات العميل والتوصيل
+              </h4>
+              <div className="space-y-1 text-xs text-gray-700">
+                <div><span className="font-semibold">الاسم:</span> {customer.name}</div>
+                <div><span className="font-semibold">📱 الهاتف:</span> <span className="font-bold text-base">{customer.phone}</span></div>
+                {customer.email && <div><span className="font-semibold">📧 البريد:</span> {customer.email}</div>}
+                {fullAddress && (
+                  <div className="mt-2 pt-2 border-t border-green-200">
+                    <span className="font-semibold">📍 العنوان:</span>
+                    <div className="mr-2 text-gray-800">{fullAddress}</div>
+                  </div>
+                )}
+                {address.landmark && (
+                  <div className="mt-1 p-1.5 bg-yellow-100 rounded text-xs">
+                    <span className="font-semibold">🎯 علامة مميزة:</span> {address.landmark}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="mb-4">
             <table className="w-full text-sm text-gray-800">
               <thead>
@@ -64,14 +109,39 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
                 </tr>
               </thead>
               <tbody>
-                {invoice.items.map(item => (
-                  <tr key={item.id}>
-                    <td>{item.name}</td>
-                    <td>{item.price} ج.م</td>
-                    <td>{item.quantity}</td>
-                    <td>{item.totalPrice} ج.م</td>
-                  </tr>
-                ))}
+                {invoice.items.map(item => {
+                  const hasDiscount = item.originalPrice && item.originalPrice > item.price;
+                  const discountPercent = hasDiscount 
+                    ? Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)
+                    : 0;
+                  
+                  return (
+                    <tr key={item.id}>
+                      <td>
+                        <div className="flex items-center gap-1">
+                          <span>{item.name}</span>
+                          {hasDiscount && (
+                            <span className="text-xs bg-red-500 text-white px-1 py-0.5 rounded">
+                              🏷️ {discountPercent}%
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        {hasDiscount ? (
+                          <div className="flex flex-col items-center">
+                            <span className="line-through text-gray-400 text-xs">{item.originalPrice}</span>
+                            <span className="text-red-600 font-bold">{item.price} ج.م</span>
+                          </div>
+                        ) : (
+                          <span>{item.price} ج.م</span>
+                        )}
+                      </td>
+                      <td>{item.quantity}</td>
+                      <td>{item.totalPrice} ج.م</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -125,6 +195,12 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
                 <span>+ {invoice.summary.extraFee.toFixed(2)} ج.م</span>
               </div>
             )}
+            {invoice.summary.deliveryFee > 0 && (
+              <div className="flex justify-between text-green-600">
+                <span>🚚 رسوم التوصيل:</span>
+                <span>+ {invoice.summary.deliveryFee.toFixed(2)} ج.م</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold border-t pt-2 mt-2">
               <span>الإجمالي النهائي:</span>
               <span>{invoice.summary.total.toFixed(2)} ج.م</span>
@@ -134,6 +210,16 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
               <span>{invoice.paymentMethod}</span>
             </div>
           </div>
+
+          {/* Delivery Notes */}
+          {isDelivery && deliveryNotes && (
+            <div className="mt-4 pt-3 border-t">
+              <div className="text-sm font-bold mb-1">ملاحظات التوصيل:</div>
+              <div className="text-xs text-gray-700 bg-yellow-50 p-2 rounded">
+                {deliveryNotes}
+              </div>
+            </div>
+          )}
           
           {vendorInfo && (
             <div className="mt-4 pt-3 border-t text-center text-xs text-gray-700">

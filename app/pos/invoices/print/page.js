@@ -85,6 +85,23 @@ function PrintInvoiceContent() {
   // Get store link based on vendor ID
   const storeLink = getVendorStoreLink(vendorInfo?.id);
   
+  // التحقق من نوع الطلب
+  const isDelivery = invoice.orderType === 'delivery';
+  const customer = invoice.delivery?.customer;
+  const address = customer?.address || {};
+  const deliveryNotes = invoice.delivery?.notes;
+  
+  // تنسيق العنوان الكامل
+  const fullAddress = [
+    address.state,
+    address.city,
+    address.area,
+    address.street,
+    address.building && `عقار ${address.building}`,
+    address.floor && `دور ${address.floor}`,
+    address.apartment && `شقة ${address.apartment}`,
+  ].filter(Boolean).join(' - ');
+  
   // Translate payment method to Arabic
   const paymentMethodAr = {
     cash: '💵 كاش',
@@ -160,8 +177,8 @@ function PrintInvoiceContent() {
       <div className="receipt-print" style={{
         width: '72mm',
         fontFamily: 'Arial, sans-serif',
-        fontSize: '10px',
-        lineHeight: '1.2',
+        fontSize: '11px',
+        lineHeight: '1.3',
         direction: 'rtl',
         backgroundColor: 'white',
         color: '#222',
@@ -173,18 +190,20 @@ function PrintInvoiceContent() {
           <img src={logoSrc} alt="Logo" style={{ width: '45px', height: 'auto', margin: '0 auto 2mm', display: 'block' }}
             onError={(e) => { e.target.style.display = 'none'; }} />
           {vendorInfo?.name && (
-            <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '1mm', color: '#111' }}>{vendorInfo.name}</div>
+            <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '1mm', color: '#111' }}>{vendorInfo.name}</div>
           )}
           {vendorInfo?.phone && (
-            <div style={{ fontSize: '9px', marginBottom: '1mm', color: '#222' }}>📞 {vendorInfo.phone}</div>
+            <div style={{ fontSize: '10px', marginBottom: '1mm', color: '#222' }}>📞 {vendorInfo.phone}</div>
           )}
           {vendorInfo?.address && typeof vendorInfo.address === 'string' && (
-            <div style={{ fontSize: '8px', marginTop: '1mm', color: '#222' }}>{vendorInfo.address}</div>
+            <div style={{ fontSize: '9px', marginTop: '1mm', color: '#222' }}>{vendorInfo.address}</div>
           )}
         </div>
 
         {/* Title */}
-        <div style={{ textAlign: 'center', marginBottom: '2mm', fontSize: '11px', fontWeight: 'bold', color: '#111' }}>فاتورة بيع</div>
+        <div style={{ textAlign: 'center', marginBottom: '2mm', fontSize: '13px', fontWeight: 'bold', color: '#111' }}>
+          {isDelivery ? '🚚 فاتورة توصيل' : '🏪 فاتورة بيع'}
+        </div>
 
         {/* Online Order Badge */}
         {invoice.source === 'order' && (
@@ -203,57 +222,125 @@ function PrintInvoiceContent() {
           </div>
         )}
 
-        {/* Customer Info (for online orders) */}
-        {invoice.customerInfo && (invoice.customerInfo.name || invoice.customerInfo.phone) && (
+        {/* Customer Info (for online orders or delivery) */}
+        {((invoice.customerInfo && (invoice.customerInfo.name || invoice.customerInfo.phone)) || (isDelivery && customer)) && (
           <div style={{ 
             marginBottom: '2mm', 
             padding: '2mm',
-            backgroundColor: '#f9fafb',
-            border: '1px solid #e5e7eb',
-            borderRadius: '2mm',
-            fontSize: '8px'
+            border: '1px solid #000',
+            fontSize: '9px',
+            color: '#000'
           }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '9px' }}>بيانات العميل:</div>
-            {invoice.customerInfo.name && (
-              <div style={{ marginBottom: '0.5mm' }}>👤 {invoice.customerInfo.name}</div>
+            <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '10px' }}>
+              {isDelivery ? '📦 بيانات التوصيل:' : 'بيانات العميل:'}
+            </div>
+            
+            {/* Delivery customer info */}
+            {isDelivery && customer && (
+              <>
+                {customer.name && (
+                  <div style={{ marginBottom: '0.5mm' }}>👤 {customer.name}</div>
+                )}
+                {customer.phone && (
+                  <div style={{ marginBottom: '0.5mm' }}>📞 {customer.phone}</div>
+                )}
+                {customer.email && (
+                  <div style={{ marginBottom: '0.5mm' }}>📧 {customer.email}</div>
+                )}
+                {fullAddress && (
+                  <div style={{ marginBottom: '0.5mm', lineHeight: '1.3' }}>📍 {fullAddress}</div>
+                )}
+                {address.landmark && (
+                  <div style={{ marginBottom: '0.5mm', lineHeight: '1.3', fontStyle: 'italic' }}>🏷️ {address.landmark}</div>
+                )}
+              </>
             )}
-            {invoice.customerInfo.phone && (
-              <div style={{ marginBottom: '0.5mm' }}>📞 {invoice.customerInfo.phone}</div>
-            )}
-            {invoice.customerInfo.address && (
-              <div style={{ marginBottom: '0.5mm' }}>📍 {invoice.customerInfo.address}</div>
+            
+            {/* Online order customer info */}
+            {!isDelivery && invoice.customerInfo && (
+              <>
+                {invoice.customerInfo.name && (
+                  <div style={{ marginBottom: '0.5mm' }}>👤 {invoice.customerInfo.name}</div>
+                )}
+                {invoice.customerInfo.phone && (
+                  <div style={{ marginBottom: '0.5mm' }}>📞 {invoice.customerInfo.phone}</div>
+                )}
+                {invoice.customerInfo.address && (
+                  <div style={{ marginBottom: '0.5mm' }}>📍 {invoice.customerInfo.address}</div>
+                )}
+              </>
             )}
           </div>
         )}
         
         {/* Invoice info */}
-        <div style={{ fontSize: '8px', marginBottom: '2mm', display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ fontSize: '9px', marginBottom: '2mm', display: 'flex', justifyContent: 'space-between' }}>
           <span>#{invoice.id}</span>
           <span>{new Date(invoice.date).toLocaleString('ar-EG', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
         </div>
 
         {/* Items */}
         <div style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', paddingTop: '2mm', paddingBottom: '2mm', marginBottom: '2mm' }}>
-          {invoice.items?.length > 0 && invoice.items.map((item) => (
-            <div key={item.id} style={{ marginBottom: '2mm' }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '0.5mm', fontSize: '10px' }}>{item.name}</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px' }}>
-                <span>{item.quantity} × {item.price} ج.م</span>
-                <span style={{ fontWeight: 'bold' }}>{Number(item.totalPrice || (item.price * item.quantity)).toFixed(2)} ج.م</span>
+          {invoice.items?.length > 0 && invoice.items.map((item) => {
+            const hasDiscount = item.originalPrice && item.originalPrice > item.price;
+            const discountPercent = hasDiscount 
+              ? Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)
+              : 0;
+            
+            return (
+              <div key={item.id} style={{ marginBottom: '2mm' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '0.5mm', fontSize: '12px', color: '#000' }}>
+                  {item.name}
+                  {hasDiscount && (
+                    <span style={{ 
+                      marginRight: '2mm', 
+                      fontSize: '9px', 
+                      border: '1px solid #000',
+                      padding: '0.5mm 1mm', 
+                      fontWeight: 'bold',
+                      color: '#000'
+                    }}>
+                      [خصم {discountPercent}%]
+                    </span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#000' }}>
+                  <span>
+                    {hasDiscount ? (
+                      <>
+                        <span style={{ fontWeight: 'normal' }}>{item.quantity} × </span>
+                        <span style={{ 
+                          textDecoration: 'line-through', 
+                          marginLeft: '1mm', 
+                          marginRight: '1mm',
+                          fontSize: '8px'
+                        }}>
+                          {item.originalPrice}
+                        </span>
+                        <span style={{ fontWeight: 'bold', marginLeft: '1mm' }}>
+                          {item.price} ج.م
+                        </span>
+                      </>
+                    ) : (
+                      <span>{item.quantity} × {item.price} ج.م</span>
+                    )}
+                  </span>
+                  <span style={{ fontWeight: 'bold' }}>{Number(item.totalPrice || (item.price * item.quantity)).toFixed(2)} ج.م</span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Services */}
         {invoice.services?.length > 0 && (
           <div style={{ borderBottom: '1px dashed #000', paddingBottom: '2mm', marginBottom: '2mm' }}>
-            <div style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '1mm', color: '#7c3aed' }}>رسوم خدمات:</div>
+            <div style={{ fontSize: '11px', fontWeight: 'bold', marginBottom: '1mm', color: '#000' }}>رسوم خدمات:</div>
             {invoice.services.map((service, index) => (
               <div key={index} style={{ marginBottom: '1mm' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px' }}>
-                  <span>🔧 {service.description}</span>
-                  <span style={{ fontWeight: 'bold', color: '#7c3aed' }}>{Number(service.amount).toFixed(2)} ج.م</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#000' }}>
+                  <span>• {service.description}</span>
+                  <span style={{ fontWeight: 'bold' }}>{Number(service.amount).toFixed(2)} ج.م</span>
                 </div>
               </div>
             ))}
@@ -261,7 +348,7 @@ function PrintInvoiceContent() {
         )}
 
         {/* Totals */}
-        <div style={{ marginBottom: '2mm', fontSize: '9px' }}>
+        <div style={{ marginBottom: '2mm', fontSize: '10px' }}>
           {invoice.summary?.productsSubtotal > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm' }}>
               <span>مجموع المنتجات:</span>
@@ -269,7 +356,7 @@ function PrintInvoiceContent() {
             </div>
           )}
           {invoice.summary?.servicesTotal > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', color: '#7c3aed' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', color: '#000' }}>
               <span>مجموع الخدمات:</span>
               <span>{Number(invoice.summary.servicesTotal).toFixed(2)} ج.م</span>
             </div>
@@ -290,21 +377,41 @@ function PrintInvoiceContent() {
               <span>+ {Number(invoice.summary.extraFee).toFixed(2)} ج.م</span>
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 'bold', borderTop: '1px solid #000', paddingTop: '1mm', marginTop: '1mm' }}>
+          {invoice.summary.deliveryFee > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', color: '#000', fontWeight: 'bold' }}>
+              <span>• رسوم التوصيل:</span>
+              <span>+ {Number(invoice.summary.deliveryFee).toFixed(2)} ج.م</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold', borderTop: '1px solid #000', paddingTop: '1mm', marginTop: '1mm' }}>
             <span>الإجمالي:</span>
             <span>{Number(invoice.summary.total).toFixed(2)} ج.م</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1mm', fontSize: '9px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1mm', fontSize: '10px' }}>
             <span>الدفع:</span>
             <span>{paymentMethodAr}</span>
           </div>
         </div>
 
+        {/* Delivery Notes */}
+        {isDelivery && deliveryNotes && (
+          <div style={{ 
+            marginBottom: '2mm', 
+            padding: '2mm',
+            border: '1px dashed #000',
+            fontSize: '9px',
+            color: '#000'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '10px' }}>• ملاحظات التوصيل:</div>
+            <div style={{ lineHeight: '1.3' }}>{deliveryNotes}</div>
+          </div>
+        )}
+
         {/* Footer */}
-        <div style={{ textAlign: 'center', borderTop: '1px dashed #000', paddingTop: '2mm', fontSize: '9px' }}>
-          <div style={{ fontSize: '8px', color: '#222' }}>موقع {vendorInfo.name} الرسمي</div>
-          <div style={{ fontSize: '8px', fontWeight: 'bold', marginTop: '1mm', color: '#111' }}>{storeLink}</div>
-          <div style={{ fontSize: '9px', marginTop: '2mm', color: '#222', fontWeight: 'bold' }}>شكراً لزيارتكم ونتمنى لكم يوماً سعيداً!</div>
+        <div style={{ textAlign: 'center', borderTop: '1px dashed #000', paddingTop: '2mm', fontSize: '10px' }}>
+          <div style={{ fontSize: '9px', color: '#222' }}>موقع {vendorInfo.name} الرسمي</div>
+          <div style={{ fontSize: '9px', fontWeight: 'bold', marginTop: '1mm', color: '#111' }}>{storeLink}</div>
+          <div style={{ fontSize: '10px', marginTop: '2mm', color: '#222', fontWeight: 'bold' }}>شكراً لزيارتكم ونتمنى لكم يوماً سعيداً!</div>
         </div>
       </div>
     </>
