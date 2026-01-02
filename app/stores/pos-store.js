@@ -551,6 +551,15 @@ const usePOSStore = create(persist((set, get) => ({
         paymentMethod: paymentDetails.paymentMethod,
         // 🆕 إضافة معلومات البائع
         soldBy: paymentDetails.soldBy || null,
+        // 🆕 بيانات الدفع للتوصيل
+        deliveryPayment: paymentDetails.deliveryPayment ? {
+          status: paymentDetails.deliveryPayment.status,
+          paidAmount: paymentDetails.deliveryPayment.paidAmount || null,
+          remainingAmount: paymentDetails.deliveryPayment.status === 'half_paid' 
+            ? (finalTotal - (paymentDetails.deliveryPayment.paidAmount || 0))
+            : null,
+          note: paymentDetails.deliveryPayment.note || null
+        } : null,
         synced: false
       };
 

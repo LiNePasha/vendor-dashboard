@@ -812,6 +812,77 @@ export default function InvoicesPage() {
                     </div>
                   )}
 
+                  {/* 🆕 Payment Status for Delivery Orders */}
+                  {invoice.deliveryPayment && (
+                    <div className={`rounded-lg p-3 mb-3 border-2 ${
+                      invoice.deliveryPayment.status === 'fully_paid' || invoice.deliveryPayment.status === 'fully_paid_no_delivery'
+                        ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300'
+                        : invoice.deliveryPayment.status === 'half_paid'
+                        ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-300'
+                        : 'bg-gradient-to-br from-orange-50 to-yellow-50 border-orange-300'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                          invoice.deliveryPayment.status === 'fully_paid' || invoice.deliveryPayment.status === 'fully_paid_no_delivery'
+                            ? 'bg-green-500'
+                            : invoice.deliveryPayment.status === 'half_paid'
+                            ? 'bg-yellow-500'
+                            : 'bg-orange-500'
+                        }`}>
+                          <span className="text-sm">
+                            {invoice.deliveryPayment.status === 'fully_paid' && '✅'}
+                            {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && '💳'}
+                            {invoice.deliveryPayment.status === 'half_paid' && '💰'}
+                            {invoice.deliveryPayment.status === 'cash_on_delivery' && '💵'}
+                          </span>
+                        </div>
+                        <h4 className={`text-sm font-bold ${
+                          invoice.deliveryPayment.status === 'fully_paid' || invoice.deliveryPayment.status === 'fully_paid_no_delivery'
+                            ? 'text-green-900'
+                            : invoice.deliveryPayment.status === 'half_paid'
+                            ? 'text-yellow-900'
+                            : 'text-orange-900'
+                        }`}>
+                          {invoice.deliveryPayment.status === 'cash_on_delivery' && 'دفع عند الاستلام'}
+                          {invoice.deliveryPayment.status === 'half_paid' && 'نصف المبلغ مدفوع'}
+                          {invoice.deliveryPayment.status === 'fully_paid' && 'مدفوع كاملاً'}
+                          {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && 'مدفوع كاملاً (بدون توصيل)'}
+                        </h4>
+                      </div>
+                      
+                      {invoice.deliveryPayment.status === 'half_paid' && (
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div className="bg-white rounded-md p-2 border border-green-200">
+                            <p className="font-semibold text-green-700 mb-1">✓ المبلغ المدفوع</p>
+                            <p className="text-green-900 font-bold">{formatPrice(invoice.deliveryPayment.paidAmount)} ج.م</p>
+                          </div>
+                          <div className="bg-white rounded-md p-2 border border-red-200">
+                            <p className="font-semibold text-red-700 mb-1">⏳ المتبقي</p>
+                            <p className="text-red-900 font-bold">{formatPrice(invoice.deliveryPayment.remainingAmount)} ج.م</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {invoice.deliveryPayment.status === 'half_paid' && invoice.deliveryPayment.note && (
+                        <div className="mt-2 bg-white border border-yellow-200 rounded-md p-2">
+                          <p className="text-xs text-gray-700">📝 {invoice.deliveryPayment.note}</p>
+                        </div>
+                      )}
+
+                      {invoice.deliveryPayment.status === 'cash_on_delivery' && (
+                        <div className="bg-white rounded-md p-2 text-xs border border-orange-200">
+                          <p className="font-semibold text-orange-900 text-center">💰 المبلغ المطلوب: {formatPrice(invoice.summary.total)} ج.م</p>
+                        </div>
+                      )}
+
+                      {(invoice.deliveryPayment.status === 'fully_paid' || invoice.deliveryPayment.status === 'fully_paid_no_delivery') && (
+                        <div className="bg-white rounded-md p-2 text-xs border border-green-200">
+                          <p className="font-semibold text-green-900 text-center">✓ تم الدفع بالكامل - {formatPrice(invoice.summary.total)} ج.م</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Customer Info from Order - if available */}
                   {invoice.customerInfo && !invoice.delivery && (
                     <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-3 mb-3 border border-indigo-200">

@@ -479,6 +479,60 @@ function PrintInvoiceContent() {
           </div>
         )}
 
+        {/* 🆕 بيانات دفع التوصيل من الكاشير */}
+        {invoice.deliveryPayment && (
+          <div style={{ 
+            marginBottom: '2mm', 
+            padding: '2mm',
+            border: '2px solid #000',
+            backgroundColor: (invoice.deliveryPayment.status === 'fully_paid' || invoice.deliveryPayment.status === 'fully_paid_no_delivery') ? '#d1fae5' : '#fff9e6',
+            fontSize: '9px'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '11px', color: '#000', textAlign: 'center' }}>
+              {invoice.deliveryPayment.status === 'cash_on_delivery' && '💵 الدفع عند الاستلام'}
+              {invoice.deliveryPayment.status === 'half_paid' && '⚠️ نصف المبلغ مدفوع'}
+              {invoice.deliveryPayment.status === 'fully_paid' && '✅ مدفوع بالكامل'}
+              {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && '💳 مدفوع كاملاً بدون توصيل'}
+            </div>
+            
+            {invoice.deliveryPayment.status === 'half_paid' && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000' }}>
+                  <span style={{ fontWeight: 'bold' }}>المبلغ المدفوع:</span>
+                  <span style={{ fontWeight: 'bold', color: '#16a34a' }}>{Number(invoice.deliveryPayment.paidAmount).toFixed(2)} ج.م ✓</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm' }}>
+                  <span style={{ fontWeight: 'bold' }}>المبلغ المتبقي للتحصيل:</span>
+                  <span style={{ fontWeight: 'bold', color: '#dc2626' }}>{Number(invoice.deliveryPayment.remainingAmount).toFixed(2)} ج.م</span>
+                </div>
+                {invoice.deliveryPayment.note && (
+                  <div style={{ marginTop: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000', fontSize: '8px', lineHeight: '1.3' }}>
+                    📝 {invoice.deliveryPayment.note}
+                  </div>
+                )}
+              </>
+            )}
+
+            {invoice.deliveryPayment.status === 'cash_on_delivery' && (
+              <div style={{ marginTop: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000', fontSize: '10px', textAlign: 'center', fontWeight: 'bold' }}>
+                💰 المبلغ المطلوب تحصيله: {Number(invoice.summary.total).toFixed(2)} ج.م
+              </div>
+            )}
+
+            {invoice.deliveryPayment.status === 'fully_paid' && (
+              <div style={{ marginTop: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000', fontSize: '10px', textAlign: 'center', fontWeight: 'bold', color: '#16a34a' }}>
+                ✓ تم الدفع بالكامل - {Number(invoice.summary.total).toFixed(2)} ج.م
+              </div>
+            )}
+
+            {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && (
+              <div style={{ marginTop: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000', fontSize: '10px', textAlign: 'center', fontWeight: 'bold', color: '#2563eb' }}>
+                💳 تم الدفع بالكامل (بدون توصيل) - {Number(invoice.summary.total).toFixed(2)} ج.م
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Delivery Notes */}
         {isDelivery && deliveryNotes && (
           <div style={{ 

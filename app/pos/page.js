@@ -36,6 +36,10 @@ export default function POSPage() {
   const [editingProductId, setEditingProductId] = useState(null); // 🆕 للتعديل
   const [variationSelectorProduct, setVariationSelectorProduct] = useState(null); // 🆕 للـ variation selector
   const [variationSelectorVariations, setVariationSelectorVariations] = useState([]); // 🆕 variations list
+  // 🆕 حالة الدفع للتوصيل
+  const [deliveryPaymentStatus, setDeliveryPaymentStatus] = useState('cash_on_delivery');
+  const [deliveryPaidAmount, setDeliveryPaidAmount] = useState(0);
+  const [deliveryPaymentNote, setDeliveryPaymentNote] = useState('');
 
   const {
     products = [],
@@ -309,7 +313,13 @@ export default function POSPage() {
         employeeId: selectedEmployee.id,
         employeeName: selectedEmployee.name,
         employeeCode: selectedEmployee.employeeCode
-      }
+      },
+      // 🆕 بيانات الدفع للتوصيل
+      deliveryPayment: orderType === 'delivery' ? {
+        status: deliveryPaymentStatus,
+        paidAmount: deliveryPaymentStatus === 'half_paid' ? deliveryPaidAmount : null,
+        note: deliveryPaymentStatus === 'half_paid' ? deliveryPaymentNote : null
+      } : null
     });
     
     if (result.success && result.invoice) {
@@ -560,6 +570,58 @@ export default function POSPage() {
                     step="5"
                   />
                 </div>
+
+                {/* 🆕 حالة الدفع للتوصيل */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                    حالة الدفع <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={deliveryPaymentStatus}
+                    onChange={(e) => setDeliveryPaymentStatus(e.target.value)}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 font-medium"
+                  >
+                    <option value="cash_on_delivery">💵 دفع عند الاستلام</option>
+                    <option value="half_paid">💰 نصف المبلغ مدفوع</option>
+                    <option value="fully_paid">✅ مدفوع كاملاً</option>
+                    <option value="fully_paid_no_delivery">💳 مدفوع كاملاً بدون توصيل</option>
+                  </select>
+                </div>
+
+                {/* تفاصيل الدفع الجزئي */}
+                {deliveryPaymentStatus === 'half_paid' && (
+                  <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center gap-2 text-yellow-800 font-bold text-sm">
+                      <span>⚠️</span>
+                      <span>تفاصيل الدفع الجزئي</span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        المبلغ المدفوع (ج.م)
+                      </label>
+                      <input
+                        type="number"
+                        value={deliveryPaidAmount}
+                        onChange={(e) => setDeliveryPaidAmount(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border-2 border-yellow-300 rounded-lg focus:border-yellow-500 text-sm"
+                        placeholder="0"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        ملاحظة الدفع
+                      </label>
+                      <input
+                        type="text"
+                        value={deliveryPaymentNote}
+                        onChange={(e) => setDeliveryPaymentNote(e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-yellow-300 rounded-lg focus:border-yellow-500 text-sm"
+                        placeholder="مثال: نصف المبلغ + التوصيل عند الاستلام"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* ملاحظات التوصيل */}
                 <div>
