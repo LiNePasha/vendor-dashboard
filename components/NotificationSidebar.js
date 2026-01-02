@@ -443,8 +443,15 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
 
 // Helper function for time ago
 function getTimeAgo(dateString) {
-  const date = new Date(dateString);
-  date.setHours(date.getHours() + 2); // توقيت مصر
+  // 🔥 معالجة التاريخ: WooCommerce بيبعت UTC بدون Z في الآخر
+  // نتأكد إن التاريخ يتعامل كـ UTC
+  let date;
+  if (dateString.includes('T') && !dateString.endsWith('Z')) {
+    // إضافة Z للتاريخ عشان يتعامل كـ UTC
+    date = new Date(dateString + 'Z');
+  } else {
+    date = new Date(dateString);
+  }
   
   const now = new Date();
   const seconds = Math.floor((now - date) / 1000);

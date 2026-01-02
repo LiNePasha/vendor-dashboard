@@ -16,6 +16,19 @@ export default function OrderDetailsModal({
 
   if (!isOpen || !order) return null;
 
+  // 🆕 استخراج بيانات الدفع من meta_data
+  const getMetaValue = (key) => order.meta_data?.find(m => m.key === key)?.value;
+  
+  const paymentType = getMetaValue('_payment_type');
+  const paidAmount = getMetaValue('_paid_amount');
+  const remainingAmount = getMetaValue('_remaining_amount');
+  const paymentNote = getMetaValue('_payment_note');
+  const instaPayProof = getMetaValue('_instapay_payment_proof');
+  const orderImage = getMetaValue('order_image');
+  
+  const isHalfPayment = paymentType === 'half_payment';
+  const isFullPayment = paymentType === 'full_payment';
+
   // 🆕 التحقق من نوع التوصيل
   const isStorePickup = order.meta_data?.some(
     m => (m.key === '_is_store_pickup' && m.value === 'yes') || 
@@ -294,11 +307,120 @@ export default function OrderDetailsModal({
 
           {/* Payment Method */}
           <section className="bg-green-50 rounded-xl p-5 text-gray-600">
-            <h3 className="font-bold text-lg mb-2 flex items-center gap-2">
-              <span>💳</span> طريقة الدفع
+            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+              <span>💳</span> معلومات الدفع
             </h3>
-            <p className="text-gray-700">{order.payment_method_title}</p>
+            
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">طريقة الدفع:</span>
+                <span className="font-semibold text-gray-800">{order.payment_method_title}</span>
+              </div>
+              
+              {isHalfPayment && (
+                <>
+                  <div className="mt-3 p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">⚠️</span>
+                      <span className="font-bold text-yellow-800">دفع جزئي (نصف المبلغ)</span>
+                    </div>
+                    <div className="space-y-1.5 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-700">المبلغ المدفوع:</span>
+                        <span className="font-bold text-green-700">{paidAmount} جنيه ✓</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-700">المبلغ المتبقي:</span>
+                        <span className="font-bold text-red-700">{remainingAmount} جنيه</span>
+                      </div>
+                      {paymentNote && (
+                        <div className="mt-2 pt-2 border-t border-yellow-300">
+                          <p className="text-xs text-gray-700">📝 {paymentNote}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+              
+              {isFullPayment && paidAmount && (
+                <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-700">تم الدفع كاملاً:</span>
+                    <span className="font-bold text-green-700">{paidAmount} جنيه ✓</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </section>
+
+          {/* InstaPay Payment Proof */}
+          {instaPayProof && (
+            <section className="bg-indigo-50 rounded-xl p-5 text-gray-600">
+              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                <span>📱</span> إثبات الدفع (InstaPay)
+              </h3>
+              <div className="relative group">
+                <img
+                  src={instaPayProof}
+                  alt="إثبات الدفع"
+                  className="w-full max-w-md rounded-lg border-2 border-indigo-300 shadow-md hover:shadow-xl transition-all cursor-pointer"
+                  onClick={() => window.open(instaPayProof, '_blank')}
+                />
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => window.open(instaPayProof, '_blank')}
+                    className="text-sm px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all font-medium"
+                  >
+                    🔍 عرض بالحجم الكامل
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(instaPayProof);
+                      if (showToast) showToast("تم نسخ رابط الصورة!");
+                    }}
+                    className="text-sm px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium"
+                  >
+                    📋 نسخ الرابط
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Transfer Image (order_image) */}
+          {orderImage && (
+            <section className="bg-blue-50 rounded-xl p-5 text-gray-600">
+              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+                <span>🖼️</span> صورة التحويل
+              </h3>
+              <div className="relative group">
+                <img
+                  src={orderImage}
+                  alt="صورة التحويل"
+                  className="w-full max-w-md rounded-lg border-2 border-blue-300 shadow-md hover:shadow-xl transition-all cursor-pointer"
+                  onClick={() => window.open(orderImage, '_blank')}
+                />
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => window.open(orderImage, '_blank')}
+                    className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium"
+                  >
+                    🔍 عرض بالحجم الكامل
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(orderImage);
+                      if (showToast) showToast("تم نسخ رابط الصورة!");
+                    }}
+                    className="text-sm px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium"
+                  >
+                    📋 نسخ الرابط
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Products */}
           <section>

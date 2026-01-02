@@ -104,7 +104,17 @@ export default function NotificationCenter({ isOpen, onClose }) {
   };
 
   const getTimeAgo = (dateString) => {
-    const date = new Date(dateString);
+    // 🔥 معالجة التاريخ: التاريخ جاي من WooCommerce بصيغة "2026-01-02 04:00:52"
+    // لازم نحوله لـ ISO format مع Z عشان يتعامل كـ UTC
+    let date;
+    if (dateString && dateString.includes(' ')) {
+      // تحويل من "2026-01-02 04:00:52" لـ "2026-01-02T04:00:52Z"
+      const isoString = dateString.replace(' ', 'T') + 'Z';
+      date = new Date(isoString);
+    } else {
+      date = new Date(dateString);
+    }
+    
     const now = new Date();
     const seconds = Math.floor((now - date) / 1000);
     
