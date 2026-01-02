@@ -379,7 +379,7 @@ export default function POSPage() {
               {/* Search & Filters */}
               <div className="mb-4 space-y-3">
             {/* 🆕 Barcode Scanner Input */}
-            <div className="relative">
+            {/* <div className="relative">
               <input
                 type="text"
                 placeholder="🔍 امسح الباركود هنا أو اكتب SKU..."
@@ -397,7 +397,7 @@ export default function POSPage() {
               <div className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl">
                 📦
               </div>
-            </div>
+            </div> */}
 
             {/* Search - Full width on mobile */}
             <div className="relative w-full">

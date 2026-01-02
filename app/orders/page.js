@@ -200,6 +200,8 @@ function OrdersContent() {
                   setStatusFilter("");
                   setDateFrom("");
                   setDateTo("");
+                  router.push('/orders');
+                  fetchOrders(); // جلب جميع الطلبات من جديد
                 }}
                 className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium whitespace-nowrap"
               >
@@ -276,6 +278,8 @@ function OrdersContent() {
                 onClick={() => {
                   setSearchTerm('');
                   setStatusFilter('');
+                  router.push('/orders');
+                  fetchOrders(); // جلب جميع الطلبات من جديد
                 }}
                 className="text-blue-500 hover:underline text-sm mt-2"
               >

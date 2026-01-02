@@ -13,6 +13,7 @@ export default function InvoicesPage() {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all'); // all, synced, pending
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState('all'); // all, cash, wallet, instapay, vera, other
   const [searchTerm, setSearchTerm] = useState('');
   const [exporting, setExporting] = useState(false);
 
@@ -223,6 +224,17 @@ export default function InvoicesPage() {
     if (filterStatus === 'synced' && !invoice.synced) return false;
     if (filterStatus === 'pending' && invoice.synced) return false;
     
+    // Payment method filter
+    if (filterPaymentMethod !== 'all') {
+      // 🆕 فلتر "من الستور" يعتمد على source: 'order'
+      if (filterPaymentMethod === 'online') {
+        if (invoice.source !== 'order') return false;
+      } else {
+        const invoicePaymentMethod = (invoice.paymentMethod || 'other').toLowerCase();
+        if (invoicePaymentMethod !== filterPaymentMethod) return false;
+      }
+    }
+    
     // Search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
@@ -393,35 +405,38 @@ export default function InvoicesPage() {
 
         {/* Filters and Actions */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="🔍 بحث في الفواتير..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
+          {/* Search */}
+          <div className="mb-4">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="🔍 بحث برقم الفاتورة..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xl"
+                >
+                  ×
+                </button>
+              )}
             </div>
+          </div>
 
-            {/* Status Filter */}
-            <div className="flex gap-2">
+          {/* Status Filter */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-gray-700">حالة المزامنة:</span>
+            </div>
+            <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => setFilterStatus('all')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   filterStatus === 'all'
-                    ? 'bg-blue-600 text-white'
+                    ? '!bg-blue-600 !text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -431,8 +446,8 @@ export default function InvoicesPage() {
                 onClick={() => setFilterStatus('synced')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   filterStatus === 'synced'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? '!bg-green-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
                 }`}
               >
                 مزامنة ({stats.synced})
@@ -441,38 +456,117 @@ export default function InvoicesPage() {
                 onClick={() => setFilterStatus('pending')}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   filterStatus === 'pending'
-                    ? 'bg-yellow-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? '!bg-yellow-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
                 }`}
               >
                 انتظار ({stats.pending})
               </button>
             </div>
+          </div>
 
-            {/* Action Buttons */}
-            <div className="flex gap-2">
+          {/* Payment Method Filter */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-gray-700">💳 طريقة الدفع:</span>
+            </div>
+            <div className="flex gap-2 flex-wrap">
               <button
-                onClick={exportToExcel}
-                disabled={exporting || invoices.length === 0}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                onClick={() => setFilterPaymentMethod('all')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterPaymentMethod === 'all'
+                    ? '!bg-purple-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                {exporting ? 'جاري التصدير...' : 'تصدير Excel'}
+                الكل
               </button>
-              
               <button
-                onClick={() => setShowDeleteConfirm(true)}
-                disabled={invoices.length === 0}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                onClick={() => setFilterPaymentMethod('cash')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterPaymentMethod === 'cash'
+                    ? '!bg-purple-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                حذف الكل
+                💵 كاش
+              </button>
+              <button
+                onClick={() => setFilterPaymentMethod('wallet')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterPaymentMethod === 'wallet'
+                    ? '!bg-purple-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                💳 محفظة
+              </button>
+              <button
+                onClick={() => setFilterPaymentMethod('instapay')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterPaymentMethod === 'instapay'
+                    ? '!bg-purple-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                📱 انستا باي
+              </button>
+              <button
+                onClick={() => setFilterPaymentMethod('vera')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterPaymentMethod === 'vera'
+                    ? '!bg-purple-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                💳 مكنة فيزا
+              </button>
+              <button
+                onClick={() => setFilterPaymentMethod('online')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterPaymentMethod === 'online'
+                    ? '!bg-purple-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                🌐 من الستور
+              </button>
+              <button
+                onClick={() => setFilterPaymentMethod('other')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterPaymentMethod === 'other'
+                    ? '!bg-purple-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                ➕ أخرى
               </button>
             </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2 pt-3 border-t border-gray-200">
+            <button
+              onClick={exportToExcel}
+              disabled={exporting || invoices.length === 0}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              {exporting ? 'جاري التصدير...' : 'تصدير Excel'}
+            </button>
+            
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={invoices.length === 0}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              حذف الكل
+            </button>
           </div>
         </div>
 
@@ -492,152 +586,182 @@ export default function InvoicesPage() {
             filteredInvoices.map((invoice) => (
               <div
                 key={invoice.id}
-                className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+                className="group bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden border border-gray-200 hover:border-blue-300"
               >
-                <div className="p-6">
-                  {/* Invoice Header */}
-                  <div className="flex items-start justify-between mb-4">
+                {/* Header Bar with Gradient */}
+                <div className={`h-1 ${
+                  invoice.source === 'order' ? 'bg-gradient-to-r from-cyan-400 to-blue-500' :
+                  invoice.synced ? 'bg-gradient-to-r from-green-400 to-emerald-500' : 
+                  'bg-gradient-to-r from-yellow-400 to-orange-500'
+                }`}></div>
+
+                <div className="p-4">
+                  {/* Invoice Header - Redesigned */}
+                  <div className="flex items-start justify-between mb-3 pb-3 border-b border-gray-100">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <span className="text-lg font-bold text-gray-900">
-                          فاتورة #{invoice.id}
-                        </span>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          invoice.synced 
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {invoice.synced ? '✓ تمت المزامنة' : '⏳ في الانتظار'}
-                        </span>
-                        {invoice.source === 'order' && (
-                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-sm">
-                            🌐 أونلاين من الستور
-                          </span>
-                        )}
+                      {/* Title Row */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="text-lg font-bold text-gray-900">
+                          #{invoice.id.split('-').pop()}
+                        </h3>
+                        <div className="flex items-center gap-1.5">
+                          {(!invoice.items || invoice.items.length === 0) ? (
+                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-purple-500 text-white">
+                              🛠️ خدمات
+                            </span>
+                          ) : (
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              invoice.synced 
+                                ? 'bg-green-500 text-white'
+                                : 'bg-yellow-400 text-yellow-900'
+                            }`}>
+                              {invoice.synced ? '✓' : '⏳'}
+                            </span>
+                          )}
+                          {invoice.source === 'order' && (
+                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-white">
+                              🌐 ستور
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span className="flex items-center gap-1">
+                      
+                      {/* Meta Info */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="flex items-center gap-1 text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded-md">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
-                          {new Date(invoice.date).toLocaleString('ar-EG')}
+                          <span className="font-medium">{new Date(invoice.date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                         </span>
-                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                          invoice.paymentMethod === 'cash' ? 'bg-green-100 text-green-700' :
-                          invoice.paymentMethod === 'wallet' ? 'bg-purple-100 text-purple-700' :
-                          invoice.paymentMethod === 'instapay' ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-700'
+                        
+                        <span className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm ${
+                          invoice.source === 'order' ? 'bg-gradient-to-r from-cyan-50 to-blue-50 text-cyan-700 border border-cyan-200' :
+                          invoice.paymentMethod === 'cash' ? 'bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 border border-green-200' :
+                          invoice.paymentMethod === 'wallet' ? 'bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 border border-purple-200' :
+                          invoice.paymentMethod === 'instapay' ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200' :
+                          invoice.paymentMethod === 'vera' ? 'bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200' :
+                          'bg-gray-50 text-gray-700 border border-gray-200'
                         }`}>
-                          {invoice.paymentMethod === 'cash' ? '💵 كاش' :
+                          {invoice.source === 'order' ? '🌐 من الستور' :
+                           invoice.paymentMethod === 'cash' ? '💵 كاش' :
                            invoice.paymentMethod === 'wallet' ? '👛 محفظة' :
-                           invoice.paymentMethod === 'instapay' ? '📱 انستا باي' : '💳 أخرى'}
+                           invoice.paymentMethod === 'instapay' ? '📱 انستا باي' :
+                           invoice.paymentMethod === 'vera' ? '💳 مكنة فيزا' : '💳 أخرى'}
                         </span>
+                        
                         {invoice.orderId && (
-                          <span className="px-2 py-1 rounded text-xs font-medium bg-blue-50 text-blue-700">
-                            📦 طلب #{invoice.orderId}
+                          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            📦 #{invoice.orderId}
                           </span>
                         )}
                       </div>
                     </div>
-                    <div className="text-left">
-                      <div className="text-2xl font-bold text-blue-600">
-                        {formatPrice(invoice.summary?.total)} ج.م
+                    
+                    {/* Total Amount - Prominent */}
+                    <div className="text-left bg-gradient-to-br from-blue-50 to-indigo-50 px-4 py-2.5 rounded-lg border border-blue-200">
+                      <div className="text-xs font-semibold text-blue-600">الإجمالي</div>
+                      <div className="text-2xl font-black text-blue-700">
+                        {formatPrice(invoice.summary?.total)}
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        ({invoice.items?.length || 0} منتج
-                        {invoice.services?.length > 0 && ` + ${invoice.services.length} خدمة`})
+                      <div className="text-xs text-gray-600 mt-1">
+                        {invoice.items?.length || 0} منتج{invoice.services?.length > 0 && ` • ${invoice.services.length} خدمة`}
                       </div>
                     </div>
                   </div>
 
-                  {/* Invoice Details */}
-                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+                  {/* Invoice Details - Improved Grid */}
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-3 mb-3 border border-gray-200">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
                       {invoice.summary?.productsSubtotal > 0 && (
-                        <div className="flex justify-between border-2 p-1">
-                          <span className="text-gray-600">مجموع المنتجات:</span>
-                          <span className="font-medium">{formatPrice(invoice.summary.productsSubtotal)} ج.م</span>
+                        <div className="flex justify-between items-center bg-white rounded-md px-2 py-1.5">
+                          <span className="text-gray-600 font-medium">منتجات</span>
+                          <span className="font-bold text-gray-900">{formatPrice(invoice.summary.productsSubtotal)}</span>
                         </div>
                       )}
 
                       {invoice.summary?.servicesTotal > 0 && (
-                        <div className="flex justify-between text-purple-600 border-2 p-1">
-                          <span>مجموع الخدمات:</span>
-                          <span className="font-medium">{formatPrice(invoice.summary.servicesTotal)} ج.م</span>
+                        <div className="flex justify-between items-center bg-purple-50 rounded-md px-2 py-1.5 border border-purple-200">
+                          <span className="text-purple-700 font-medium">خدمات</span>
+                          <span className="font-bold text-purple-800">{formatPrice(invoice.summary.servicesTotal)}</span>
                         </div>
                       )}
 
-                      <div className="flex justify-between border-2 p-1">
-                        <span className="text-gray-600">المجموع الفرعي:</span>
-                        <span className="font-medium">{formatPrice(invoice.summary?.subtotal)} ج.م</span>
+                      <div className="flex justify-between items-center bg-white rounded-md px-2 py-1.5">
+                        <span className="text-gray-600 font-medium">مجموع</span>
+                        <span className="font-bold text-gray-900">{formatPrice(invoice.summary?.subtotal)}</span>
                       </div>
                       
                       {invoice.summary?.discount?.amount > 0 && (
-                        <div className="flex justify-between text-red-600 border-2 p-1">
-                          <span>الخصم ({invoice.summary.discount.type === 'percentage' 
-                            ? `${invoice.summary.discount.value}%` 
-                            : `${invoice.summary.discount.value} ج.م`}):</span>
-                          <span className="font-medium">- {formatPrice(invoice.summary.discount.amount)} ج.م</span>
+                        <div className="flex justify-between items-center bg-red-50 rounded-md px-2 py-1.5 border border-red-200">
+                          <span className="text-red-700 font-medium">
+                            خصم {invoice.summary.discount.type === 'percentage' ? `${invoice.summary.discount.value}%` : ''}
+                          </span>
+                          <span className="font-bold text-red-700">- {formatPrice(invoice.summary.discount.amount)}</span>
                         </div>
                       )}
                       
                       {invoice.summary?.extraFee > 0 && (
-                        <div className="flex justify-between text-blue-600 border-2 p-1">
-                          <span>رسوم إضافية:</span>
-                          <span className="font-medium">+ {formatPrice(invoice.summary.extraFee)} ج.م</span>
+                        <div className="flex justify-between items-center bg-blue-50 rounded-md px-2 py-1.5 border border-blue-200">
+                          <span className="text-blue-700 font-medium">رسوم</span>
+                          <span className="font-bold text-blue-700">+ {formatPrice(invoice.summary.extraFee)}</span>
                         </div>
                       )}
 
-                      {/* Profit breakdown if available */}
+                      {/* Delivery/Shipping Fee */}
+                      {invoice.summary?.deliveryFee > 0 && (
+                        <div className="flex justify-between items-center bg-cyan-50 rounded-md px-2 py-1.5 border border-cyan-200">
+                          <span className="text-cyan-700 font-medium">🚚 شحن</span>
+                          <span className="font-bold text-cyan-800">+ {formatPrice(invoice.summary.deliveryFee)}</span>
+                        </div>
+                      )}
+
+                      {/* Profit breakdown - Enhanced */}
                       {(invoice.summary?.totalProfit > 0 || invoice.summary?.productsProfit > 0) && (
                         <>
-                          <div className="col-span-4 border-t-2 border-green-300 my-1"></div>
+                          <div className="col-span-full h-px bg-gradient-to-r from-transparent via-green-300 to-transparent my-1"></div>
                           
                           {invoice.summary?.productsProfit > 0 && (
-                            <div className="flex justify-between text-green-600 border-2 p-1 bg-green-50">
-                              <span>💰 ربح المنتجات (قبل الخصم):</span>
-                              <span className="font-bold">+ {formatPrice(invoice.summary.productsProfit)} ج.م</span>
+                            <div className="flex justify-between items-center bg-green-50 rounded-md px-2 py-1.5 border border-green-200">
+                              <span className="text-green-700 font-medium">💰 ربح</span>
+                              <span className="font-bold text-green-800">+ {formatPrice(invoice.summary.productsProfit)}</span>
                             </div>
                           )}
 
                           {invoice.summary?.discountOnProducts > 0 && (
-                            <div className="flex justify-between text-orange-600 border-2 p-1 bg-orange-50">
-                              <span>➖ خصم على الأرباح:</span>
-                              <span className="font-bold">- {formatPrice(invoice.summary.discountOnProducts)} ج.م</span>
+                            <div className="flex justify-between items-center bg-orange-50 rounded-md px-2 py-1.5 border border-orange-200">
+                              <span className="text-orange-700 font-medium">➖ خصم</span>
+                              <span className="font-bold text-orange-800">- {formatPrice(invoice.summary.discountOnProducts)}</span>
                             </div>
                           )}
 
                           {invoice.summary?.finalProductsProfit !== undefined && invoice.summary?.finalProductsProfit !== invoice.summary?.productsProfit && (
-                            <div className="flex justify-between text-green-700 border-2 p-1 bg-green-100">
-                              <span>📦 صافي ربح المنتجات:</span>
-                              <span className="font-bold">{formatPrice(invoice.summary.finalProductsProfit)} ج.م</span>
+                            <div className="flex justify-between items-center bg-green-100 rounded-md px-2 py-1.5 border border-green-300">
+                              <span className="text-green-800 font-medium">📦 صافي</span>
+                              <span className="font-bold text-green-900">{formatPrice(invoice.summary.finalProductsProfit)}</span>
                             </div>
                           )}
 
-                          <div className="flex justify-between text-green-800 border-2 p-1 bg-green-100">
-                            <span className="font-bold">✅ إجمالي الربح الصافي:</span>
-                            <span className="font-bold text-lg">{formatPrice(invoice.summary.totalProfit)} ج.م</span>
+                          <div className="flex justify-between items-center bg-gradient-to-r from-green-500 to-emerald-600 rounded-md px-2 py-1.5">
+                            <span className="font-bold text-white text-xs">✅ إجمالي الربح</span>
+                            <span className="font-black text-white">{formatPrice(invoice.summary.totalProfit)}</span>
                           </div>
                         </>
                       )}
 
-                      {/* 🆕 تحذير لو فيه منتجات بدون سعر شراء - خارج شرط الربح */}
+                      {/* Warning for items without purchase price - Enhanced */}
                       {(invoice.itemsWithoutProfit?.length > 0 || invoice.summary?.itemsWithoutPurchasePrice > 0) && (
-                        <div className="col-span-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3 flex items-start gap-2">
-                          <svg className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                          </svg>
+                        <div className="col-span-full bg-yellow-50 border border-yellow-300 rounded-lg p-2 flex items-start gap-2">
+                          <div className="flex-shrink-0 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center">
+                            <svg className="w-4 h-4 text-yellow-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                          </div>
                           <div className="flex-1">
-                            <p className="text-sm font-bold text-yellow-800 mb-1">⚠️ تحذير: أرباح غير دقيقة</p>
-                            <p className="text-xs text-yellow-700">
-                              {invoice.itemsWithoutProfit?.length || invoice.summary?.itemsWithoutPurchasePrice || 0} من {invoice.items?.length || invoice.summary?.totalItemsCount || 0} منتج 
-                              ليس له سعر شراء - الأرباح المعروضة أقل من الفعلية
+                            <p className="text-xs font-bold text-yellow-900">⚠️ تحذير: أرباح غير دقيقة</p>
+                            <p className="text-xs text-yellow-800">
+                              {invoice.itemsWithoutProfit?.length || invoice.summary?.itemsWithoutPurchasePrice || 0} من {invoice.items?.length || invoice.summary?.totalItemsCount || 0} منتج ليس له سعر شراء
                             </p>
-                            {invoice.itemsWithoutProfit?.length > 0 && (
-                              <p className="text-xs text-yellow-600 mt-1 font-medium">
-                                المنتجات المتأثرة: {invoice.itemsWithoutProfit.map(i => `${i.name} (${i.quantity})`).join(', ')}
-                              </p>
-                            )}
                           </div>
                         </div>
                       )}
@@ -645,22 +769,102 @@ export default function InvoicesPage() {
                     </div>
                   </div>
 
-                  {/* Products List */}
+                  {/* Delivery Details - if available */}
+                  {invoice.delivery && (
+                    <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-lg p-3 mb-3 border border-cyan-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-7 h-7 bg-cyan-500 rounded-full flex items-center justify-center">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                          </svg>
+                        </div>
+                        <h4 className="text-sm font-bold text-cyan-900">🚚 توصيل</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-white rounded-md p-2">
+                          <div className="flex items-center gap-1 mb-1">
+                            <span>👤</span>
+                            <span className="font-semibold text-gray-700">العميل</span>
+                          </div>
+                          <p className="text-gray-900 font-medium">{invoice.delivery.customer?.name || 'غير محدد'}</p>
+                          {invoice.delivery.customer?.phone && (
+                            <p className="text-gray-600 mt-1">📱 {invoice.delivery.customer.phone}</p>
+                          )}
+                        </div>
+                        {invoice.delivery.customer?.address && (
+                          <div className="bg-white rounded-md p-2">
+                            <div className="flex items-center gap-1 mb-1">
+                              <span>📍</span>
+                              <span className="font-semibold text-gray-700">العنوان</span>
+                            </div>
+                            <p className="text-gray-900">
+                              {invoice.delivery.customer.address.city && `${invoice.delivery.customer.address.city}, `}
+                              {invoice.delivery.customer.address.district && `${invoice.delivery.customer.address.district}`}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      {invoice.delivery.notes && (
+                        <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-md p-2">
+                          <p className="text-xs text-yellow-800">📝 {invoice.delivery.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Customer Info from Order - if available */}
+                  {invoice.customerInfo && !invoice.delivery && (
+                    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-3 mb-3 border border-indigo-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-7 h-7 bg-indigo-500 rounded-full flex items-center justify-center">
+                          <span className="text-sm">👤</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-indigo-900">بيانات العميل</h4>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {invoice.customerInfo.name && (
+                          <div className="bg-white rounded-md p-2">
+                            <p className="font-semibold text-gray-700 mb-1">الاسم</p>
+                            <p className="text-gray-900">{invoice.customerInfo.name}</p>
+                          </div>
+                        )}
+                        {invoice.customerInfo.phone && (
+                          <div className="bg-white rounded-md p-2">
+                            <p className="font-semibold text-gray-700 mb-1">الهاتف</p>
+                            <p className="text-gray-900">{invoice.customerInfo.phone}</p>
+                          </div>
+                        )}
+                        {/* {invoice.customerInfo.email && (
+                          <div className="bg-white rounded-md p-2 col-span-2">
+                            <p className="font-semibold text-gray-700 mb-1">البريد</p>
+                            <p className="text-gray-900 text-xs">{invoice.customerInfo.email}</p>
+                          </div>
+                        )} */}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Products List - Redesigned */}
                   {invoice.items?.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2">المنتجات:</h4>
-                      <div className="space-y-2">
-                        {invoice.items.map((item) => (
-                          <div key={item.id} className="flex items-center justify-between text-sm bg-gray-50 rounded-lg p-2">
-                            <div className="flex items-center gap-2">
-                              <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
+                    <div className="mb-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-1 h-4 bg-blue-600 rounded-full"></div>
+                        <h4 className="text-xs font-bold text-gray-800">المنتجات ({invoice.items.length})</h4>
+                      </div>
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                        {invoice.items.map((item, idx) => (
+                          <div key={item.id} className="group flex items-center justify-between text-xs bg-gradient-to-r from-gray-50 to-blue-50 hover:from-blue-50 hover:to-indigo-50 rounded-lg p-2 border border-gray-200 hover:border-blue-300 transition-all">
+                            <div className="flex items-center gap-2 flex-1">
+                              <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-md flex items-center justify-center text-xs font-bold">
                                 {item.quantity}
-                              </span>
-                              <span className="font-medium text-gray-900">{item.name}</span>
-                              <span className="text-gray-500">× {formatPrice(item.price)} ج.م</span>
+                              </div>
+                              <div className="flex-1">
+                                <span className="font-semibold text-gray-900 block text-xs">{item.name}</span>
+                                <span className="text-xs text-gray-600">{formatPrice(item.price)} × {item.quantity}</span>
+                              </div>
                             </div>
-                            <span className="font-semibold text-gray-900">
-                              {formatPrice(Number(item.price) * item.quantity)} ج.م
+                            <span className="font-bold text-blue-700 text-xs">
+                              {formatPrice(Number(item.price) * item.quantity)}
                             </span>
                           </div>
                         ))}
@@ -668,19 +872,22 @@ export default function InvoicesPage() {
                     </div>
                   )}
 
-                  {/* Services List */}
+                  {/* Services List - Redesigned */}
                   {invoice.services?.length > 0 && (
-                    <div className="mb-4">
-                      <h4 className="text-sm font-semibold text-purple-700 mb-2">رسوم خدمات:</h4>
-                      <div className="space-y-2">
+                    <div className="mb-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-1 h-4 bg-purple-600 rounded-full"></div>
+                        <h4 className="text-xs font-bold text-gray-800">الخدمات ({invoice.services.length})</h4>
+                      </div>
+                      <div className="space-y-1.5">
                         {invoice.services.map((service, index) => (
-                          <div key={index} className="flex items-center justify-between text-sm bg-purple-50 rounded-lg p-2 border border-purple-100">
+                          <div key={index} className="flex items-center justify-between text-xs bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-2 border border-purple-200">
                             <div className="flex items-center gap-2">
-                              <span className="text-purple-600">🔧</span>
-                              <span className="font-medium text-gray-900">{service.description}</span>
+                              <span className="text-lg">🔧</span>
+                              <span className="font-semibold text-gray-900">{service.description}</span>
                             </div>
-                            <span className="font-semibold text-purple-600">
-                              {formatPrice(service.amount)} ج.م
+                            <span className="font-bold text-purple-700">
+                              {formatPrice(service.amount)}
                             </span>
                           </div>
                         ))}
@@ -688,32 +895,33 @@ export default function InvoicesPage() {
                     </div>
                   )}
 
-                  {/* Actions */}
-                  <div className="flex gap-2 pt-4 border-t">
+                  {/* Actions - Enhanced */}
+                  <div className="flex gap-2 pt-3 border-t border-gray-100">
                     <button
                       onClick={() => printInvoice(invoice)}
-                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                      className="flex-1 px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 shadow-md hover:shadow-lg"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                       </svg>
                       طباعة
                     </button>
                     
-                    {!invoice.synced && (
+                    {/* 🔥 إخفاء زر المزامنة للفواتير بدون منتجات أو المزامنة */}
+                    {!invoice.synced && invoice.items?.length > 0 && (
                       <button
                         onClick={() => syncInvoice(invoice)}
                         disabled={syncingId === invoice.id}
-                        className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
+                        className={`flex-1 px-3 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 shadow-md ${
                           syncingId === invoice.id
                             ? 'bg-gray-300 cursor-not-allowed'
-                            : 'bg-green-600 text-white hover:bg-green-700'
+                            : 'bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white hover:shadow-lg'
                         }`}
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className={`w-4 h-4 ${syncingId === invoice.id ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
-                        {syncingId === invoice.id ? 'جاري المزامنة...' : 'مزامنة الآن'}
+                        {syncingId === invoice.id ? 'مزامنة...' : 'مزامنة'}
                       </button>
                     )}
                   </div>

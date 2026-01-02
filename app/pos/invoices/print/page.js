@@ -91,6 +91,33 @@ function PrintInvoiceContent() {
   const address = customer?.address || {};
   const deliveryNotes = invoice.delivery?.notes;
   
+  // 🆕 بيانات الدفع الجزئي
+  const paymentDetails = invoice.paymentDetails;
+  const isHalfPayment = paymentDetails?.type === 'half_payment';
+  
+  // 🆕 تقسيم العنوان التفصيلي من _shipping_address_index
+  const parseShippingAddress = (addressString) => {
+    if (!addressString) return null;
+    
+    // تقسيم النص على المسافات المتعددة (2 spaces or more)
+    const parts = addressString.split(/\s{2,}/).filter(part => part.trim());
+    
+    return {
+      fullText: addressString,
+      parts: parts,
+      // محاولة استخراج معلومات محددة
+      name: parts[0] || '',
+      details: parts[1] || '',
+      city: parts[2] || '',
+      country: parts.find(p => p.match(/^[A-Z]{2}$/)) || '', // EG, SA, etc
+      phone: parts.find(p => p.match(/^\d{11,}$/)) || '' // رقم الهاتف
+    };
+  };
+  
+  const shippingAddressParsed = invoice.delivery?.address 
+    ? parseShippingAddress(invoice.delivery.address)
+    : (invoice.customerInfo?.address ? parseShippingAddress(invoice.customerInfo.address) : null);
+  
   // تنسيق العنوان الكامل
   const fullAddress = [
     address.state,
@@ -257,7 +284,7 @@ function PrintInvoiceContent() {
             )}
             
             {/* Online order customer info */}
-            {!isDelivery && invoice.customerInfo && (
+            {!isDelivery && invoice.customerInfo && !shippingAddressParsed && (
               <>
                 {invoice.customerInfo.name && (
                   <div style={{ marginBottom: '0.5mm' }}>👤 {invoice.customerInfo.name}</div>
@@ -266,9 +293,40 @@ function PrintInvoiceContent() {
                   <div style={{ marginBottom: '0.5mm' }}>📞 {invoice.customerInfo.phone}</div>
                 )}
                 {invoice.customerInfo.address && (
-                  <div style={{ marginBottom: '0.5mm' }}>📍 {invoice.customerInfo.address}</div>
+                  <div style={{ marginBottom: '0.5mm', lineHeight: '1.4', fontSize: '8px' }}>📍 {invoice.customerInfo.address}</div>
                 )}
               </>
+            )}
+            
+            {/* 🆕 عرض العنوان المقسم بشكل منظم */}
+            {!isDelivery && shippingAddressParsed && (
+              <div style={{ fontSize: '9px' }}>
+                {shippingAddressParsed.name && (
+                  <div style={{ marginBottom: '0.5mm', fontWeight: 'bold' }}>
+                    👤 {shippingAddressParsed.name}
+                  </div>
+                )}
+                {shippingAddressParsed.details && (
+                  <div style={{ marginBottom: '0.5mm', fontSize: '8px', lineHeight: '1.3' }}>
+                    🏠 {shippingAddressParsed.details}
+                  </div>
+                )}
+                {shippingAddressParsed.city && (
+                  <div style={{ marginBottom: '0.5mm' }}>
+                    📍 {shippingAddressParsed.city}
+                  </div>
+                )}
+                {shippingAddressParsed.phone && (
+                  <div style={{ marginBottom: '0.5mm' }}>
+                    📞 {shippingAddressParsed.phone}
+                  </div>
+                )}
+                {shippingAddressParsed.country && (
+                  <div style={{ marginBottom: '0.5mm', fontSize: '8px', color: '#666' }}>
+                    🌍 {shippingAddressParsed.country}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -392,6 +450,34 @@ function PrintInvoiceContent() {
             <span>{paymentMethodAr}</span>
           </div>
         </div>
+
+        {/* 🆕 بيانات الدفع الجزئي */}
+        {isHalfPayment && paymentDetails && (
+          <div style={{ 
+            marginBottom: '2mm', 
+            padding: '2mm',
+            border: '2px solid #000',
+            backgroundColor: '#fff9e6',
+            fontSize: '9px'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '11px', color: '#000', textAlign: 'center' }}>
+              ⚠️ دفع جزئي - نصف المبلغ
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000' }}>
+              <span style={{ fontWeight: 'bold' }}>المبلغ المدفوع:</span>
+              <span style={{ fontWeight: 'bold', color: '#16a34a' }}>{Number(paymentDetails.paidAmount).toFixed(2)} ج.م ✓</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm' }}>
+              <span style={{ fontWeight: 'bold' }}>المبلغ المتبقي:</span>
+              <span style={{ fontWeight: 'bold', color: '#dc2626' }}>{Number(paymentDetails.remainingAmount)} + {Number(invoice.summary.deliveryFee)} ج.م</span>
+            </div>
+            {paymentDetails.note && (
+              <div style={{ marginTop: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000', fontSize: '8px', lineHeight: '1.3' }}>
+                📝 {paymentDetails.note} + مصاريف الشحن {Number(invoice.summary.deliveryFee)}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Delivery Notes */}
         {isDelivery && deliveryNotes && (

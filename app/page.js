@@ -144,7 +144,7 @@ function DashboardContent() {
 
   const quickActions = [
     {
-      title: 'إضافة منتج',
+      title: 'المنتجات',
       icon: '📦',
       color: 'from-blue-500 to-blue-600',
       action: () => router.push('/products'),

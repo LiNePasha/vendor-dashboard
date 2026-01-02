@@ -25,6 +25,7 @@ export default function OrderDetailsModal({
   const paymentNote = getMetaValue('_payment_note');
   const instaPayProof = getMetaValue('_instapay_payment_proof');
   const orderImage = getMetaValue('order_image');
+  const shippingAddressIndex = getMetaValue('_shipping_address_index');
   
   const isHalfPayment = paymentType === 'half_payment';
   const isFullPayment = paymentType === 'full_payment';
@@ -95,7 +96,11 @@ export default function OrderDetailsModal({
         profit: null
       }));
 
-      const subtotal = parseFloat(order.total);
+      // 🔥 حساب صحيح: مجموع المنتجات فقط
+      const productsSubtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
+      const shippingFee = parseFloat(order.shipping_total || 0);
+      const discountAmount = parseFloat(order.discount_total || 0);
+      const orderTotal = parseFloat(order.total);
       
       const invoice = {
         id: `order-${order.id}-${Date.now()}`,
@@ -104,16 +109,17 @@ export default function OrderDetailsModal({
         items: invoiceItems,
         services: [],
         summary: {
-          productsSubtotal: subtotal,
+          productsSubtotal: productsSubtotal,
           servicesTotal: 0,
-          subtotal: subtotal,
+          subtotal: productsSubtotal,
           discount: {
             type: 'fixed',
-            value: 0,
-            amount: 0
+            value: discountAmount,
+            amount: discountAmount
           },
           extraFee: 0,
-          total: subtotal,
+          deliveryFee: shippingFee, // 🚚 رسوم الشحن
+          total: orderTotal,
           totalProfit: 0,
           profitItemsCount: 0
         },
@@ -123,8 +129,24 @@ export default function OrderDetailsModal({
           name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
           phone: order.billing?.phone || '',
           email: order.billing?.email || '',
-          address: order.billing?.address_1 ? `${order.billing.address_1}, ${order.billing?.state || ''}` : ''
+          address: shippingAddressIndex || (order.billing?.address_1 ? `${order.billing.address_1}, ${order.billing?.state || ''}` : '')
         },
+        // 🆕 بيانات الدفع الجزئي
+        paymentDetails: isHalfPayment ? {
+          type: 'half_payment',
+          paidAmount: parseFloat(paidAmount || 0),
+          remainingAmount: parseFloat(remainingAmount || 0),
+          note: paymentNote || ''
+        } : null,
+        // 🆕 بيانات التوصيل التفصيلية
+        delivery: !isStorePickup && shippingAddressIndex ? {
+          type: 'delivery',
+          address: shippingAddressIndex,
+          customer: {
+            name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
+            phone: order.billing?.phone || ''
+          }
+        } : null,
         synced: true,
         source: 'order'
       };
@@ -262,11 +284,11 @@ export default function OrderDetailsModal({
                 <span className="font-medium">الاسم:</span>{" "}
                 {order.billing?.first_name} {order.billing?.last_name}
               </p>
-              {order.billing?.email && (
+              {/* {order.billing?.email && (
                 <p className="text-gray-700">
                   <span className="font-medium">البريد:</span> {order.billing.email}
                 </p>
-              )}
+              )} */}
               {order.billing?.phone && (
                 <p className="text-gray-700">
                   <span className="font-medium">الهاتف:</span> {order.billing.phone}
@@ -276,12 +298,12 @@ export default function OrderDetailsModal({
                 <div className="flex items-start gap-2 pt-2">
                   <p className="flex-1 text-gray-700">
                     <span className="font-medium">العنوان:</span>{" "}
-                    {order.billing.address_1}, {order.billing?.state}
+                    {shippingAddressIndex || `${order.billing.address_1}, ${order.billing?.state}`}
                   </p>
                   <button
                     onClick={() =>
                       copyToClipboard(
-                        `${order.billing.address_1}, ${order.billing.state}`
+                        shippingAddressIndex || `${order.billing.address_1}, ${order.billing.state}`
                       )
                     }
                     className="text-blue-500 hover:text-blue-600 text-xs font-medium"

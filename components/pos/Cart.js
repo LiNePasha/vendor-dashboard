@@ -294,6 +294,7 @@ export function Cart({
               <option value="cash">كاش</option>
               <option value="wallet">محفظة</option>
               <option value="instapay">انستا باي</option>
+              <option value="vera">مكنة دفع فيزا (فيرا)</option>
               <option value="other">أخرى</option>
             </select>
           </div>

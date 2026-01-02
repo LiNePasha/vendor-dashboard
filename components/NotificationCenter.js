@@ -269,8 +269,9 @@ export default function NotificationCenter({ isOpen, onClose }) {
             <button
               onClick={async () => {
                 try {
+                  const vendorId = getVendorIdFromLocalStorage() || '22';
                   const res = await fetch(
-                    `/api/notifications-v2?action=mark-all-read&vendor_id=22`,
+                    `/api/notifications-v2?action=mark-all-read&vendor_id=${vendorId}`,
                     { 
                       method: 'POST',
                       credentials: 'include' 
