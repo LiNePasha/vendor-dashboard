@@ -11,8 +11,10 @@ export default function EmployeeSalesPage() {
   
   const [employee, setEmployee] = useState(null);
   const [salesData, setSalesData] = useState(null);
+  const [filterType, setFilterType] = useState('month'); // 'week', 'month', 'year'
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
+  const [weekNumber, setWeekNumber] = useState(1); // 1, 2, 3, 4, 5
   const [loading, setLoading] = useState(true);
 
   // دالة لتنسيق الأرقام - تقريب وإضافة فواصل
@@ -25,7 +27,7 @@ export default function EmployeeSalesPage() {
   useEffect(() => {
     loadSalesData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employeeId, month, year]);
+  }, [employeeId, filterType, month, year, weekNumber]);
 
   const loadSalesData = async () => {
     setLoading(true);
@@ -47,12 +49,43 @@ export default function EmployeeSalesPage() {
       console.log('🔍 Looking for employee:', employeeId);
       console.log('📊 Total invoices:', allInvoices.length);
       
-      // فلترة فواتير الموظف في الشهر المحدد
+      // فلترة فواتير الموظف حسب نوع الفلتر
       // 🔥 نجيب الفواتير اللي الموظف باعها أو عمل فيها خدمة
       const employeeInvoices = allInvoices.filter(inv => {
         const invDate = new Date(inv.date || inv.createdAt);
-        const isInPeriod = invDate.getMonth() + 1 === month && 
-                          invDate.getFullYear() === year;
+        
+        // فلترة حسب نوع الفترة
+        let isInPeriod = false;
+        
+        if (filterType === 'week') {
+          // أسبوع محدد في شهر محدد
+          // الأسبوع الأول: من 1 لـ 7، الثاني: من 8 لـ 14، وهكذا
+          
+          // نحسب أول وآخر يوم في الأسبوع
+          const weekStartDay = ((weekNumber - 1) * 7) + 1; // الأسبوع الأول يبدأ من 1
+          
+          // نجيب عدد أيام الشهر عشان ما نطلعش من الشهر
+          const daysInMonth = new Date(year, month, 0).getDate();
+          const weekEndDay = Math.min(weekStartDay + 6, daysInMonth); // لحد 7 أيام أو نهاية الشهر
+          
+          // نعمل الـ dates
+          const weekStart = new Date(year, month - 1, weekStartDay);
+          weekStart.setHours(0, 0, 0, 0);
+          
+          const weekEnd = new Date(year, month - 1, weekEndDay);
+          weekEnd.setHours(23, 59, 59, 999);
+          
+          // نتأكد إن التاريخ في نطاق الأسبوع
+          isInPeriod = invDate >= weekStart && invDate <= weekEnd;
+                      
+        } else if (filterType === 'month') {
+          // نفس الشهر
+          isInPeriod = invDate.getMonth() + 1 === month && 
+                      invDate.getFullYear() === year;
+        } else if (filterType === 'year') {
+          // نفس السنة
+          isInPeriod = invDate.getFullYear() === year;
+        }
         
         if (!isInPeriod) return false;
         
@@ -237,6 +270,22 @@ export default function EmployeeSalesPage() {
     return months[monthNum - 1];
   };
 
+  const getPeriodLabel = () => {
+    if (filterType === 'week') {
+      // حساب تواريخ الأسبوع - من أول الشهر
+      const weekStartDay = ((weekNumber - 1) * 7) + 1;
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const weekEndDay = Math.min(weekStartDay + 6, daysInMonth);
+      
+      return `${getMonthName(month)} ${year} - الأسبوع ${weekNumber} (من ${weekStartDay} إلى ${weekEndDay})`;
+    } else if (filterType === 'month') {
+      return `${getMonthName(month)} ${year}`;
+    } else if (filterType === 'year') {
+      return `${year}`;
+    }
+    return '';
+  };
+
   if (loading) {
     return (
       <div className="p-8 text-center">
@@ -275,51 +324,117 @@ export default function EmployeeSalesPage() {
         <div className="text-right">
           <div className="text-sm text-gray-600">الفترة</div>
           <div className="text-xl font-bold text-gray-900">
-            {getMonthName(month)} {year}
+            {getPeriodLabel()}
           </div>
         </div>
       </div>
 
-      {/* فلتر الشهر */}
-      <div className="mb-6 bg-white p-4 rounded-lg shadow border flex gap-4 items-end">
-        <div className="flex-1">
+      {/* فلتر الفترة */}
+      <div className="mb-6 bg-white p-4 rounded-lg shadow border">
+        {/* نوع الفلتر */}
+        <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            الشهر
+            عرض التقرير حسب
           </label>
-          <select
-            value={month}
-            onChange={(e) => setMonth(Number(e.target.value))}
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            {[...Array(12)].map((_, i) => (
-              <option key={i + 1} value={i + 1}>
-                {getMonthName(i + 1)}
-              </option>
-            ))}
-          </select>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setFilterType('week')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                filterType === 'week'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              📊 أسبوع
+            </button>
+            <button
+              onClick={() => setFilterType('month')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                filterType === 'month'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              📆 شهر
+            </button>
+            <button
+              onClick={() => setFilterType('year')}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                filterType === 'year'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              📈 سنة
+            </button>
+          </div>
         </div>
-        
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            السنة
-          </label>
-          <select
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+
+        {/* خيارات الفلتر حسب النوع */}
+        <div className="flex gap-4 items-end">
+          {/* الشهر - يظهر في حالة الأسبوع والشهر */}
+          {(filterType === 'week' || filterType === 'month') && (
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                الشهر
+              </label>
+              <select
+                value={month}
+                onChange={(e) => setMonth(Number(e.target.value))}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                {[...Array(12)].map((_, i) => (
+                  <option key={i + 1} value={i + 1}>
+                    {getMonthName(i + 1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          
+          {/* رقم الأسبوع - يظهر فقط في حالة الأسبوع */}
+          {filterType === 'week' && (
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                الأسبوع
+              </label>
+              <select
+                value={weekNumber}
+                onChange={(e) => setWeekNumber(Number(e.target.value))}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={1}>الأسبوع الأول</option>
+                <option value={2}>الأسبوع الثاني</option>
+                <option value={3}>الأسبوع الثالث</option>
+                <option value={4}>الأسبوع الرابع</option>
+                <option value={5}>الأسبوع الخامس</option>
+              </select>
+            </div>
+          )}
+
+          {/* السنة - تظهر دائماً */}
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              السنة
+            </label>
+            <select
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              {[2024, 2025, 2026, 2027].map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+          
+          <button
+            onClick={loadSalesData}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            {[2024, 2025, 2026].map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+            🔄 تحديث
+          </button>
         </div>
-        
-        <button
-          onClick={loadSalesData}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          🔄 تحديث
-        </button>
       </div>
 
       {/* الإحصائيات السريعة */}
