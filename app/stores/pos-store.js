@@ -39,6 +39,12 @@ const usePOSStore = create(persist((set, get) => ({
   deliveryFee: 0, // رسوم التوصيل
   deliveryNotes: '', // ملاحظات التوصيل
 
+  // 🚀 Cashier System State
+  lastSync: null, // آخر تزامن كامل
+  syncInProgress: false, // جاري التزامن
+  autoSyncEnabled: true, // التزامن التلقائي مفعّل
+  syncError: null, // آخر خطأ في التزامن
+
   // Cart Actions
   addToCart: async (product) => {
     const { cart } = get();
@@ -211,7 +217,170 @@ const usePOSStore = create(persist((set, get) => ({
     }
   },
 
-  // Products Actions
+  // 🚀 NEW: Full Sync - تحميل كل المنتجات مرة واحدة من Cashier API
+  syncAllProducts: async () => {
+    const { syncInProgress } = get();
+    
+    // منع تزامن متعدد في نفس الوقت
+    if (syncInProgress) {
+      console.log('⏳ Sync already in progress...');
+      return { success: false, error: 'تزامن قيد التنفيذ بالفعل' };
+    }
+
+    try {
+      set({ syncInProgress: true, loading: true, syncError: null });
+      console.log('🚀 Starting full sync from Cashier API...');
+
+      const startTime = performance.now();
+
+      // 🔥 استخدام الـ Cashier API الجديد مع all=true
+      // إضافة timestamp عشان نمنع أي cache من Next.js أو Browser
+      const timestamp = Date.now();
+      const res = await fetch(`/api/cashier/initial?all=true&force=1&t=${timestamp}`, {
+        credentials: 'include',
+        cache: 'no-store', // 🔥 منع Next.js من عمل cache
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'فشل التزامن مع السيرفر');
+      }
+
+      const data = await res.json();
+      const elapsed = Math.round(performance.now() - startTime);
+
+      console.log(`✅ Full sync completed in ${elapsed}ms`);
+      console.log(`📦 Loaded ${data.products?.length || 0} products`);
+      console.log(`📂 Loaded ${data.categories?.length || 0} categories`);
+
+      // حفظ البيانات في الـ state
+      set({
+        products: data.products || [],
+        categories: data.categories || [],
+        lastSync: new Date().toISOString(),
+        loading: false,
+        syncInProgress: false,
+        syncError: null
+      });
+
+      // حفظ في IndexedDB للـ offline usage
+      await productsCacheStorage.saveCache(
+        data.products || [],
+        data.categories || [],
+        data.pagination || {},
+        data.metadata?.sync_timestamp
+      );
+
+      return {
+        success: true,
+        totalProducts: data.products?.length || 0,
+        totalCategories: data.categories?.length || 0,
+        loadTime: elapsed,
+        metadata: data.metadata
+      };
+
+    } catch (error) {
+      console.error('❌ Full sync error:', error);
+      set({
+        syncInProgress: false,
+        loading: false,
+        syncError: error.message
+      });
+      return { success: false, error: error.message };
+    }
+  },
+
+  // 🔄 NEW: Delta Sync - جلب التغييرات فقط
+  syncChanges: async () => {
+    const { lastSync, autoSyncEnabled } = get();
+
+    if (!autoSyncEnabled) {
+      return { success: false, skipped: true };
+    }
+
+    if (!lastSync) {
+      // لو مفيش full sync قبل كده، اعمل full sync
+      return get().syncAllProducts();
+    }
+
+    try {
+      console.log('🔄 Checking for changes since:', lastSync);
+
+      const res = await fetch(`/api/cashier/changes?since=${encodeURIComponent(lastSync)}&t=${Date.now()}`, {
+        credentials: 'include',
+        cache: 'no-store', // 🔥 منع Next.js من عمل cache
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+
+      if (!res.ok) {
+        throw new Error('فشل جلب التغييرات');
+      }
+
+      const data = await res.json();
+      const changes = data.updates || [];
+
+      if (changes.length === 0) {
+        console.log('✅ No changes detected');
+        return { success: true, changes: 0 };
+      }
+
+      console.log(`📝 Applying ${changes.length} changes...`);
+
+      // تطبيق التغييرات
+      set(state => {
+        let products = [...state.products];
+
+        changes.forEach(change => {
+          if (change.action === 'updated') {
+            // تحديث منتج موجود
+            const index = products.findIndex(p => p.id === change.data.id);
+            if (index !== -1) {
+              products[index] = { ...products[index], ...change.data };
+            }
+          } else if (change.action === 'created') {
+            // إضافة منتج جديد
+            products.push(change.data);
+          } else if (change.action === 'deleted') {
+            // حذف منتج
+            products = products.filter(p => p.id !== change.id);
+          }
+        });
+
+        return { products };
+      });
+
+      // تحديث الـ cache
+      const currentState = get();
+      await productsCacheStorage.saveCache(
+        currentState.products,
+        currentState.categories,
+        {},
+        new Date().toISOString()
+      );
+
+      set({ lastSync: data.metadata?.sync_timestamp || new Date().toISOString() });
+
+      return { success: true, changes: changes.length };
+
+    } catch (error) {
+      console.error('❌ Delta sync error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // 🔧 Toggle Auto Sync
+  setAutoSync: (enabled) => {
+    set({ autoSyncEnabled: enabled });
+  },
+
+  // Products Actions (للبحث والفلترة فقط)
   fetchProducts: async (query = {}, append = false, forceRefresh = false) => {
     try {
       // Dedupe identical requests within a short window to avoid double fetch in dev
@@ -549,6 +718,7 @@ const usePOSStore = create(persist((set, get) => ({
         profitDetails: itemsWithProfit,
         itemsWithoutProfit: itemsWithoutPurchasePrice, // 🆕 قائمة المنتجات بدون سعر شراء
         paymentMethod: paymentDetails.paymentMethod,
+        paymentStatus: 'paid_full', // القيمة الافتراضية، يمكن تعديلها من صفحة الفواتير
         // 🆕 إضافة معلومات البائع
         soldBy: paymentDetails.soldBy || null,
         // 🆕 بيانات الدفع للتوصيل

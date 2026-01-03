@@ -495,16 +495,39 @@ function PrintInvoiceContent() {
               {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && '💳 مدفوع كاملاً بدون توصيل'}
             </div>
             
-            {invoice.deliveryPayment.status === 'half_paid' && (
+            {invoice.deliveryPayment.status === 'half_paid' && invoice.deliveryPayment.paidAmount > 0 && (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000' }}>
                   <span style={{ fontWeight: 'bold' }}>المبلغ المدفوع:</span>
                   <span style={{ fontWeight: 'bold', color: '#16a34a' }}>{Number(invoice.deliveryPayment.paidAmount).toFixed(2)} ج.م ✓</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm' }}>
-                  <span style={{ fontWeight: 'bold' }}>المبلغ المتبقي للتحصيل:</span>
-                  <span style={{ fontWeight: 'bold', color: '#dc2626' }}>{Number(invoice.deliveryPayment.remainingAmount).toFixed(2)} ج.م</span>
-                </div>
+                
+                {/* تقسيم المبلغ المتبقي */}
+                {(() => {
+                  const totalRemaining = invoice.summary.total - invoice.deliveryPayment.paidAmount;
+                  const deliveryFee = Number(invoice.summary.deliveryFee || 0);
+                  const productsRemaining = totalRemaining - deliveryFee;
+                  
+                  return (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', backgroundColor: '#fef3c7', padding: '1mm', borderRadius: '1mm' }}>
+                        <span style={{ fontWeight: 'bold' }}>المبلغ المتبقي للمنتجات:</span>
+                        <span style={{ fontWeight: 'bold', color: '#dc2626' }}>{productsRemaining.toFixed(2)} ج.م (للبائع)</span>
+                      </div>
+                      {deliveryFee > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', backgroundColor: '#dbeafe', padding: '1mm', borderRadius: '1mm' }}>
+                          <span style={{ fontWeight: 'bold' }}>رسوم التوصيل المتبقية:</span>
+                          <span style={{ fontWeight: 'bold', color: '#dc2626' }}>{deliveryFee.toFixed(2)} ج.م (للمندوب)</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1mm', paddingTop: '1mm', borderTop: '1px solid #000' }}>
+                        <span style={{ fontWeight: 'bold' }}>إجمالي المتبقي للتحصيل:</span>
+                        <span style={{ fontWeight: 'bold', color: '#dc2626', fontSize: '10px' }}>{totalRemaining.toFixed(2)} ج.م</span>
+                      </div>
+                    </>
+                  );
+                })()}
+                
                 {invoice.deliveryPayment.note && (
                   <div style={{ marginTop: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000', fontSize: '8px', lineHeight: '1.3' }}>
                     📝 {invoice.deliveryPayment.note}

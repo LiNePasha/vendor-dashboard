@@ -89,7 +89,7 @@ export default function VariationSelector({ product, variations, onClose, onSele
   const handleAddToCart = () => {
     if (!selectedVariation) return;
     onSelect(product, selectedVariation);
-    onClose();
+    // Don't call onClose here - let parent handle it after adding to cart
   };
 
   if (!product || !variations) return null;

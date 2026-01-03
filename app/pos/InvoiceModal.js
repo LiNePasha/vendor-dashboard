@@ -98,6 +98,42 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
             </div>
           )}
 
+          {/* حالة الدفع - Delivery Payment Status */}
+          {isDelivery && invoice.deliveryPayment && (
+            <div className="mb-4 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-lg">
+              <h4 className="font-bold text-sm text-yellow-800 mb-2 flex items-center gap-1">
+                <span>💳</span> حالة الدفع
+              </h4>
+              <div className="space-y-1 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-base">
+                    {invoice.deliveryPayment.status === 'cash_on_delivery' && '📦 دفع عند الاستلام'}
+                    {invoice.deliveryPayment.status === 'half_paid' && '🕐 نصف المبلغ مدفوع'}
+                    {invoice.deliveryPayment.status === 'fully_paid' && '✅ مدفوع كامل'}
+                    {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && '🚧 مدفوع كامل بدون توصيل'}
+                  </span>
+                </div>
+                {invoice.deliveryPayment.status === 'half_paid' && invoice.deliveryPayment.paidAmount > 0 && (
+                  <div className="mt-2 p-2 bg-white rounded border border-yellow-200">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold">المبلغ المدفوع:</span>
+                      <span className="font-bold text-green-600 text-base">{invoice.deliveryPayment.paidAmount.toFixed(2)} ج.م</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="font-semibold">المتبقي:</span>
+                      <span className="font-bold text-red-600 text-base">{(invoice.summary.total - invoice.deliveryPayment.paidAmount).toFixed(2)} ج.م</span>
+                    </div>
+                    {invoice.deliveryPayment.note && (
+                      <div className="mt-1 pt-1 border-t border-yellow-100 text-xs text-gray-600">
+                        <span className="font-semibold">ملاحظة:</span> {invoice.deliveryPayment.note}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="mb-4">
             <table className="w-full text-sm text-gray-800">
               <thead>
@@ -306,7 +342,7 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
 
           {/* Invoice Info */}
           <div style={{ textAlign: 'center', marginBottom: '4px', fontSize: '11px', fontWeight: 'bold' }}>
-            فاتورة بيع
+            {isDelivery ? '🚚 فاتورة توصيل' : 'فاتورة بيع'}
           </div>
           <div style={{ fontSize: '8px', marginBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
             <span>#{invoice.id}</span>
@@ -318,6 +354,59 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
               minute: '2-digit'
             })}</span>
           </div>
+
+          {/* Customer & Delivery Info - Print */}
+          {isDelivery && customer && (
+            <div style={{ 
+              borderBottom: '1px dashed #000', 
+              paddingBottom: '3px', 
+              marginBottom: '3px',
+              fontSize: '9px'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>👤 العميل:</div>
+              <div style={{ marginBottom: '1px' }}>{customer.name}</div>
+              <div style={{ marginBottom: '1px' }}>📱 {customer.phone}</div>
+              {fullAddress && (
+                <div style={{ marginTop: '2px', fontSize: '8px' }}>
+                  <span style={{ fontWeight: 'bold' }}>📍</span> {fullAddress}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Delivery Payment Status - Print */}
+          {isDelivery && invoice.deliveryPayment && (
+            <div style={{ 
+              borderBottom: '1px dashed #000', 
+              paddingBottom: '3px', 
+              marginBottom: '3px',
+              fontSize: '9px',
+              backgroundColor: '#fffbeb'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>💳 حالة الدفع:</div>
+              <div style={{ fontWeight: 'bold', fontSize: '10px' }}>
+                {invoice.deliveryPayment.status === 'cash_on_delivery' && '📦 دفع عند الاستلام'}
+                {invoice.deliveryPayment.status === 'half_paid' && '🕐 نصف المبلغ مدفوع'}
+                {invoice.deliveryPayment.status === 'fully_paid' && '✅ مدفوع كامل'}
+                {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && '🚧 مدفوع كامل بدون توصيل'}
+              </div>
+              {invoice.deliveryPayment.status === 'half_paid' && invoice.deliveryPayment.paidAmount > 0 && (
+                <div style={{ marginTop: '2px', borderTop: '1px solid #ddd', paddingTop: '2px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px' }}>
+                    <span>المدفوع:</span>
+                    <span style={{ fontWeight: 'bold' }}>{invoice.deliveryPayment.paidAmount.toFixed(2)} ج.م</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+                    <span>المتبقي:</span>
+                    <span>{(invoice.summary.total - invoice.deliveryPayment.paidAmount).toFixed(2)} ج.م</span>
+                  </div>
+                  {invoice.deliveryPayment.note && (
+                    <div style={{ fontSize: '8px', marginTop: '1px' }}>ملاحظة: {invoice.deliveryPayment.note}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Items */}
           <div style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', paddingTop: '3px', paddingBottom: '3px', marginBottom: '3px', pageBreakInside: 'avoid' }}>
@@ -394,6 +483,20 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
               <span>{invoice.paymentMethod}</span>
             </div>
           </div>
+
+          {/* Delivery Notes - Print */}
+          {isDelivery && deliveryNotes && (
+            <div style={{ 
+              borderTop: '1px dashed #000',
+              paddingTop: '3px',
+              marginTop: '3px',
+              fontSize: '8px',
+              backgroundColor: '#fffbeb'
+            }}>
+              <div style={{ fontWeight: 'bold', marginBottom: '1px' }}>📝 ملاحظات التوصيل:</div>
+              <div>{deliveryNotes}</div>
+            </div>
+          )}
 
           {/* Footer */}
           <div style={{ 

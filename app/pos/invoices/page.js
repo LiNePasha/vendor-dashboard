@@ -14,6 +14,8 @@ export default function InvoicesPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all'); // all, synced, pending
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('all'); // all, cash, wallet, instapay, vera, other
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState('all'); // all, paid_full, paid_partial, returned
+  const [filterDate, setFilterDate] = useState('all'); // all, today, yesterday, last7days, last30days
   const [searchTerm, setSearchTerm] = useState('');
   const [exporting, setExporting] = useState(false);
 
@@ -235,6 +237,39 @@ export default function InvoicesPage() {
       }
     }
     
+    // 🆕 Payment Status filter (حالة الدفع)
+    if (filterPaymentStatus !== 'all') {
+      const invoicePaymentStatus = invoice.paymentStatus || 'paid_full';
+      if (invoicePaymentStatus !== filterPaymentStatus) return false;
+    }
+    
+    // 🆕 Date filter (فلتر التاريخ)
+    if (filterDate !== 'all') {
+      const invoiceDate = new Date(invoice.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (filterDate === 'today') {
+        const invDate = new Date(invoiceDate);
+        invDate.setHours(0, 0, 0, 0);
+        if (invDate.getTime() !== today.getTime()) return false;
+      } else if (filterDate === 'yesterday') {
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const invDate = new Date(invoiceDate);
+        invDate.setHours(0, 0, 0, 0);
+        if (invDate.getTime() !== yesterday.getTime()) return false;
+      } else if (filterDate === 'last7days') {
+        const last7Days = new Date(today);
+        last7Days.setDate(last7Days.getDate() - 7);
+        if (invoiceDate < last7Days) return false;
+      } else if (filterDate === 'last30days') {
+        const last30Days = new Date(today);
+        last30Days.setDate(last30Days.getDate() - 30);
+        if (invoiceDate < last30Days) return false;
+      }
+    }
+    
     // Search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
@@ -255,6 +290,10 @@ export default function InvoicesPage() {
     synced: invoices.filter(i => i.synced).length,
     pending: invoices.filter(i => !i.synced).length,
     totalRevenue: invoices.reduce((sum, inv) => sum + (inv.summary?.total || 0), 0),
+    // 🆕 Payment Status Stats
+    paidFull: invoices.filter(i => (i.paymentStatus || 'paid_full') === 'paid_full').length,
+    paidPartial: invoices.filter(i => (i.paymentStatus || 'paid_full') === 'paid_partial').length,
+    returned: invoices.filter(i => (i.paymentStatus || 'paid_full') === 'returned').length,
     // Calculate profit: use new totalProfit if available, otherwise calculate from old data
     totalProfit: invoices.reduce((sum, inv) => {
       // New invoices have totalProfit
@@ -427,7 +466,7 @@ export default function InvoicesPage() {
           </div>
 
           {/* Status Filter */}
-          <div className="mb-4">
+          {/* <div className="mb-4">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-sm font-semibold text-gray-700">حالة المزامنة:</span>
             </div>
@@ -461,6 +500,65 @@ export default function InvoicesPage() {
                 }`}
               >
                 انتظار ({stats.pending})
+              </button>
+            </div>
+          </div> */}
+
+          {/* 🆕 Date Filter */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-gray-700">📅 التاريخ:</span>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setFilterDate('all')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterDate === 'all'
+                    ? '!bg-blue-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                الكل
+              </button>
+              <button
+                onClick={() => setFilterDate('today')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterDate === 'today'
+                    ? '!bg-blue-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                📆 اليوم
+              </button>
+              <button
+                onClick={() => setFilterDate('yesterday')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterDate === 'yesterday'
+                    ? '!bg-blue-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                🗓️ أمس
+              </button>
+              <button
+                onClick={() => setFilterDate('last7days')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterDate === 'last7days'
+                    ? '!bg-blue-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                📊 آخر 7 أيام
+              </button>
+              <button
+                onClick={() => setFilterDate('last30days')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterDate === 'last30days'
+                    ? '!bg-blue-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                📈 آخر 30 يوم
               </button>
             </div>
           </div>
@@ -540,6 +638,55 @@ export default function InvoicesPage() {
                 }`}
               >
                 ➕ أخرى
+              </button>
+            </div>
+          </div>
+
+          {/* 🆕 Payment Status Filter (حالة الدفع) */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm font-semibold text-gray-700">💰 حالة الدفع:</span>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setFilterPaymentStatus('all')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterPaymentStatus === 'all'
+                    ? '!bg-emerald-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                الكل
+              </button>
+              <button
+                onClick={() => setFilterPaymentStatus('paid_full')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterPaymentStatus === 'paid_full'
+                    ? '!bg-emerald-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                ✅ مدفوعة كاملة
+              </button>
+              <button
+                onClick={() => setFilterPaymentStatus('paid_partial')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterPaymentStatus === 'paid_partial'
+                    ? '!bg-emerald-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                ⚠️ مدفوع جزئي
+              </button>
+              <button
+                onClick={() => setFilterPaymentStatus('returned')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterPaymentStatus === 'returned'
+                    ? '!bg-emerald-600 !text-white'
+                    : '!bg-gray-100 !text-gray-700 hover:!bg-gray-200'
+                }`}
+              >
+                🔙 مرتجع
               </button>
             </div>
           </div>
@@ -655,7 +802,60 @@ export default function InvoicesPage() {
                             📦 #{invoice.orderId}
                           </span>
                         )}
+                        
+                        {/* 🆕 Payment Status - Editable Dropdown */}
+                        <select
+                          value={invoice.paymentStatus || 'paid_full'}
+                          onChange={async (e) => {
+                            e.stopPropagation();
+                            const newStatus = e.target.value;
+                            try {
+                              await invoiceStorage.updateInvoicePaymentStatus(invoice.id, newStatus);
+                              await loadInvoices();
+                              setToast({ message: 'تم تحديث حالة الدفع', type: 'success' });
+                            } catch (error) {
+                              setToast({ message: 'فشل تحديث حالة الدفع', type: 'error' });
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm cursor-pointer transition-all ${
+                            (invoice.paymentStatus || 'paid_full') === 'paid_full' ? 'bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-700 border border-emerald-200 hover:border-emerald-400' :
+                            (invoice.paymentStatus || 'paid_full') === 'paid_partial' ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 hover:border-orange-400' :
+                            (invoice.paymentStatus || 'paid_full') === 'returned' ? 'bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 hover:border-red-400' :
+                            'bg-gray-50 text-gray-700 border border-gray-200'
+                          }`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <option value="paid_full">✅ مدفوعة كاملة</option>
+                          <option value="paid_partial">⚠️ مدفوع جزئي</option>
+                          <option value="returned">🔙 مرتجع</option>
+                        </select>
                       </div>
+                    </div>
+
+                    {/* 🆕 Invoice Notes Section */}
+                    <div className="mt-3 bg-gray-50 rounded-lg p-3 border border-gray-200">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm">📝</span>
+                        <label className="text-xs font-bold text-gray-700">ملاحظات على الفاتورة</label>
+                      </div>
+                      <textarea
+                        value={invoice.notes || ''}
+                        onChange={async (e) => {
+                          e.stopPropagation();
+                          const newNotes = e.target.value;
+                          try {
+                            await invoiceStorage.updateInvoiceNotes(invoice.id, newNotes);
+                            await loadInvoices();
+                          } catch (error) {
+                            setToast({ message: 'فشل حفظ الملاحظات', type: 'error' });
+                          }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="اكتب ملاحظات على الفاتورة..."
+                        rows={2}
+                        className="w-full px-2 py-2 bg-white border border-gray-300 rounded-lg text-xs
+                          focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                      />
                     </div>
                     
                     {/* Total Amount - Prominent */}

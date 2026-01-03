@@ -4,7 +4,7 @@ import Link from "next/link";
 import NotificationBell from "../components/NotificationBell";
 import NotificationCenter from "../components/NotificationCenter";
 import { useState } from "react";
-import Sidebar from "@/components/Sidebar";
+import TopNavbar from "@/components/TopNavbar";
 import NetworkStatus from "@/components/NetworkStatus";
 import usePOSStore from "@/app/stores/pos-store";
 import { useRouter, usePathname } from "next/navigation";
@@ -25,14 +25,20 @@ export default function ClientLayout({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendorInfo, pathname]);
 
-  // إخفاء الـ navbar في صفحة اللوجين وصفحة الطباعة
+  // إخفاء الـ navbar في صفحة اللوجين وصفحة الطباعة وصفحة الكاشير
   const isLoginPage = pathname === '/login';
   const isPrintPage = pathname?.includes('/print');
-  const shouldHideLayout = isLoginPage || isPrintPage;
+  const isPOSPage = pathname === '/pos';
+  const shouldHideLayout = isLoginPage || isPrintPage || isPOSPage;
   const [isNotificationCenterOpen, setIsNotificationCenterOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Debug: log pathname to check
+  useEffect(() => {
+    console.log('Current pathname:', pathname);
+    console.log('isPOSPage:', isPOSPage);
+    console.log('shouldHideLayout:', shouldHideLayout);
+  }, [pathname, isPOSPage, shouldHideLayout]);
   
   // Load sound preference from localStorage
   useEffect(() => {
@@ -56,20 +62,6 @@ export default function ClientLayout({ children }) {
     window.addEventListener('keydown', handleKeyboard);
     return () => window.removeEventListener('keydown', handleKeyboard);
   }, [shouldHideLayout]);
-  
-  // Handle sidebar quick actions
-  const handleSidebarAction = (action) => {
-    switch (action) {
-      case 'new-order':
-        router.push('/orders');
-        break;
-      case 'new-product':
-        router.push('/products');
-        break;
-      default:
-        break;
-    }
-  };
 
   return (
     <>
@@ -78,49 +70,39 @@ export default function ClientLayout({ children }) {
       
       {!shouldHideLayout && (
         <>
-          {/* Hamburger Menu Button - Mobile Only */}
-          <button
-            onClick={() => setIsMobileSidebarOpen(true)}
-            className="fixed top-4 right-4 z-50 md:hidden bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-3 rounded-xl shadow-lg hover:shadow-xl transition-all"
-            aria-label="فتح القائمة"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-
-          {/* Sidebar Navigation */}
-          <Sidebar 
-            onAction={handleSidebarAction} 
-            isCollapsed={isCollapsed}
-            onToggleCollapse={setIsCollapsed}
-            isMobileOpen={isMobileSidebarOpen}
-            onMobileClose={() => setIsMobileSidebarOpen(false)}
-          />
+          {/* Top Navbar */}
+          <TopNavbar />
           
-          {/* Top Bar */}
-          <div 
-            className="fixed top-0 left-0 right-0 bg-white/80 backdrop-blur-md shadow-sm z-30 print:hidden transition-all duration-300"
-            style={{ marginRight: !shouldHideLayout ? (isCollapsed ? '5rem' : '13rem') : '0' }}
-          >
-            <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
-              <div className="md:flex items-center gap-4 hidden">
-                <h2 className="text-base md:text-lg font-semibold text-gray-800 truncate">
-                  {vendorInfo?.name || 'لوحة التحكم'}
-                </h2>
-              </div>
-              <div className="flex items-center gap-2 md:gap-3">
-                <NotificationBell 
-                  onToggleSidebar={() => setIsNotificationCenterOpen(!isNotificationCenterOpen)}
-                  onOpenSidebar={() => setIsNotificationCenterOpen(true)}
-                  onOpenNotificationCenter={() => setIsNotificationCenterOpen(true)}
-                  soundEnabled={soundEnabled}
-                />
-              </div>
-            </div>
+          {/* Top Left Corner: Notification Bell + Logout - Desktop Only */}
+          <div className="hidden md:flex fixed top-3 left-3 z-[60] print:hidden items-center gap-2">
+            <NotificationBell 
+              onToggleSidebar={() => setIsNotificationCenterOpen(!isNotificationCenterOpen)}
+              onOpenSidebar={() => setIsNotificationCenterOpen(true)}
+              onOpenNotificationCenter={() => setIsNotificationCenterOpen(true)}
+              soundEnabled={soundEnabled}
+            />
+            
+            {/* Logout Button */}
+            <button
+              onClick={async () => {
+                try {
+                  await fetch("/api/logout", { method: "POST" });
+                  localStorage.clear();
+                  window.location.href = "/login";
+                } catch (error) {
+                  console.error('Logout error:', error);
+                  window.location.href = "/login";
+                }
+              }}
+              className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg transition-all font-semibold text-xs shadow-lg hover:shadow-xl"
+              title="تسجيل الخروج"
+            >
+              <span className="text-sm">🚪</span>
+              <span>خروج</span>
+            </button>
           </div>
 
-          {/* Notification Center - الجديدة فقط */}
+          {/* Notification Center */}
           <NotificationCenter 
             isOpen={isNotificationCenterOpen}
             onClose={() => setIsNotificationCenterOpen(false)}
@@ -128,9 +110,9 @@ export default function ClientLayout({ children }) {
         </>
       )}
       <main 
-        className={`print:p-0 transition-all duration-300 ${!shouldHideLayout ? (isCollapsed ? 'md:mr-20' : 'md:mr-52') : ''}`} 
+        className="print:p-0" 
         style={{ 
-          marginTop: shouldHideLayout ? '0' : '72px',
+          marginTop: shouldHideLayout ? '0' : '64px',
           padding: shouldHideLayout ? '0' : '0'
         }}
       >

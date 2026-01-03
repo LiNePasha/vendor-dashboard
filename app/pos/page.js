@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ProductGrid } from '@/components/pos/ProductGrid';
 import { CategoryGrid } from '@/components/pos/CategoryGrid';
 import { Cart } from '@/components/pos/Cart';
@@ -11,14 +11,12 @@ import usePOSStore from '@/app/stores/pos-store';
 import InvoiceModal from './InvoiceModal';
 import EmployeeSelector from '@/components/EmployeeSelector';
 import CustomerSelector from '@/components/CustomerSelector';
-import { productsCacheStorage } from '@/app/lib/localforage';
+import { useCashierSync } from '@/app/hooks/useCashierSync';
 
 export default function POSPage() {
   const [search, setSearch] = useState('');
-  const [searching, setSearching] = useState(false); // 🔍 Loading للبحث
   const [category, setCategory] = useState('all');
   const [viewMode, setViewMode] = useState('categories'); // 🆕 categories or products
-  const [page, setPage] = useState(1);
   const [toast, setToast] = useState(null);
   const [discount, setDiscount] = useState(0);
   const [discountType, setDiscountType] = useState('amount');
@@ -28,6 +26,14 @@ export default function POSPage() {
   const [showInvoice, setShowInvoice] = useState(false);
   const [lastInvoice, setLastInvoice] = useState(null);
   const [initialized, setInitialized] = useState(false);
+
+  // Add pos-page class to body on mount
+  useEffect(() => {
+    document.body.classList.add('pos-page');
+    return () => {
+      document.body.classList.remove('pos-page');
+    };
+  }, []);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -41,15 +47,23 @@ export default function POSPage() {
   const [deliveryPaidAmount, setDeliveryPaidAmount] = useState(0);
   const [deliveryPaymentNote, setDeliveryPaymentNote] = useState('');
 
+  // 🆕 Multi-Tabs System for Multiple Invoices
+  const [tabs, setTabs] = useState([]);
+  const [activeTabId, setActiveTabId] = useState(null);
+  
+  // 🆕 Invoices Modal
+  const [showInvoicesModal, setShowInvoicesModal] = useState(false);
+
   const {
-    products = [],
+    products: allProducts = [],
     cart = [],
     services = [],
     categories = [],
-    categoriesLoading = false,
     loading = false,
     processing = false,
-    hasMore = false,
+    lastSync,
+    syncInProgress,
+    vendorInfo, // 🆕 Vendor info for logo fallback
     // 🆕 Delivery state
     orderType,
     selectedCustomer,
@@ -60,8 +74,7 @@ export default function POSPage() {
     setDeliveryFee,
     setDeliveryNotes,
     // Actions
-    fetchProducts,
-    fetchCategories,
+    syncAllProducts,
     addToCart,
     updateQuantity,
     removeFromCart,
@@ -70,33 +83,73 @@ export default function POSPage() {
     updateService,
     removeService,
     updateProduct,
-    init
   } = usePOSStore();
+
+  // 🚀 Auto-sync كل 30 ثانية
+  const { syncNow } = useCashierSync();
+
+  // 🔍 Frontend filtering - البحث والفلترة على الداتا المحملة locally
+  const filteredProducts = useMemo(() => {
+    let filtered = allProducts;
+
+    // فلترة حسب الكاتجوري
+    if (category && category !== 'all') {
+      filtered = filtered.filter(product =>
+        product.categories?.some(cat => cat.id === parseInt(category))
+      );
+    }
+
+    // فلترة حسب البحث
+    if (search.trim()) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(product =>
+        product.name?.toLowerCase().includes(searchLower) ||
+        product.sku?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    return filtered;
+  }, [allProducts, category, search]);
+
+  // 🆕 تحميل Tabs من localStorage
+  useEffect(() => {
+    const savedTabs = localStorage.getItem('posTabs');
+    const savedActiveTabId = localStorage.getItem('posActiveTabId');
+    
+    if (savedTabs) {
+      try {
+        const parsedTabs = JSON.parse(savedTabs);
+        if (parsedTabs.length > 0) {
+          setTabs(parsedTabs);
+          setActiveTabId(savedActiveTabId || parsedTabs[0].id);
+          return;
+        }
+      } catch (error) {
+        console.error('Error loading tabs:', error);
+      }
+    }
+    
+    // إنشاء tab افتراضية إذا لم توجد
+    const defaultTab = createNewTab(null); // null = استخدم الترتيب التلقائي
+    setTabs([defaultTab]);
+    setActiveTabId(defaultTab.id);
+  }, []);
+
+  // 🆕 حفظ Tabs في localStorage عند التغيير
+  useEffect(() => {
+    if (tabs.length > 0) {
+      localStorage.setItem('posTabs', JSON.stringify(tabs));
+      localStorage.setItem('posActiveTabId', activeTabId);
+    }
+  }, [tabs, activeTabId]);
 
   useEffect(() => {
     if (!initialized) {
-      init();
-      // 🆕 تحميل التصنيفات أولاً
-      fetchCategories().then((result) => {
-        if (result?.error) {
-          setToast({ message: result.error, type: 'error' });
-        }
-      });
       // تحميل الموظفين النشطين
       loadEmployees();
       setInitialized(true);
     }
-    
-    // 🆕 Auto-refresh المنتجات كل 30 ثانية
-    const refreshInterval = setInterval(() => {
-      if (viewMode === 'products' && !searching) {
-        fetchProducts({ page: 1, search, category }, false, true); // silent refresh
-      }
-    }, 30000); // 30 seconds
-    
-    return () => clearInterval(refreshInterval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialized, viewMode, search, category, searching]);
+  }, [initialized]);
 
   const loadEmployees = async () => {
     try {
@@ -118,66 +171,110 @@ export default function POSPage() {
     }
   };
 
-  // 🔍 Debounce للبحث - لو السيرش فاضي يرجع فوري
-  useEffect(() => {
-    if (!initialized) return;
+  // 🆕 Multi-Tabs Functions
+  const getInvoiceNumberName = (index) => {
+    const arabicNumbers = {
+      1: 'أول',
+      2: 'تاني',
+      3: 'تالت',
+      4: 'رابع',
+      5: 'خامس',
+      6: 'سادس',
+      7: 'سابع',
+      8: 'تامن',
+      9: 'تاسع',
+      10: 'عاشر'
+    };
     
-    // لو السيرش فاضي - بحث فوري بدون delay
-    if (search === '') {
-      setSearching(false);
-      if (viewMode === 'products') {
-        fetchProducts({ page: 1, search: '', category }).then((result) => {
-          if (result?.error) {
-            setToast({ message: result.error, type: 'error' });
-          }
-        });
-      }
+    if (index <= 10) {
+      return `${arabicNumbers[index]} فاتورة`;
+    } else {
+      return `${index} فاتورة`;
+    }
+  };
+
+  // 🆕 دالة لحساب اسم الـ tab حسب موقعه
+  const getTabDisplayName = (tab, index) => {
+    // إذا كان Tab معدل يدوياً (له custom name)، استخدم الاسم المخصص
+    // وإلا احسب الاسم حسب الترتيب
+    if (tab.customName) {
+      return tab.customName;
+    }
+    return getInvoiceNumberName(index + 1);
+  };
+
+  const createNewTab = (name) => {
+    return {
+      id: `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      customName: name || null, // null = استخدم الترتيب التلقائي
+      cart: [],
+      services: [],
+      discount: 0,
+      discountType: 'amount',
+      discountApplyMode: 'both',
+      extraFee: 0,
+      deliveryFee: 0,
+      deliveryNotes: '',
+      deliveryPaymentStatus: 'cash_on_delivery',
+      deliveryPaidAmount: 0,
+      deliveryPaymentNote: '',
+      paymentMethod: 'cash',
+      orderType: 'store',
+      selectedCustomer: null,
+      createdAt: new Date().toISOString()
+    };
+  };
+
+  const addNewTab = () => {
+    const newTab = createNewTab();
+    setTabs([...tabs, newTab]);
+    setActiveTabId(newTab.id);
+    setToast({ message: '✅ تم إنشاء فاتورة جديدة', type: 'success' });
+  };
+
+  const closeTab = (tabId) => {
+    if (tabs.length === 1) {
+      setToast({ message: '⚠️ لا يمكن إغلاق آخر فاتورة', type: 'error' });
       return;
     }
     
-    // إظهار loading للبحث
-    setSearching(true);
+    const tabIndex = tabs.findIndex(t => t.id === tabId);
+    const newTabs = tabs.filter(t => t.id !== tabId);
+    setTabs(newTabs);
     
-    const handler = setTimeout(() => {
-      setViewMode('products'); // الانتقال لعرض المنتجات
-      fetchProducts({ page: 1, search, category }).then((result) => {
-        setSearching(false);
-        if (result?.error) {
-          setToast({ message: result.error, type: 'error' });
-        }
-      });
-    }, 300); // 300ms للاستجابة السريعة
-    
-    return () => clearTimeout(handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search]); // نشتغل بس لما السيرش يتغير
+    // إذا كان Tab المغلق هو النشط، انتقل للتالي أو السابق
+    if (activeTabId === tabId) {
+      const nextTab = newTabs[tabIndex] || newTabs[tabIndex - 1] || newTabs[0];
+      setActiveTabId(nextTab.id);
+    }
+  };
 
-  // 🆕 تحميل المنتجات عند تغيير الفئة
-  useEffect(() => {
-    if (!initialized) return;
-    if (viewMode !== 'products') return;
-    setSearching(true); // Always show spinner before fetching
-    fetchProducts({ page: 1, search, category }).then((result) => {
-      setSearching(false);
-      if (result?.error) {
-        setToast({ message: result.error, type: 'error' });
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category]); // 🔥 نشتغل لما الفئة تتغير
+  const updateActiveTab = (updates) => {
+    setTabs(tabs.map(tab => 
+      tab.id === activeTabId ? { ...tab, ...updates } : tab
+    ));
+  };
+
+  const renameTab = (tabId, newName) => {
+    setTabs(tabs.map(tab => 
+      tab.id === tabId ? { ...tab, customName: newName } : tab
+    ));
+  };
+
+  // Get active tab data
+  const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0];
+
+  // 🔍 معالجة البحث - instant local filtering
+  const handleSearch = (e) => {
+    setSearch(e.target.value);
+    // الفلترة تتم automatically في useMemo
+  };
 
   // 🆕 دالة اختيار التصنيف
   const handleSelectCategory = (categoryId) => {
-    setSearching(true); // Always show spinner before fetching
     setCategory(categoryId);
     setViewMode('products');
     setSearch(''); // مسح البحث
-    fetchProducts({ page: 1, search: '', category: categoryId }).then((result) => {
-      setSearching(false);
-      if (result?.error) {
-        setToast({ message: result.error, type: 'error' });
-      }
-    });
   };
 
   // 🆕 دالة الرجوع للتصنيفات
@@ -187,34 +284,65 @@ export default function POSPage() {
     setSearch('');
   };
 
-  const loadMore = () => {
-    if (!hasMore || loading) return;
-    const next = page + 1;
-    setPage(next);
-    fetchProducts({ page: next, search, category }, true);
-  };
-
   const handleAddToCart = async (p) => {
+    if (!activeTab) return;
+    
     // Handle custom quantity set
     if (p._setQuantity !== undefined) {
       if (p._setQuantity === 0) {
-        // Remove from cart
-        await removeFromCart(p.id);
+        // Remove from tab cart - نحذف بس المنتج المحدد مش كل المنتجات
+        updateActiveTab({
+          cart: activeTab.cart.filter(item => {
+            const matches = (item.is_variation && item.variation_id === p.variation_id) || 
+                           (!item.is_variation && item.id === p.id);
+            return !matches; // نخلي كل حاجة ما عدا اللي بنحذفه
+          })
+        });
       } else {
-        // Update to specific quantity
-        const res = await updateQuantity(p.id, p._setQuantity);
-        if (res?.error) setToast({ message: res.error, type: 'error' });
+        // Update to specific quantity in tab cart
+        const existingItem = activeTab.cart.find(item => 
+          (item.is_variation && item.variation_id === p.variation_id) || 
+          (!item.is_variation && item.id === p.id)
+        );
+        if (existingItem) {
+          updateActiveTab({
+            cart: activeTab.cart.map(item => {
+              const matches = (item.is_variation && item.variation_id === p.variation_id) || 
+                             (!item.is_variation && item.id === p.id);
+              return matches ? { ...item, quantity: p._setQuantity } : item;
+            })
+          });
+        }
       }
     } else {
-      // Normal add to cart
-      const res = await addToCart(p);
-      if (res?.error) setToast({ message: res.error, type: 'error' });
+      // Normal add to tab cart
+      const existingItem = activeTab.cart.find(item => 
+        (item.is_variation && item.variation_id === p.variation_id) || 
+        (!item.is_variation && item.id === p.id)
+      );
+      if (existingItem) {
+        if (existingItem.quantity < p.stock_quantity) {
+          updateActiveTab({
+            cart: activeTab.cart.map(item => {
+              const matches = (item.is_variation && item.variation_id === p.variation_id) || 
+                             (!item.is_variation && item.id === p.id);
+              return matches ? { ...item, quantity: item.quantity + 1 } : item;
+            })
+          });
+        } else {
+          setToast({ message: 'الكمية المتاحة غير كافية', type: 'error' });
+        }
+      } else {
+        updateActiveTab({
+          cart: [...activeTab.cart, { ...p, quantity: 1 }]
+        });
+      }
     }
   };
 
   const handleQuickAddSuccess = async () => {
-    // تحديث قائمة المنتجات
-    await fetchProducts({ page: 1, search, category });
+    // تحديث المنتج في الـ cache
+    await syncNow();
   };
 
   // 🆕 دالة اختيار variation من منتج variable
@@ -272,22 +400,37 @@ export default function POSPage() {
       is_variation: true
     };
 
-    const res = await addToCart(variationProduct);
-    if (res?.error) {
-      setToast({ message: res.error, type: 'error' });
-    } else {
-      setToast({ message: `✅ تمت إضافة "${variationProduct.name}"`, type: 'success' });
-      setTimeout(() => setToast(null), 2000);
-    }
+    // 🔥 استخدم handleAddToCart للإضافة للـ active tab بدل addToCart من store
+    handleAddToCart(variationProduct);
+    
+    // إغلاق الـ modal
+    setVariationSelectorProduct(null);
+    setVariationSelectorVariations([]);
+    
+    setToast({ message: `✅ تمت إضافة "${variationProduct.name}"`, type: 'success' });
+    setTimeout(() => setToast(null), 2000);
   };
 
   const handleUpdateQuantity = async (id, qty) => {
-    const res = await updateQuantity(id, qty);
-    if (res?.error) setToast({ message: res.error, type: 'error' });
+    if (!activeTab) return;
+    
+    if (qty <= 0) {
+      updateActiveTab({
+        cart: activeTab.cart.filter(item => item.id !== id)
+      });
+    } else {
+      updateActiveTab({
+        cart: activeTab.cart.map(item =>
+          item.id === id ? { ...item, quantity: qty } : item
+        )
+      });
+    }
   };
 
   const handleCheckout = async () => {
-    if ((!cart || cart.length === 0) && (!services || services.length === 0)) {
+    if (!activeTab) return;
+    
+    if ((!activeTab.cart || activeTab.cart.length === 0) && (!activeTab.services || activeTab.services.length === 0)) {
       return setToast({ message: 'السلة فارغة - أضف منتجات أو خدمات', type: 'error' });
     }
     
@@ -299,26 +442,56 @@ export default function POSPage() {
       });
     }
     
-    if (discountType === 'percentage' && discount > 100) return setToast({ message: 'نسبة الخصم لا يمكن أن تتجاوز 100%', type: 'error' });
-    if (discount < 0 || extraFee < 0) return setToast({ message: 'قيمة غير صالحة', type: 'error' });
+    if (activeTab.discountType === 'percentage' && activeTab.discount > 100) {
+      return setToast({ message: 'نسبة الخصم لا يمكن أن تتجاوز 100%', type: 'error' });
+    }
+    if (activeTab.discount < 0 || activeTab.extraFee < 0) {
+      return setToast({ message: 'قيمة غير صالحة', type: 'error' });
+    }
+
+    // 🔄 نسخ بيانات الفاتورة للـ Zustand store للمعالجة
+    // نحط المنتجات في الـ cart المؤقت
+    for (const item of activeTab.cart) {
+      await addToCart(item);
+      if (item.quantity > 1) {
+        await updateQuantity(item.id, item.quantity);
+      }
+    }
+    
+    // نحط الخدمات
+    for (const service of activeTab.services || []) {
+      await addService(service.description, service.amount);
+    }
+    
+    // نحط باقي البيانات
+    setDiscount(activeTab.discount);
+    setDiscountType(activeTab.discountType);
+    setDiscountApplyMode(activeTab.discountApplyMode);
+    setExtraFee(activeTab.extraFee);
+    setPaymentMethod(activeTab.paymentMethod);
+    setOrderType(activeTab.orderType);
+    selectCustomer(activeTab.selectedCustomer);
+    setDeliveryFee(activeTab.deliveryFee);
+    setDeliveryNotes(activeTab.deliveryNotes);
+    setDeliveryPaymentStatus(activeTab.deliveryPaymentStatus);
+    setDeliveryPaidAmount(activeTab.deliveryPaidAmount);
+    setDeliveryPaymentNote(activeTab.deliveryPaymentNote);
 
     const result = await processCheckout({ 
-      discount, 
-      discountType,
-      discountApplyMode, // 🆕 تطبيق الخصم على
-      extraFee, 
-      paymentMethod,
-      // 🆕 إرسال بيانات البائع
+      discount: activeTab.discount, 
+      discountType: activeTab.discountType,
+      discountApplyMode: activeTab.discountApplyMode,
+      extraFee: activeTab.extraFee, 
+      paymentMethod: activeTab.paymentMethod,
       soldBy: {
         employeeId: selectedEmployee.id,
         employeeName: selectedEmployee.name,
         employeeCode: selectedEmployee.employeeCode
       },
-      // 🆕 بيانات الدفع للتوصيل
-      deliveryPayment: orderType === 'delivery' ? {
-        status: deliveryPaymentStatus,
-        paidAmount: deliveryPaymentStatus === 'half_paid' ? deliveryPaidAmount : null,
-        note: deliveryPaymentStatus === 'half_paid' ? deliveryPaymentNote : null
+      deliveryPayment: activeTab.orderType === 'delivery' ? {
+        status: activeTab.deliveryPaymentStatus,
+        paidAmount: activeTab.deliveryPaymentStatus === 'half_paid' ? activeTab.deliveryPaidAmount : null,
+        note: activeTab.deliveryPaymentStatus === 'half_paid' ? activeTab.deliveryPaymentNote : null
       } : null
     });
     
@@ -327,29 +500,31 @@ export default function POSPage() {
       setShowInvoice(true);
       setToast({ message: 'تم إنشاء الفاتورة وتحديث المخزون بنجاح ✅', type: 'success' });
       
-      // إعادة تعيين الخصم والرسوم الإضافية
-      setDiscount(0);
-      setDiscountType('amount');
-      setDiscountApplyMode('both');
-      setExtraFee(0);
+      // إعادة تهيئة الـ tab الحالي (مسح السلة)
+      updateActiveTab(createNewTab(activeTab.customName));
       
-      // Poll invoice status to update UI when synced
-      const invoiceId = result.invoice.id;
-      const checkSyncStatus = setInterval(async () => {
-        try {
-          const { invoiceStorage } = await import('@/app/lib/localforage');
-          const updatedInvoice = await invoiceStorage.getInvoice(invoiceId);
-          if (updatedInvoice && updatedInvoice.synced) {
-            setLastInvoice(updatedInvoice);
-            clearInterval(checkSyncStatus);
+      // 🔄 إعادة تحميل البيانات بعد البيع
+      try {
+        await syncAllProducts();
+        
+        const invoiceId = result.invoice.id;
+        const checkSyncStatus = setInterval(async () => {
+          try {
+            const { invoiceStorage } = await import('@/app/lib/localforage');
+            const updatedInvoice = await invoiceStorage.getInvoice(invoiceId);
+            if (updatedInvoice && updatedInvoice.synced) {
+              setLastInvoice(updatedInvoice);
+              clearInterval(checkSyncStatus);
+            }
+          } catch (error) {
+            // Silently handle error
           }
-        } catch (error) {
-          // Silently handle error
-        }
-      }, 2000); // Check every 2 seconds
-      
-      // Stop checking after 40 seconds
-      setTimeout(() => clearInterval(checkSyncStatus), 40000);
+        }, 2000);
+        
+        setTimeout(() => clearInterval(checkSyncStatus), 40000);
+      } catch (error) {
+        console.error('Error reloading data after checkout:', error);
+      }
     } else {
       setToast({ message: result.error || 'فشل أثناء المحاولة', type: 'error' });
     }
@@ -357,312 +532,319 @@ export default function POSPage() {
 
   return (
     <>
-      <div className="flex flex-col md:flex-row bg-gray-100 min-h-screen">
-        {/* Main Content Section */}
-        <div className="flex-1 p-4 md:p-6 overflow-y-auto">
-          
-          {/* 🆕 Categories View */}
-          {viewMode === 'categories' ? (
-            <>
-              <CategoryGrid
-                categories={categories}
-                loading={categoriesLoading || searching}
-                onSelectCategory={(catId) => {
-                  handleSelectCategory(catId);
-                }}
-                totalProducts={products.length}
-              />
-            </>
-          ) : (
-            <>
-              {/* 🆕 Back to Categories Button */}
-              <div className="mb-4">
+      {/* Hide Layout for POS Page */}
+      <style jsx global>{`
+        body.pos-page nav,
+        body.pos-page .print\\:hidden:not(.pos-content),
+        body.pos-page header {
+          display: none !important;
+        }
+        body.pos-page main {
+          margin-top: 0 !important;
+          padding-top: 0 !important;
+        }
+      `}</style>
+      
+      <div className="h-screen flex flex-col bg-gray-100 pos-content">
+        {/* Header */}
+        <div className="bg-blue-900 text-white shadow-lg sticky top-0 z-30">
+          <div className="max-w-screen-2xl mx-auto px-4 py-3">
+            <div className="flex items-center gap-3 mb-2">
+              {/* Logo */}
+              <div className="flex items-center gap-2 bg-blue-800 px-3 py-2 rounded-lg">
+                <span className="text-2xl">🏪</span>
+                <span className="font-bold text-lg hidden md:inline">كاشير</span>
+              </div>
+
+              {/* Search Bar */}
+              <div className="flex-1">
+                <input
+                  type="text"
+                  placeholder="🔍 ابحث عن منتج..."
+                  value={search}
+                  onChange={handleSearch}
+                  className="w-full px-4 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Employee Selector - Compact */}
+              <div className="w-48">
+                <EmployeeSelector
+                  employees={employees}
+                  selectedEmployee={selectedEmployee}
+                  onChange={(employee) => {
+                    setSelectedEmployee(employee);
+                    if (employee) {
+                      localStorage.setItem('selectedPOSEmployee', employee.id);
+                    } else {
+                      localStorage.removeItem('selectedPOSEmployee');
+                    }
+                  }}
+                  required={true}
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-2">
+                {/* View Invoices Button */}
                 <button
-                  onClick={handleBackToCategories}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-[#232b3b] border-2 border-blue-900 text-white rounded-lg hover:bg-[#181f2a] hover:border-blue-500 transition-all font-semibold shadow-sm"
+                  onClick={() => setShowInvoicesModal(true)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-2"
+                  title="شوف الفواتير"
                 >
-                  <span className="text-xl">🏪</span>
-                  <span>رجوع للتصنيفات</span>
+                  <span>📋</span>
+                  <span className="hidden lg:inline">شوف الفواتير</span>
+                </button>
+
+                {/* Sync Button */}
+                <button
+                  onClick={syncNow}
+                  disabled={syncInProgress}
+                  className="bg-blue-800 hover:bg-blue-700 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+                  title="تحديث الآن"
+                >
+                  <span className={syncInProgress ? 'animate-spin text-xl' : 'text-xl'}>🔄</span>
+                </button>
+
+                {/* Quick Add */}
+                <button
+                  onClick={() => setShowQuickAdd(true)}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-colors hidden md:flex items-center gap-2"
+                  title="إضافة منتج"
+                >
+                  <span>➕</span>
+                  <span className="hidden lg:inline">منتج جديد</span>
                 </button>
               </div>
-
-              {/* Search & Filters */}
-              <div className="mb-4 space-y-3">
-            {/* 🆕 Barcode Scanner Input */}
-            {/* <div className="relative">
-              <input
-                type="text"
-                placeholder="🔍 امسح الباركود هنا أو اكتب SKU..."
-                className="w-full px-4 py-3 pr-12 rounded-lg border-2 border-blue-500 bg-blue-50 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 text-lg font-mono"
-                value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleBarcodeSearch(barcodeInput);
-                  }
-                }}
-                autoFocus
-              />
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-2xl">
-                📦
-              </div>
-            </div> */}
-
-            {/* Search - Full width on mobile */}
-            <div className="relative w-full">
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300">
-                {searching ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
-                ) : (
-                  '🔍'
-                )}
-              </span>
-              <input
-                type="text"
-                placeholder="ابحث عن منتج..."
-                className="w-full px-4 pr-10 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                }}
-              />
-              {searching && (
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-blue-600 font-medium">
-                  جاري البحث...
-                </span>
-              )}
-            </div>
-            
-            {/* Filters Row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <select
-                className="px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                disabled={loading}
-              >
-                <option value="all">{loading ? 'جاري التحميل...' : 'كل الفئات'}</option>
-                {Array.isArray(categories) && categories.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}{c.count ? ` (${c.count})` : ''}</option>
-                ))}
-              </select>
-              <button
-                onClick={async () => {
-                  setSearching(true);
-                  await fetchProducts({ page: 1, search: '', category }, false, true); // forceRefresh = true
-                  setSearching(false);
-                }}
-                disabled={searching}
-                className="px-3 py-2.5 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:bg-gray-700 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors text-sm font-medium"
-                title="تحديث المنتجات من السيرفر"
-              >
-                <span className={searching ? 'animate-spin' : ''}>🔄</span>
-                <span>تحديث</span>
-              </button>
-              <button
-                onClick={() => setShowQuickAdd(true)}
-                className="col-span-2 md:col-span-1 px-3 py-2.5 bg-green-900 text-white rounded-lg hover:bg-green-800 flex items-center justify-center gap-2 transition-colors text-sm font-medium"
-                title="إضافة منتج سريع"
-              >
-                <span>⚡</span>
-                <span>إضافة منتج</span>
-              </button>
-            </div>
-          </div>
-
-              <ProductGrid 
-                products={products} 
-                loading={searching} 
-                onAddToCart={handleAddToCart}
-                onEdit={(product) => setEditingProductId(product.id)}
-                onSelectVariation={handleSelectVariation}
-                cart={cart} 
-              />
-
-              {!loading && Array.isArray(products) && products.length > 0 && (
-                <div className="mt-6 text-center pb-20 md:pb-6">
-                  {hasMore ? (
-                    <button onClick={loadMore} className="px-6 py-2.5 bg-blue-900 text-white rounded-lg hover:bg-blue-800 font-medium">تحميل المزيد</button>
-                  ) : (
-                    <p className="text-gray-300">لا يوجد المزيد من المنتجات</p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Cart Section - Desktop Sidebar */}
-        <div className="hidden md:block w-1/3 min-w-[400px] bg-white border-l sticky top-0 self-start overflow-y-auto" style={{ maxHeight: '100vh' }}>
-          {/* 🆕 اختيار الموظف البائع */}
-          <div className="p-4 border-b bg-gray-50">
-            <EmployeeSelector
-              employees={employees}
-              selectedEmployee={selectedEmployee}
-              onChange={(employee) => {
-                setSelectedEmployee(employee);
-                // 🆕 حفظ الموظف في localStorage
-                if (employee) {
-                  localStorage.setItem('selectedPOSEmployee', employee.id);
-                } else {
-                  localStorage.removeItem('selectedPOSEmployee');
-                }
-              }}
-              required={true}
-            />
-          </div>
-
-          {/* 🆕 نوع الطلب والتوصيل */}
-          <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-            {/* <h3 className="font-bold text-sm text-gray-700 mb-3">📦 نوع الطلب</h3> */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => setOrderType('pickup')}
-                className={`flex-1 py-2.5 rounded-lg font-bold transition-all ${
-                  orderType === 'pickup'
-                    ? '!bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg border-2 border-blue-500'
-                    : '!bg-white !text-gray-600 border-2 border-gray-300 hover:border-blue-400'
-                }`}
-              >
-                <span className={orderType === 'pickup' ? 'text-xl' : 'text-lg'}>🏪</span>
-                <span className="mr-1.5">استلام</span>
-              </button>
-              <button
-                onClick={() => setOrderType('delivery')}
-                className={`flex-1 py-2.5 rounded-lg font-bold transition-all ${
-                  orderType === 'delivery'
-                    ? '!bg-gradient-to-r from-green-600 to-green-700 text-white shadow-lg border-2 border-green-500'
-                    : '!bg-white !text-gray-600 border-2 border-gray-300 hover:border-green-400'
-                }`}
-              >
-                <span className={orderType === 'delivery' ? 'text-xl' : 'text-lg'}>🚚</span>
-                <span className="mr-1.5">توصيل</span>
-              </button>
             </div>
 
-            {orderType === 'delivery' && (
-              <div className="space-y-3">
-                {/* اختيار العميل */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    العميل <span className="text-red-500">*</span>
-                  </label>
-                  <CustomerSelector
-                    selectedCustomer={selectedCustomer}
-                    onSelect={selectCustomer}
-                    onClear={() => selectCustomer(null)}
-                  />
-                </div>
-
-                {/* رسوم التوصيل */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    رسوم التوصيل (ج.م)
-                  </label>
-                  <input
-                    type="number"
-                    value={deliveryFee}
-                    onChange={(e) => setDeliveryFee(parseFloat(e.target.value) || 0)}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200"
-                    placeholder="0"
-                    min="0"
-                    step="5"
-                  />
-                </div>
-
-                {/* 🆕 حالة الدفع للتوصيل */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    حالة الدفع <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={deliveryPaymentStatus}
-                    onChange={(e) => setDeliveryPaymentStatus(e.target.value)}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 font-medium"
+            {/* 🆕 Multi-Tabs for Multiple Invoices */}
+            {tabs.length > 0 && (
+              <div className="flex items-center gap-2 mt-2 overflow-x-auto pb-2 scrollbar-hide">
+                {/* Tabs List */}
+                {tabs.map((tab, index) => (
+                  <div
+                    key={tab.id}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-all group relative ${
+                      tab.id === activeTabId
+                        ? 'bg-white text-blue-900 shadow-md font-bold'
+                        : 'bg-blue-800 hover:bg-blue-700 text-white'
+                    }`}
+                    onClick={() => setActiveTabId(tab.id)}
                   >
-                    <option value="cash_on_delivery">💵 دفع عند الاستلام</option>
-                    <option value="half_paid">💰 نصف المبلغ مدفوع</option>
-                    <option value="fully_paid">✅ مدفوع كاملاً</option>
-                    <option value="fully_paid_no_delivery">💳 مدفوع كاملاً بدون توصيل</option>
-                  </select>
-                </div>
+                    <span className="text-sm">
+                      {tab.orderType === 'delivery' ? '🚚' : '🏪'}
+                    </span>
+                    <span className="text-xs whitespace-nowrap">{getTabDisplayName(tab, index)}</span>
+                    {tab.cart && tab.cart.length > 0 && (
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                        tab.id === activeTabId ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white'
+                      }`}>
+                        {tab.cart.length}
+                      </span>
+                    )}
+                    {tabs.length > 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          closeTab(tab.id);
+                        }}
+                        className={`text-xs hover:text-red-500 transition-colors ${
+                          tab.id === activeTabId ? 'opacity-70' : 'opacity-0 group-hover:opacity-100'
+                        }`}
+                        title="إغلاق الفاتورة"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+                
+                {/* Add New Tab Button */}
+                <button
+                  onClick={addNewTab}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white transition-all text-xs font-bold whitespace-nowrap"
+                  title="إضافة فاتورة جديدة"
+                >
+                  <span>➕</span>
+                  <span>فاتورة</span>
+                </button>
+              </div>
+            )}
 
-                {/* تفاصيل الدفع الجزئي */}
-                {deliveryPaymentStatus === 'half_paid' && (
-                  <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-3 space-y-2">
-                    <div className="flex items-center gap-2 text-yellow-800 font-bold text-sm">
-                      <span>⚠️</span>
-                      <span>تفاصيل الدفع الجزئي</span>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        المبلغ المدفوع (ج.م)
-                      </label>
-                      <input
-                        type="number"
-                        value={deliveryPaidAmount}
-                        onChange={(e) => setDeliveryPaidAmount(parseFloat(e.target.value) || 0)}
-                        className="w-full px-3 py-2 border-2 border-yellow-300 rounded-lg focus:border-yellow-500 text-sm"
-                        placeholder="0"
-                        min="0"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        ملاحظة الدفع
-                      </label>
-                      <input
-                        type="text"
-                        value={deliveryPaymentNote}
-                        onChange={(e) => setDeliveryPaymentNote(e.target.value)}
-                        className="w-full px-3 py-2 border-2 border-yellow-300 rounded-lg focus:border-yellow-500 text-sm"
-                        placeholder="مثال: نصف المبلغ + التوصيل عند الاستلام"
-                      />
-                    </div>
+            {/* Breadcrumb */}
+            {viewMode === 'products' && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleBackToCategories}
+                  className="bg-blue-800 px-3 py-1 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-bold"
+                >
+                  <span>⬅️</span>
+                  <span>كل الأقسام</span>
+                </button>
+                {category !== 'all' && (
+                  <div className="bg-orange-500 px-3 py-1 rounded-lg flex items-center gap-2 text-sm font-bold">
+                    <span>📂</span>
+                    <span>{categories.find(c => c.id === parseInt(category))?.name || 'القسم الحالي'}</span>
                   </div>
                 )}
-
-                {/* ملاحظات التوصيل */}
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    ملاحظات التوصيل
-                  </label>
-                  <textarea
-                    value={deliveryNotes}
-                    onChange={(e) => setDeliveryNotes(e.target.value)}
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200"
-                    placeholder="ملاحظات إضافية للتوصيل..."
-                    rows={2}
-                  />
-                </div>
               </div>
             )}
           </div>
-          
-          <Cart
-            items={cart}
-            services={services}
-            employees={employees}
-            onUpdateQuantity={handleUpdateQuantity}
-            onRemoveItem={removeFromCart}
-            onAddService={addService}
-            onUpdateService={updateService}
-            onRemoveService={removeService}
-            onCheckout={handleCheckout}
-            processing={processing}
-            discount={discount}
-            discountType={discountType}
-            discountApplyMode={discountApplyMode}
-            extraFee={extraFee}
-            deliveryFee={deliveryFee}
-            paymentMethod={paymentMethod}
-            onDiscountChange={(v) => setDiscount(Number(v))}
-            onDiscountTypeChange={(v) => setDiscountType(v)}
-            onDiscountApplyModeChange={(v) => setDiscountApplyMode(v)}
-            onExtraFeeChange={(v) => setExtraFee(Number(v))}
-            onPaymentMethodChange={(v) => setPaymentMethod(v)}
-          />
+        </div>
+
+        {/* 🎨 Main Content Area */}
+        <div className="flex-1 flex overflow-hidden" dir="ltr">
+          {/* 📦 Products Area - LEFT SIDE (الشمال) */}
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50" dir="rtl">
+            <div className="max-w-screen-2xl mx-auto">
+              {/* Employee Selector - Mobile */}
+              <div className="md:hidden mb-4">
+                <EmployeeSelector
+                  employees={employees}
+                  selectedEmployee={selectedEmployee}
+                  onChange={(employee) => {
+                    setSelectedEmployee(employee);
+                    if (employee) {
+                      localStorage.setItem('selectedPOSEmployee', employee.id);
+                    } else {
+                      localStorage.removeItem('selectedPOSEmployee');
+                    }
+                  }}
+                  required={true}
+                />
+              </div>
+
+              {viewMode === 'categories' ? (
+                <CategoryGrid
+                  categories={categories}
+                  onSelectCategory={handleSelectCategory}
+                  loading={loading}
+                />
+              ) : (
+                <ProductGrid
+                  products={filteredProducts}
+                  loading={loading}
+                  onAddToCart={handleAddToCart}
+                  onEdit={setEditingProductId}
+                  onSelectVariation={handleSelectVariation}
+                  cart={activeTab?.cart || cart}
+                  vendorId={vendorInfo?.id} // 🆕 Pass vendor ID for logo fallback
+                />
+              )}
+            </div>
+          </div>
+
+          {/* 🛒 Cart - RIGHT SIDE (اليمين) */}
+          <div className="hidden md:flex w-80 bg-white shadow-xl border-l border-gray-200 flex-col ml-auto" dir="rtl">
+            {/* Cart Component - Full Height Scrollable */}
+            <div className="flex-1 overflow-y-auto">
+              <Cart
+                items={activeTab?.cart || cart}
+                services={activeTab?.services || services}
+                employees={employees}
+                selectedEmployee={selectedEmployee}
+                orderType={activeTab?.orderType || orderType}
+                selectedCustomer={activeTab?.selectedCustomer || selectedCustomer}
+                onOrderTypeChange={(type) => {
+                  setOrderType(type);
+                  updateActiveTab({ orderType: type });
+                }}
+                onCustomerSelect={(customer) => {
+                  selectCustomer(customer);
+                  updateActiveTab({ selectedCustomer: customer });
+                }}
+                onUpdateQuantity={handleUpdateQuantity}
+                onRemoveItem={(id) => {
+                  if (!activeTab) return;
+                  updateActiveTab({
+                    cart: activeTab.cart.filter(item => item.id !== id)
+                  });
+                }}
+                onAddService={(desc, amount) => {
+                  if (!activeTab) return;
+                  const newService = {
+                    id: Date.now().toString(),
+                    description: desc,
+                    amount: Number(amount)
+                  };
+                  updateActiveTab({
+                    services: [...(activeTab.services || []), newService]
+                  });
+                }}
+                onUpdateService={(id, field, value) => {
+                  if (!activeTab) return;
+                  updateActiveTab({
+                    services: (activeTab.services || []).map(s =>
+                      s.id === id ? { ...s, [field]: value } : s
+                    )
+                  });
+                }}
+                onRemoveService={(id) => {
+                  if (!activeTab) return;
+                  updateActiveTab({
+                    services: (activeTab.services || []).filter(s => s.id !== id)
+                  });
+                }}
+                onCheckout={handleCheckout}
+                processing={processing}
+                discount={activeTab?.discount ?? discount}
+                discountType={activeTab?.discountType || discountType}
+                discountApplyMode={activeTab?.discountApplyMode || discountApplyMode}
+                extraFee={activeTab?.extraFee ?? extraFee}
+                deliveryFee={activeTab?.deliveryFee ?? deliveryFee}
+                deliveryNotes={activeTab?.deliveryNotes || deliveryNotes}
+                deliveryPaymentStatus={activeTab?.deliveryPaymentStatus || deliveryPaymentStatus}
+                deliveryPaidAmount={activeTab?.deliveryPaidAmount ?? deliveryPaidAmount}
+                deliveryPaymentNote={activeTab?.deliveryPaymentNote || deliveryPaymentNote}
+                paymentMethod={activeTab?.paymentMethod || paymentMethod}
+                onDiscountChange={(v) => {
+                  setDiscount(Number(v));
+                  updateActiveTab({ discount: Number(v) });
+                }}
+                onDiscountTypeChange={(v) => {
+                  setDiscountType(v);
+                  updateActiveTab({ discountType: v });
+                }}
+                onDiscountApplyModeChange={(v) => {
+                  setDiscountApplyMode(v);
+                  updateActiveTab({ discountApplyMode: v });
+                }}
+                onExtraFeeChange={(v) => {
+                  setExtraFee(Number(v));
+                  updateActiveTab({ extraFee: Number(v) });
+                }}
+                onDeliveryFeeChange={(v) => {
+                  setDeliveryFee(v);
+                  updateActiveTab({ deliveryFee: v });
+                }}
+                onDeliveryNotesChange={(v) => {
+                  setDeliveryNotes(v);
+                  updateActiveTab({ deliveryNotes: v });
+                }}
+                onDeliveryPaymentStatusChange={(v) => {
+                  setDeliveryPaymentStatus(v);
+                  updateActiveTab({ deliveryPaymentStatus: v });
+                }}
+                onDeliveryPaidAmountChange={(v) => {
+                  setDeliveryPaidAmount(v);
+                  updateActiveTab({ deliveryPaidAmount: v });
+                }}
+                onDeliveryPaymentNoteChange={(v) => {
+                  setDeliveryPaymentNote(v);
+                  updateActiveTab({ deliveryPaymentNote: v });
+                }}
+                onPaymentMethodChange={(v) => {
+                  setPaymentMethod(v);
+                  updateActiveTab({ paymentMethod: v });
+                }}
+                onPaymentStatusChange={(v) => { // 🆕 حالة الدفع
+                  updateActiveTab({ paymentStatus: v });
+                }}
+                paymentStatus={activeTab?.paymentStatus || 'paid_full'} // 🆕 حالة الدفع
+              />
+            </div>
+          </div>
         </div>
 
         {/* Mobile Cart - Bottom Sheet */}
@@ -748,9 +930,9 @@ export default function POSPage() {
               </div>
             </div>
           )}
-        </div>
 
-        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+          {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        </div>
       </div>
 
       {/* Add Product Modal */}
@@ -760,7 +942,7 @@ export default function POSPage() {
         mode="create"
         onSuccess={(data) => {
           setToast({ message: '✅ تم إضافة المنتج بنجاح', type: 'success' });
-          fetchProducts({ page: 1, search, category }, false, true); // forceRefresh = true
+          syncNow(); // مزامنة سريعة
         }}
       />
 
@@ -773,7 +955,7 @@ export default function POSPage() {
         onSuccess={(data) => {
           setToast({ message: '✅ تم تعديل المنتج بنجاح', type: 'success' });
           setEditingProductId(null);
-          fetchProducts({ page: 1, search, category }, false, true); // forceRefresh = true
+          syncNow(); // مزامنة سريعة
         }}
       />
 
@@ -801,6 +983,42 @@ export default function POSPage() {
           }
         }}
       />
+
+      {/* 🆕 Invoices Modal */}
+      {showInvoicesModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4"
+          onClick={() => setShowInvoicesModal(false)}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl w-full h-[90vh] max-w-7xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">📋</span>
+                <h2 className="text-2xl font-bold">الفواتير</h2>
+              </div>
+              <button
+                onClick={() => setShowInvoicesModal(false)}
+                className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg px-4 py-2 transition-colors text-2xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content - iframe */}
+            <div className="flex-1 overflow-hidden">
+              <iframe
+                src="/pos/invoices"
+                className="w-full h-full border-0"
+                title="الفواتير"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
