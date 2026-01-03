@@ -108,7 +108,21 @@ export default function POSPage() {
       );
     }
 
-    return filtered;
+    // 🔥 إنشاء unique ID لكل منتج للتخلص من duplicate keys
+    return filtered.map(product => {
+      // إذا كان variation، أضف parent_id و unique id
+      if (product.is_variation && product.variation_id) {
+        return {
+          ...product,
+          uniqueId: `${product.parent_id}_var_${product.variation_id}`,
+          // نخلي الـ id الأصلي كما هو للـ backend
+        };
+      }
+      return {
+        ...product,
+        uniqueId: `prod_${product.id}`, // unique ID للمنتجات العادية
+      };
+    });
   }, [allProducts, category, search]);
 
   // 🆕 تحميل Tabs من localStorage
@@ -290,44 +304,30 @@ export default function POSPage() {
     // Handle custom quantity set
     if (p._setQuantity !== undefined) {
       if (p._setQuantity === 0) {
-        // Remove from tab cart - نحذف بس المنتج المحدد مش كل المنتجات
+        // Remove from tab cart using unique id
         updateActiveTab({
-          cart: activeTab.cart.filter(item => {
-            const matches = (item.is_variation && item.variation_id === p.variation_id) || 
-                           (!item.is_variation && item.id === p.id);
-            return !matches; // نخلي كل حاجة ما عدا اللي بنحذفه
-          })
+          cart: activeTab.cart.filter(item => item.id !== p.id)
         });
       } else {
         // Update to specific quantity in tab cart
-        const existingItem = activeTab.cart.find(item => 
-          (item.is_variation && item.variation_id === p.variation_id) || 
-          (!item.is_variation && item.id === p.id)
-        );
+        const existingItem = activeTab.cart.find(item => item.id === p.id);
         if (existingItem) {
           updateActiveTab({
-            cart: activeTab.cart.map(item => {
-              const matches = (item.is_variation && item.variation_id === p.variation_id) || 
-                             (!item.is_variation && item.id === p.id);
-              return matches ? { ...item, quantity: p._setQuantity } : item;
-            })
+            cart: activeTab.cart.map(item => 
+              item.id === p.id ? { ...item, quantity: p._setQuantity } : item
+            )
           });
         }
       }
     } else {
       // Normal add to tab cart
-      const existingItem = activeTab.cart.find(item => 
-        (item.is_variation && item.variation_id === p.variation_id) || 
-        (!item.is_variation && item.id === p.id)
-      );
+      const existingItem = activeTab.cart.find(item => item.id === p.id);
       if (existingItem) {
         if (existingItem.quantity < p.stock_quantity) {
           updateActiveTab({
-            cart: activeTab.cart.map(item => {
-              const matches = (item.is_variation && item.variation_id === p.variation_id) || 
-                             (!item.is_variation && item.id === p.id);
-              return matches ? { ...item, quantity: item.quantity + 1 } : item;
-            })
+            cart: activeTab.cart.map(item => 
+              item.id === p.id ? { ...item, quantity: item.quantity + 1 } : item
+            )
           });
         } else {
           setToast({ message: 'الكمية المتاحة غير كافية', type: 'error' });
@@ -383,8 +383,9 @@ export default function POSPage() {
   const handleVariationSelect = async (product, variation) => {
     // إنشاء product object مدمج مع variation
     const variationProduct = {
-      id: variation.id, // استخدم id الخاص بالـ variation كبند منفصل في السلة
+      id: `${product.id}_var_${variation.id}`, // ✅ unique key للـ variation
       variation_id: variation.id,
+      parent_id: product.id,
       name: `${product.name} - ${variation.description}`,
       price: variation.price,
       regular_price: variation.regular_price,
@@ -394,7 +395,6 @@ export default function POSPage() {
       sku: variation.sku,
       images: variation.image ? [{ src: variation.image }] : product.images,
       // معلومات إضافية للـ variation
-      parent_id: product.id,
       parent_name: product.name,
       variation_attributes: variation.attributes,
       is_variation: true
@@ -452,15 +452,21 @@ export default function POSPage() {
     // 🔄 نسخ بيانات الفاتورة للـ Zustand store للمعالجة
     // نحط المنتجات في الـ cart المؤقت
     for (const item of activeTab.cart) {
-      await addToCart(item);
-      if (item.quantity > 1) {
-        await updateQuantity(item.id, item.quantity);
+      // 🔥 للـ variations، نرجع للـ ID الأصلي للـ variation
+      const productToAdd = item.is_variation ? {
+        ...item,
+        id: item.variation_id // استخدم variation_id للـ store
+      } : item;
+      
+      await addToCart(productToAdd);
+      if (productToAdd.quantity > 1) {
+        await updateQuantity(productToAdd.id, productToAdd.quantity);
       }
     }
     
     // نحط الخدمات
     for (const service of activeTab.services || []) {
-      await addService(service.description, service.amount);
+      await addService(service.id, service.description, service.amount);
     }
     
     // نحط باقي البيانات
@@ -499,6 +505,34 @@ export default function POSPage() {
       setLastInvoice(result.invoice);
       setShowInvoice(true);
       setToast({ message: 'تم إنشاء الفاتورة وتحديث المخزون بنجاح ✅', type: 'success' });
+      
+      // 🔥 إضافة المنتجات المؤقتة للسيستم في الخلفية
+      const tempProducts = activeTab.cart.filter(item => item.is_temp_product);
+      if (tempProducts.length > 0) {
+        console.log('🔄 Adding temp products to system:', tempProducts.length);
+        
+        // إضافة في الخلفية بدون انتظار
+        Promise.all(
+          tempProducts.map(async (item) => {
+            try {
+              const response = await fetch('/api/warehouse/create-product', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item.temp_data)
+              });
+              const result = await response.json();
+              if (result.success) {
+                console.log(`✅ Added temp product: ${item.name}`);
+              }
+            } catch (error) {
+              console.error(`❌ Failed to add temp product: ${item.name}`, error);
+            }
+          })
+        ).then(() => {
+          console.log('✅ All temp products processed');
+          syncAllProducts(); // مزامنة بعد الإضافة
+        });
+      }
       
       // إعادة تهيئة الـ tab الحالي (مسح السلة)
       updateActiveTab(createNewTab(activeTab.customName));
@@ -755,6 +789,12 @@ export default function POSPage() {
                   updateActiveTab({ selectedCustomer: customer });
                 }}
                 onUpdateQuantity={handleUpdateQuantity}
+                onAddItem={(tempProduct) => {
+                  if (!activeTab) return;
+                  updateActiveTab({
+                    cart: [...activeTab.cart, tempProduct]
+                  });
+                }}
                 onRemoveItem={(id) => {
                   if (!activeTab) return;
                   updateActiveTab({
@@ -772,13 +812,26 @@ export default function POSPage() {
                     services: [...(activeTab.services || []), newService]
                   });
                 }}
-                onUpdateService={(id, field, value) => {
+                onUpdateService={(id, fieldOrUpdates, value) => {
                   if (!activeTab) return;
-                  updateActiveTab({
-                    services: (activeTab.services || []).map(s =>
-                      s.id === id ? { ...s, [field]: value } : s
-                    )
-                  });
+                  
+                  // إذا كان fieldOrUpdates object، حدّث multiple fields مرة واحدة
+                  if (typeof fieldOrUpdates === 'object') {
+                    console.log('🔄 onUpdateService (multi-field):', { id, updates: fieldOrUpdates });
+                    const updatedServices = (activeTab.services || []).map(s =>
+                      s.id === id ? { ...s, ...fieldOrUpdates } : s
+                    );
+                    console.log('✅ Updated services:', updatedServices);
+                    updateActiveTab({ services: updatedServices });
+                  } else {
+                    // single field update (backward compatible)
+                    console.log('🔄 onUpdateService (single-field):', { id, field: fieldOrUpdates, value });
+                    const updatedServices = (activeTab.services || []).map(s =>
+                      s.id === id ? { ...s, [fieldOrUpdates]: value } : s
+                    );
+                    console.log('✅ Updated services:', updatedServices);
+                    updateActiveTab({ services: updatedServices });
+                  }
                 }}
                 onRemoveService={(id) => {
                   if (!activeTab) return;
@@ -906,6 +959,9 @@ export default function POSPage() {
                     services={services}
                     employees={employees}
                     onUpdateQuantity={handleUpdateQuantity}
+                    onAddItem={(tempProduct) => {
+                      addToCart(tempProduct);
+                    }}
                     onRemoveItem={removeFromCart}
                     onAddService={addService}
                     onUpdateService={updateService}

@@ -20,9 +20,8 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
   useEffect(() => {
     const newQuantities = {};
     cart.forEach(item => {
-      // إذا كان العنصر variation استخدم variation_id كمفتاح، وإلا id
-      const key = item.is_variation && item.variation_id ? `var_${item.variation_id}` : `prod_${item.id}`;
-      newQuantities[key] = item.quantity;
+      // استخدم الـ unique ID من الـ cart مباشرة
+      newQuantities[item.id] = item.quantity;
     });
     setQuantities(newQuantities);
   }, [cart]);
@@ -30,27 +29,33 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
   // Get actual cart quantity from props if available
   // product: قد يكون منتج أو variation
   const getCartQuantity = (product) => {
-    if (product.is_variation && product.variation_id) {
-      return quantities[`var_${product.variation_id}`] || 0;
-    }
-    return quantities[`prod_${product.id}`] || 0;
+    // إنشاء الـ unique ID نفس طريقة handleVariationSelect
+    const uniqueId = product.is_variation && product.variation_id 
+      ? `${product.parent_id}_var_${product.variation_id}`
+      : product.id;
+    return quantities[uniqueId] || 0;
   };
 
   const handleDecrease = (product) => {
     const currentQty = getCartQuantity(product);
     const newQty = currentQty - 1;
-    const key = product.is_variation && product.variation_id ? `var_${product.variation_id}` : `prod_${product.id}`;
+    
     if (newQty <= 0) {
-      setQuantities(prev => ({ ...prev, [key]: 0 }));
       // Remove from cart by setting quantity to 0
       if (onAddToCart) {
-        onAddToCart({ ...product, _setQuantity: 0 });
+        // إنشاء product object بنفس الـ unique ID format
+        const productWithUniqueId = product.is_variation && product.variation_id
+          ? { ...product, id: `${product.parent_id}_var_${product.variation_id}` }
+          : product;
+        onAddToCart({ ...productWithUniqueId, _setQuantity: 0 });
       }
     } else {
-      setQuantities(prev => ({ ...prev, [key]: newQty }));
       // Update cart quantity
       if (onAddToCart) {
-        onAddToCart({ ...product, _setQuantity: newQty });
+        const productWithUniqueId = product.is_variation && product.variation_id
+          ? { ...product, id: `${product.parent_id}_var_${product.variation_id}` }
+          : product;
+        onAddToCart({ ...productWithUniqueId, _setQuantity: newQty });
       }
     }
   };
@@ -58,10 +63,11 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
   const handleIncrease = (product) => {
     const currentQty = getCartQuantity(product);
     if (currentQty < product.stock_quantity) {
-      const newQty = currentQty + 1;
-      const key = product.is_variation && product.variation_id ? `var_${product.variation_id}` : `prod_${product.id}`;
-      setQuantities(prev => ({ ...prev, [key]: newQty }));
-      onAddToCart(product);
+      // للـ variations، نحتاج إنشاء product object بنفس صيغة handleVariationSelect
+      const productToAdd = product.is_variation && product.variation_id
+        ? { ...product, id: `${product.parent_id}_var_${product.variation_id}` }
+        : product;
+      onAddToCart(productToAdd);
     }
   };
 
@@ -96,13 +102,15 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
       {products.map((product) => {
-        const isVariation = product.is_variation && product.variation_id;
-        const key = isVariation ? `var_${product.variation_id}` : `prod_${product.id}`;
-        const currentQty = quantities[key] || 0;
+        // استخدم uniqueId إذا موجود، وإلا أنشئ واحد
+        const uniqueKey = product.uniqueId || (product.is_variation && product.variation_id 
+          ? `${product.parent_id}_var_${product.variation_id}` 
+          : `prod_${product.id}`);
+        const currentQty = getCartQuantity(product);
         const isInCart = currentQty > 0;
 
         return (
-        <div key={product.id} className="group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-blue-400 relative">
+        <div key={uniqueKey} className="group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-blue-400 relative">
           
           {/* 🆕 زر التعديل */}
           {onEdit && (

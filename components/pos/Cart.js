@@ -15,6 +15,7 @@ export function Cart({
   onCustomerSelect,
   onUpdateQuantity,
   onRemoveItem,
+  onAddItem, // 🆕 للإضافة السريعة
   onAddService,
   onUpdateService,
   onRemoveService,
@@ -63,6 +64,15 @@ export function Cart({
   // Load saved services from LocalForage
   const [savedServices, setSavedServices] = useState([]);
   const [selectedServiceId, setSelectedServiceId] = useState('');
+  
+  // 🆕 Quick Add Product State
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAddForm, setQuickAddForm] = useState({ 
+    name: '', 
+    price: '', 
+    saleQuantity: 1,    // الكمية في الفاتورة
+    stockQuantity: 1    // الكمية في المحل
+  });
 
   useEffect(() => {
     loadSavedServices();
@@ -93,6 +103,39 @@ export function Cart({
     
     // Reset dropdown
     setSelectedServiceId('');
+  };
+  
+  // 🆕 Quick Add Product Handler
+  const handleQuickAddProduct = () => {
+    if (!quickAddForm.name || !quickAddForm.price || !quickAddForm.saleQuantity || !quickAddForm.stockQuantity) {
+      return;
+    }
+    
+    const tempProduct = {
+      id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name: quickAddForm.name,
+      price: parseFloat(quickAddForm.price),
+      quantity: parseInt(quickAddForm.saleQuantity), // 🔥 كمية الفاتورة
+      stock_quantity: 999,
+      is_temp_product: true,
+      temp_data: {
+        name: quickAddForm.name,
+        sellingPrice: parseFloat(quickAddForm.price),
+        purchasePrice: 0,
+        stock: parseInt(quickAddForm.stockQuantity), // 🔥 كمية المحل
+        sku: `TEMP-${Date.now()}`,
+        imageUrl: null
+      }
+    };
+    
+    // إضافة للسلة
+    if (onAddItem) {
+      onAddItem(tempProduct);
+    }
+    
+    // Reset form
+    setQuickAddForm({ name: '', price: '', saleQuantity: 1, stockQuantity: 1 });
+    setShowQuickAdd(false);
   };
 
   return (
@@ -269,9 +312,9 @@ export function Cart({
           </div>
         ) : (
           <div className="space-y-2">
-            {items.map((item) => (
+            {items.map((item, index) => (
               <div
-                key={item.id}
+                key={`${item.id}_${item.variation_id || 'single'}_${index}`}
                 className="flex items-center gap-2 bg-white p-2 rounded-lg border border-gray-200 hover:border-blue-400 transition-all"
               >
                 <div className="flex-1 min-w-0">
@@ -337,6 +380,119 @@ export function Cart({
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* 🆕 Quick Add Section */}
+      <div className="border-t border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50 p-2">
+        {!showQuickAdd ? (
+          <button
+            onClick={() => setShowQuickAdd(true)}
+            className="w-full py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 
+              text-white rounded-lg font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2"
+          >
+            <span className="text-lg">⚡</span>
+            <span>إضافة سريعة للسلة</span>
+          </button>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-bold text-green-800 text-sm flex items-center gap-1">
+                <span>⚡</span>
+                <span>إضافة سريعة</span>
+              </h3>
+              <button
+                onClick={() => {
+                  setShowQuickAdd(false);
+                  setQuickAddForm({ name: '', price: '', saleQuantity: 1, stockQuantity: 1 });
+                }}
+                className="text-gray-400 hover:text-gray-600 text-xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            <input
+              type="text"
+              placeholder="اسم المنتج"
+              value={quickAddForm.name}
+              onChange={(e) => setQuickAddForm({ ...quickAddForm, name: e.target.value })}
+              className="w-full px-2 py-1.5 border border-green-300 rounded text-xs font-semibold
+                focus:ring-2 focus:ring-green-500 focus:border-green-500"
+              autoFocus
+            />
+            
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-600 mb-0.5">
+                  💰 السعر
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="السعر"
+                  value={quickAddForm.price}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                      setQuickAddForm({ ...quickAddForm, price: val });
+                    }
+                  }}
+                  className="w-full px-2 py-1.5 border border-green-300 rounded text-xs font-semibold
+                    focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-[10px] font-bold text-blue-600 mb-0.5">
+                  🛒 كمية الفاتورة
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="كمية الفاتورة"
+                  value={quickAddForm.saleQuantity}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d+$/.test(val)) {
+                      setQuickAddForm({ ...quickAddForm, saleQuantity: val === '' ? 1 : parseInt(val) });
+                    }
+                  }}
+                  className="w-full px-2 py-1.5 border border-blue-300 rounded text-xs font-semibold
+                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-[10px] font-bold text-orange-600 mb-0.5">
+                🏪 كمية المحل
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="كمية المحل"
+                value={quickAddForm.stockQuantity}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^\d+$/.test(val)) {
+                    setQuickAddForm({ ...quickAddForm, stockQuantity: val === '' ? 1 : parseInt(val) });
+                  }
+                }}
+                className="w-full px-2 py-1.5 border border-orange-300 rounded text-xs font-semibold
+                  focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+              />
+            </div>
+            
+            <button
+              onClick={handleQuickAddProduct}
+              disabled={!quickAddForm.name || !quickAddForm.price || !quickAddForm.saleQuantity || !quickAddForm.stockQuantity}
+              className="w-full py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 
+                text-white rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ✅ إضافة للسلة
+            </button>
           </div>
         )}
       </div>
@@ -416,9 +572,26 @@ export function Cart({
                     <select
                       value={service.employeeId || ''}
                       onChange={(e) => {
-                        const selectedEmp = employees.find(emp => emp.id == e.target.value);
-                        onUpdateService(service.id, 'employeeId', e.target.value);
-                        onUpdateService(service.id, 'employeeName', selectedEmp?.name || '');
+                        const empId = e.target.value;
+                        console.log('🔍 Selected employee ID:', empId);
+                        
+                        // استخدم == للمقارنة (يتعامل مع string و number)
+                        const selectedEmp = employees.find(emp => emp.id == empId);
+                        console.log('✅ Found employee:', selectedEmp);
+                        
+                        // 🔥 نحدّث employeeId و employeeName مرة واحدة
+                        if (selectedEmp) {
+                          console.log('💾 Updating service with:', { empId, name: selectedEmp.name });
+                          onUpdateService(service.id, {
+                            employeeId: empId,
+                            employeeName: selectedEmp.name
+                          });
+                        } else {
+                          onUpdateService(service.id, {
+                            employeeId: '',
+                            employeeName: ''
+                          });
+                        }
                       }}
                       className="w-full px-2 py-1 border border-gray-300 rounded text-xs
                         focus:ring-1 focus:ring-purple-400 focus:border-purple-400"
