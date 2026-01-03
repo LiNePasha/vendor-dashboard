@@ -157,7 +157,12 @@ export default function InvoicesPage() {
                             invoice.summary?.discount?.type === 'fixed' ? 'مبلغ ثابت' : '-';
         const discountValue = invoice.summary?.discount?.value || 0;
         const discountAmount = invoice.summary?.discount?.amount || 0;
+        
+        // حساب الرسوم الإضافية
+        const extraFeeType = invoice.summary?.extraFeeType === 'percentage' ? 'نسبة مئوية' : 'مبلغ ثابت';
+        const extraFeeValue = invoice.summary?.extraFeeValue || invoice.summary?.extraFee || 0;
         const extraFee = invoice.summary?.extraFee || 0;
+        
         const total = invoice.summary?.total || 0;
         
         // Profit details
@@ -245,9 +250,16 @@ export default function InvoicesPage() {
         discountAmount = invoice.summary.discount.value;
       }
       
-      const extraFee = invoice.summary?.extraFee || 0;
+      // حساب الرسوم الإضافية
+      let extraFeeAmount = 0;
+      if (invoice.summary?.extraFeeType === 'percentage' && invoice.summary?.extraFeeValue) {
+        extraFeeAmount = (subtotal * invoice.summary.extraFeeValue) / 100;
+      } else {
+        extraFeeAmount = invoice.summary?.extraFee || 0;
+      }
+      
       const deliveryFee = invoice.summary?.deliveryFee || 0;
-      const total = subtotal - discountAmount + extraFee + deliveryFee;
+      const total = subtotal - discountAmount + extraFeeAmount + deliveryFee;
       
       // حساب الأرباح
       const productsProfit = updatedItems.reduce((sum, item) => {
@@ -261,7 +273,7 @@ export default function InvoicesPage() {
         : 0;
       
       const finalProductsProfit = productsProfit - discountOnProducts;
-      const totalProfit = finalProductsProfit + servicesTotal + extraFee;
+      const totalProfit = finalProductsProfit + servicesTotal + extraFeeAmount;
       
       // تحديث الفاتورة
       const updatedInvoice = {
@@ -311,9 +323,16 @@ export default function InvoicesPage() {
         discountAmount = invoice.summary.discount.value;
       }
       
-      const extraFee = invoice.summary?.extraFee || 0;
+      // حساب الرسوم الإضافية
+      let extraFeeAmount = 0;
+      if (invoice.summary?.extraFeeType === 'percentage' && invoice.summary?.extraFeeValue) {
+        extraFeeAmount = (subtotal * invoice.summary.extraFeeValue) / 100;
+      } else {
+        extraFeeAmount = invoice.summary?.extraFee || 0;
+      }
+      
       const deliveryFee = invoice.summary?.deliveryFee || 0;
-      const total = subtotal - discountAmount + extraFee + deliveryFee;
+      const total = subtotal - discountAmount + extraFeeAmount + deliveryFee;
       
       // حساب الأرباح
       const productsProfit = invoice.items?.reduce((sum, item) => {
@@ -327,7 +346,7 @@ export default function InvoicesPage() {
         : 0;
       
       const finalProductsProfit = productsProfit - discountOnProducts;
-      const totalProfit = finalProductsProfit + servicesTotal + extraFee;
+      const totalProfit = finalProductsProfit + servicesTotal + extraFeeAmount;
       
       // تحديث الفاتورة
       const updatedInvoice = {
@@ -940,7 +959,7 @@ export default function InvoicesPage() {
                             📦 #{invoice.orderId}
                           </span>
                         )}
-                        
+
                         {/* 🆕 عرض اسم الكاشير */}
                         {invoice.soldBy?.employeeName && (
                           <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-indigo-50 to-blue-50 text-indigo-700 border border-indigo-200">
@@ -1048,7 +1067,9 @@ export default function InvoicesPage() {
                       
                       {invoice.summary?.extraFee > 0 && (
                         <div className="flex justify-between items-center bg-blue-50 rounded-md px-2 py-1.5 border border-blue-200">
-                          <span className="text-blue-700 font-medium">رسوم</span>
+                          <span className="text-blue-700 font-medium">
+                            رسوم {invoice.summary.extraFeeType === 'percentage' ? `${invoice.summary.extraFeeValue}%` : ''}
+                          </span>
                           <span className="font-bold text-blue-700">+ {formatPrice(invoice.summary.extraFee)}</span>
                         </div>
                       )}

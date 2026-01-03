@@ -22,6 +22,7 @@ export default function POSPage() {
   const [discountType, setDiscountType] = useState('amount');
   const [discountApplyMode, setDiscountApplyMode] = useState('both');
   const [extraFee, setExtraFee] = useState(0);
+  const [extraFeeType, setExtraFeeType] = useState('amount');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [showInvoice, setShowInvoice] = useState(false);
   const [lastInvoice, setLastInvoice] = useState(null);
@@ -227,6 +228,7 @@ export default function POSPage() {
       discountType: 'amount',
       discountApplyMode: 'both',
       extraFee: 0,
+      extraFeeType: 'amount',
       deliveryFee: 0,
       deliveryNotes: '',
       deliveryPaymentStatus: 'cash_on_delivery',
@@ -481,6 +483,7 @@ export default function POSPage() {
     setDiscountType(activeTab.discountType);
     setDiscountApplyMode(activeTab.discountApplyMode);
     setExtraFee(activeTab.extraFee);
+    setExtraFeeType(activeTab.extraFeeType);
     setPaymentMethod(activeTab.paymentMethod);
     setOrderType(activeTab.orderType);
     selectCustomer(activeTab.selectedCustomer);
@@ -494,7 +497,8 @@ export default function POSPage() {
       discount: activeTab.discount, 
       discountType: activeTab.discountType,
       discountApplyMode: activeTab.discountApplyMode,
-      extraFee: activeTab.extraFee, 
+      extraFee: activeTab.extraFee,
+      extraFeeType: activeTab.extraFeeType, 
       paymentMethod: activeTab.paymentMethod,
       soldBy: {
         employeeId: selectedEmployee.id,
@@ -737,7 +741,7 @@ export default function POSPage() {
         {/* 🎨 Main Content Area */}
         <div className="flex-1 flex overflow-hidden" dir="ltr">
           {/* 📦 Products Area - LEFT SIDE (الشمال) */}
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50" dir="rtl">
+          <div className="flex-1 overflow-y-auto p-2 bg-gray-50" dir="rtl">
             <div className="max-w-screen-2xl mx-auto">
               {/* Employee Selector - Mobile */}
               <div className="md:hidden mb-4">
@@ -777,7 +781,7 @@ export default function POSPage() {
           </div>
 
           {/* 🛒 Cart - RIGHT SIDE (اليمين) */}
-          <div className="hidden md:flex w-80 bg-white shadow-xl border-l border-gray-200 flex-col ml-auto" dir="rtl">
+          <div className="hidden md:flex w-[25rem] bg-white shadow-xl border-l border-gray-200 flex-col ml-auto" dir="rtl">
             {/* Cart Component - Full Height Scrollable */}
             <div className="flex-1 overflow-y-auto">
               <Cart
@@ -852,6 +856,7 @@ export default function POSPage() {
                 discountType={activeTab?.discountType || discountType}
                 discountApplyMode={activeTab?.discountApplyMode || discountApplyMode}
                 extraFee={activeTab?.extraFee ?? extraFee}
+                extraFeeType={activeTab?.extraFeeType || extraFeeType}
                 deliveryFee={activeTab?.deliveryFee ?? deliveryFee}
                 deliveryNotes={activeTab?.deliveryNotes || deliveryNotes}
                 deliveryPaymentStatus={activeTab?.deliveryPaymentStatus || deliveryPaymentStatus}
@@ -873,6 +878,10 @@ export default function POSPage() {
                 onExtraFeeChange={(v) => {
                   setExtraFee(Number(v));
                   updateActiveTab({ extraFee: Number(v) });
+                }}
+                onExtraFeeTypeChange={(v) => {
+                  setExtraFeeType(v);
+                  updateActiveTab({ extraFeeType: v });
                 }}
                 onDeliveryFeeChange={(v) => {
                   setDeliveryFee(v);

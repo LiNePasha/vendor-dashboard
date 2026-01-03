@@ -25,6 +25,7 @@ export function Cart({
   discountType = 'amount',
   discountApplyMode = 'both',
   extraFee = 0,
+  extraFeeType = 'amount',
   deliveryFee = 0,
   deliveryNotes = '',
   deliveryPaymentStatus = 'cash_on_delivery',
@@ -35,6 +36,7 @@ export function Cart({
   onDiscountTypeChange,
   onDiscountApplyModeChange,
   onExtraFeeChange,
+  onExtraFeeTypeChange,
   onDeliveryFeeChange,
   onDeliveryNotesChange,
   onDeliveryPaymentStatusChange,
@@ -58,8 +60,13 @@ export function Cart({
     ? (subtotal * (discount / 100))
     : discount;
 
+  // Calculate extra fee amount
+  const extraFeeAmount = extraFeeType === 'percentage'
+    ? (subtotal * (extraFee / 100))
+    : extraFee;
+
   // Calculate final total with extra fee and delivery fee
-  const total = subtotal - discountAmount + Number(extraFee) + Number(deliveryFee);
+  const total = subtotal - discountAmount + Number(extraFeeAmount) + Number(deliveryFee);
 
   // Load saved services from LocalForage
   const [savedServices, setSavedServices] = useState([]);
@@ -633,59 +640,92 @@ export function Cart({
       </div>
 
       <div className="border-t p-2 bg-white space-y-2">
-        {/* Payment Method and Discount */}
-        <div className="grid grid-cols-2 gap-2">
+        {/* Payment, Discount & Extra Fee - في صف واحد */}
+        <div className="grid grid-cols-3 gap-1.5">
           {/* Payment Method */}
-          <div className="bg-gray-50 p-2 rounded-lg border border-gray-200">
-            <label className="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
-              <span>💳</span>
-              طريقة الدفع
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-1.5 rounded-md border border-blue-300">
+            <label className="text-[10px] font-bold text-blue-800 mb-0.5 flex items-center gap-0.5">
+              <span className="text-xs">💳</span>
+              <span>الدفع</span>
             </label>
             <select
               value={paymentMethod}
               onChange={(e) => onPaymentMethodChange(e.target.value)}
-              className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold
-                focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-1.5 py-1 bg-white border border-blue-300 rounded text-[11px] font-medium
+                focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-blue-900"
             >
-              <option value="cash">كاش</option>
-              <option value="wallet">محفظة</option>
-              <option value="instapay">انستا باي</option>
-              <option value="vera">مكنة دفع فيزا (فيرا)</option>
-              <option value="other">أخرى</option>
+              <option value="cash">💵 كاش</option>
+              <option value="wallet">👛 محفظة</option>
+              <option value="instapay">📱 انستا</option>
+              <option value="vera">💳 فيزا</option>
+              <option value="other">➕ أخرى</option>
             </select>
           </div>
 
           {/* Discount */}
-          <div className="bg-gray-50 p-2 rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-bold text-gray-700 flex items-center gap-1">
-                <span>🏷️</span>
-                الخصم
-              </label>
+          <div className="bg-gradient-to-br from-red-50 to-rose-50 p-1.5 rounded-md border border-red-300">
+            <label className="text-[10px] font-bold text-red-800 flex items-center gap-0.5 mb-0.5">
+              <span className="text-xs">🏷️</span>
+              <span>خصم</span>
+            </label>
+            <div className="flex gap-1">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={discount}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                    onDiscountChange(val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
+                  }
+                }}
+                className="flex-1 px-1.5 py-1 bg-white border border-red-300 rounded text-[11px] font-medium
+                  focus:ring-1 focus:ring-red-500 focus:border-red-500 text-red-900 min-w-0"
+                placeholder="0"
+              />
               <select
                 value={discountType}
                 onChange={(e) => onDiscountTypeChange(e.target.value)}
-                className="px-2 py-0.5 bg-white border border-gray-300 rounded-lg text-xs 
-                  font-bold focus:ring-1 focus:ring-red-500"
+                className="px-1.5 py-1 bg-white border border-red-300 rounded text-[11px] 
+                  font-medium focus:ring-1 focus:ring-red-500 text-red-900 w-12"
               >
                 <option value="percentage">%</option>
                 <option value="amount">ج.م</option>
               </select>
             </div>
-            <input
-              type="text"
-              inputMode="decimal"
-              value={discount}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
-                  onDiscountChange(val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
-                }
-              }}
-              className="w-full px-2 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold
-                focus:ring-2 focus:ring-red-500 focus:border-red-500"
-              placeholder="0"
-            />
+          </div>
+
+          {/* Extra Fee */}
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-1.5 rounded-md border border-green-300">
+            <label className="text-[10px] font-bold text-green-800 flex items-center gap-0.5 mb-0.5">
+              <span className="text-xs">➕</span>
+              <span>رسوم</span>
+            </label>
+            <div className="flex gap-1">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={extraFee}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                    onExtraFeeChange(val === '' ? 0 : Math.max(0, parseFloat(val) || 0));
+                  }
+                }}
+                className="flex-1 px-1.5 py-1 bg-white border border-green-300 rounded text-[11px] font-medium
+                  focus:ring-1 focus:ring-green-500 focus:border-green-500 text-green-900 min-w-0"
+                placeholder="0"
+              />
+              <select
+                value={extraFeeType}
+                onChange={(e) => onExtraFeeTypeChange(e.target.value)}
+                className="px-1.5 py-1 bg-white border border-green-300 rounded text-[11px] 
+                  font-medium focus:ring-1 focus:ring-green-500 text-green-900 w-12"
+              >
+                <option value="percentage">%</option>
+                <option value="amount">ج.م</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -745,8 +785,12 @@ export function Cart({
 
           {extraFee > 0 && (
             <div className="flex justify-between text-sm text-green-600 font-bold">
-              <span>رسوم إضافية:</span>
-              <span>+ {Number(extraFee).toFixed(2)} ج.م</span>
+              <span>
+                رسوم إضافية ({extraFeeType === 'percentage'
+                  ? `${extraFee}%`
+                  : `${extraFee} ج.م`}):
+              </span>
+              <span>+ {extraFeeAmount.toFixed(2)} ج.م</span>
             </div>
           )}
 

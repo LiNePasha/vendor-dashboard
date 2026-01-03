@@ -578,9 +578,14 @@ const usePOSStore = create(persist((set, get) => ({
         ? (discountBase * (Number(paymentDetails.discount) / 100))
         : Number(paymentDetails.discount);
 
+      // 🆕 حساب الرسوم الإضافية بناءً على النوع
+      const extraFeeAmount = paymentDetails.extraFeeType === 'percentage'
+        ? (subtotal * (Number(paymentDetails.extraFee) / 100))
+        : Number(paymentDetails.extraFee);
+
       // إضافة رسوم التوصيل إذا كان الطلب توصيل
       const finalDeliveryFee = orderType === 'delivery' ? Number(deliveryFee) : 0;
-      const finalTotal = subtotal - discountAmount + Number(paymentDetails.extraFee) + finalDeliveryFee;
+      const finalTotal = subtotal - discountAmount + extraFeeAmount + finalDeliveryFee;
 
       if (finalTotal < 0) {
         return { error: 'إجمالي الفاتورة لا يمكن أن يكون سالباً' };
@@ -677,7 +682,7 @@ const usePOSStore = create(persist((set, get) => ({
       // - الرسوم الإضافية (إيراد كامل)
       // - إيرادات الخدمات (بعد الخصم)
       // - رسوم التوصيل (إيراد كامل)
-      const totalProfit = finalProductsProfit + Number(paymentDetails.extraFee) + finalServicesProfit + finalDeliveryFee;
+      const totalProfit = finalProductsProfit + extraFeeAmount + finalServicesProfit + finalDeliveryFee;
 
       // Create invoice
       const invoice = {
@@ -708,7 +713,9 @@ const usePOSStore = create(persist((set, get) => ({
             amount: discountAmount,
             applyMode: discountApplyMode // 🆕 وضع تطبيق الخصم
           },
-          extraFee: Number(paymentDetails.extraFee),
+          extraFee: extraFeeAmount,
+          extraFeeType: paymentDetails.extraFeeType || 'amount', // 🆕 نوع الرسوم
+          extraFeeValue: Number(paymentDetails.extraFee), // 🆕 القيمة الأصلية للرسوم
           deliveryFee: finalDeliveryFee, // 🆕 رسوم التوصيل
           total: finalTotal,
           totalProfit: totalProfit, // الربح الكلي (بعد الخصم والرسوم)
