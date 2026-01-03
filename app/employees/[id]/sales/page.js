@@ -44,6 +44,9 @@ export default function EmployeeSalesPage() {
       // تحميل كل الفواتير
       const allInvoices = await invoiceStorage.getAllInvoices();
       
+      console.log('🔍 Looking for employee:', employeeId);
+      console.log('📊 Total invoices:', allInvoices.length);
+      
       // فلترة فواتير الموظف في الشهر المحدد
       // 🔥 نجيب الفواتير اللي الموظف باعها أو عمل فيها خدمة
       const employeeInvoices = allInvoices.filter(inv => {
@@ -53,11 +56,22 @@ export default function EmployeeSalesPage() {
         
         if (!isInPeriod) return false;
         
-        // لو الموظف هو البائع
-        const isSeller = inv.soldBy?.employeeId == employeeId;
+        // لو الموظف هو البائع (نقارن بالـ employeeCode)
+        const isSeller = inv.soldBy?.employeeCode === employeeId || String(inv.soldBy?.employeeId) === String(employeeId);
         
-        // لو الموظف عامل خدمة في الفاتورة
-        const hasService = (inv.services || []).some(s => s.employeeId == employeeId);
+        // لو الموظف عامل خدمة في الفاتورة (نقارن بالـ employeeCode أو employeeId)
+        const hasService = (inv.services || []).some(s => {
+          if (!s.employeeId) return false;
+          const match = s.employeeCode === employeeId || String(s.employeeId) === String(employeeId);
+          if (match) {
+            console.log('✅ Found service match in invoice:', inv.id, 'Service:', s.description, 'employeeCode:', s.employeeCode, 'employeeId:', s.employeeId);
+          }
+          return match;
+        });
+        
+        if (hasService) {
+          console.log('🔧 Invoice with services:', inv.id, 'Services:', inv.services);
+        }
         
         return isSeller || hasService;
       });
@@ -86,10 +100,12 @@ export default function EmployeeSalesPage() {
 
   const calculateSalesStats = (invoices) => {
     // 🔥 نفصل الفواتير: اللي الموظف باعها vs اللي عمل فيها خدمة بس
-    const salesInvoices = invoices.filter(inv => inv.soldBy?.employeeId == employeeId);
+    const salesInvoices = invoices.filter(inv => 
+      inv.soldBy?.employeeCode === employeeId || String(inv.soldBy?.employeeId) === String(employeeId)
+    );
     const serviceOnlyInvoices = invoices.filter(inv => 
-      inv.soldBy?.employeeId != employeeId && 
-      (inv.services || []).some(s => s.employeeId == employeeId)
+      !(inv.soldBy?.employeeCode === employeeId || String(inv.soldBy?.employeeId) === String(employeeId)) && 
+      (inv.services || []).some(s => s.employeeId && (s.employeeCode === employeeId || String(s.employeeId) === String(employeeId)))
     );
     
     const totalSales = salesInvoices.reduce((sum, inv) => sum + (inv.summary?.total || inv.total || 0), 0);
@@ -106,7 +122,9 @@ export default function EmployeeSalesPage() {
     // 🔧 حساب ربح الخدمات من كل الفواتير (اللي باعها + اللي عمل فيها خدمة)
     const servicesProfit = invoices.reduce((sum, inv) => {
       const services = inv.services || [];
-      const employeeServices = services.filter(s => s.employeeId == employeeId);
+      const employeeServices = services.filter(s => 
+        s.employeeId && (s.employeeCode === employeeId || String(s.employeeId) === String(employeeId))
+      );
       
       // حساب إجمالي خدمات الموظف في الفاتورة دي
       const employeeServicesTotal = employeeServices.reduce((serviceSum, s) => serviceSum + (s.amount || 0), 0);

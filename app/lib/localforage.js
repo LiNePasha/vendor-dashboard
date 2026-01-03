@@ -55,6 +55,14 @@ export const invoiceStorage = {
     await localforage.setItem('invoices', updatedInvoices);
   },
 
+  async updateInvoice(invoiceId, updatedInvoice) {
+    const invoices = await this.getAllInvoices();
+    const updatedInvoices = invoices.map(invoice => 
+      invoice.id === invoiceId ? updatedInvoice : invoice
+    );
+    await localforage.setItem('invoices', updatedInvoices);
+  },
+
   async clearAll() {
     await localforage.setItem('invoices', []);
   }

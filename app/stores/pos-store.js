@@ -117,14 +117,15 @@ const usePOSStore = create(persist((set, get) => ({
   },
 
   // Service Actions
-  addService: (id = null, description = '', amount = 0, employeeId = null, employeeName = null) => {
+  addService: (id = null, description = '', amount = 0, employeeId = null, employeeName = null, employeeCode = null) => {
     const { services } = get();
     const newService = {
       id: id || Date.now().toString(),
       description: description,
       amount: amount,
       employeeId: employeeId,
-      employeeName: employeeName
+      employeeName: employeeName,
+      employeeCode: employeeCode  // 🔥 إضافة employeeCode
     };
     set({ services: [...services, newService] });
   },
@@ -632,13 +633,18 @@ const usePOSStore = create(persist((set, get) => ({
       // Filter valid services (must have description and positive amount)
         const validServices = services
           .filter(s => s.description.trim() && s.amount > 0)
-          .map(s => ({
-            id: s.id,
-            description: s.description.trim(),
-            amount: Number(s.amount),
-            employeeId: s.employeeId || null, // 🔥 حفظ معلومات الموظف
-            employeeName: s.employeeName || null
-          }));      // 💰 حساب الربح النهائي (مع الخصم والرسوم)
+          .map(s => {
+            const serviceData = {
+              id: s.id,
+              description: s.description.trim(),
+              amount: Number(s.amount),
+              employeeId: s.employeeId ? String(s.employeeId) : null, // 🔥 حفظ معلومات الموظف كـ string
+              employeeName: s.employeeName || null,
+              employeeCode: s.employeeCode || null // 🔥 حفظ كود الموظف للمقارنة
+            };
+            console.log('💾 Saving service:', serviceData);
+            return serviceData;
+          });      // 💰 حساب الربح النهائي (مع الخصم والرسوم)
       
       // 🔥 توزيع الخصم بناءً على وضع التطبيق
       let discountOnProducts = 0;

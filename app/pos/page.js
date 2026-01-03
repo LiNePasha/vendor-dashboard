@@ -466,7 +466,14 @@ export default function POSPage() {
     
     // نحط الخدمات
     for (const service of activeTab.services || []) {
-      await addService(service.id, service.description, service.amount);
+      await addService(
+        service.id, 
+        service.description, 
+        service.amount,
+        service.employeeId,      // 🔥 نضيف employeeId
+        service.employeeName,    // 🔥 نضيف employeeName
+        service.employeeCode     // 🔥 نضيف employeeCode
+      );
     }
     
     // نحط باقي البيانات
@@ -492,7 +499,7 @@ export default function POSPage() {
       soldBy: {
         employeeId: selectedEmployee.id,
         employeeName: selectedEmployee.name,
-        employeeCode: selectedEmployee.employeeCode
+        employeeCode: selectedEmployee.id // 🔥 id هو نفسه employeeCode في structure الموظف
       },
       deliveryPayment: activeTab.orderType === 'delivery' ? {
         status: activeTab.deliveryPaymentStatus,

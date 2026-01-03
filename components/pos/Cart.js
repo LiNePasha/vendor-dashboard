@@ -579,17 +579,19 @@ export function Cart({
                         const selectedEmp = employees.find(emp => emp.id == empId);
                         console.log('✅ Found employee:', selectedEmp);
                         
-                        // 🔥 نحدّث employeeId و employeeName مرة واحدة
+                        // 🔥 نحدّث employeeId و employeeName و employeeCode مرة واحدة
                         if (selectedEmp) {
-                          console.log('💾 Updating service with:', { empId, name: selectedEmp.name });
+                          console.log('💾 Updating service with:', { empId, name: selectedEmp.name, code: selectedEmp.id });
                           onUpdateService(service.id, {
                             employeeId: empId,
-                            employeeName: selectedEmp.name
+                            employeeName: selectedEmp.name,
+                            employeeCode: selectedEmp.id // 🔥 id هو نفسه employeeCode
                           });
                         } else {
                           onUpdateService(service.id, {
                             employeeId: '',
-                            employeeName: ''
+                            employeeName: '',
+                            employeeCode: ''
                           });
                         }
                       }}
@@ -599,7 +601,7 @@ export function Cart({
                       <option value="">👤 اختر الموظف المسؤول...</option>
                       {employees.map(emp => (
                         <option key={emp.id} value={emp.id}>
-                          {emp.name} - {emp.employeeCode}
+                          {emp.name} ({emp.id})
                         </option>
                       ))}
                     </select>

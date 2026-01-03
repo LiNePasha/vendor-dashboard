@@ -33,9 +33,15 @@ export default function InvoicesPage() {
 
   const loadInvoices = async () => {
     const allInvoices = await invoiceStorage.getAllInvoices();
-    setInvoices(allInvoices.sort((a, b) => 
+    // 🔥 نرتب الفواتير من الأحدث للأقدم الأول
+    const sortedInvoices = allInvoices.sort((a, b) => 
       new Date(b.date).getTime() - new Date(a.date).getTime()
-    ));
+    );
+    // 🔥 دلوقتي نعرض آخر فاتورة (الأحدث)
+    console.log('📊 Latest invoice soldBy:', sortedInvoices[0]?.soldBy);
+    console.log('🔧 Latest invoice services:', sortedInvoices[0]?.services);
+    console.log('📦 Latest invoice:', sortedInvoices[0]);
+    setInvoices(sortedInvoices);
     setLoading(false);
   };
 
@@ -218,6 +224,138 @@ export default function InvoicesPage() {
   const printInvoice = (invoice) => {
     const url = `/pos/invoices/print?id=${encodeURIComponent(invoice.id)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // 🆕 حذف منتج من الفاتورة
+  const deleteProductFromInvoice = async (invoice, itemId) => {
+    try {
+      // تصفية المنتجات (حذف المنتج المطلوب)
+      const updatedItems = invoice.items.filter(item => item.id !== itemId);
+      
+      // إعادة حساب المجاميع
+      const productsSubtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const servicesTotal = invoice.services?.reduce((sum, service) => sum + service.amount, 0) || 0;
+      const subtotal = productsSubtotal + servicesTotal;
+      
+      // حساب الخصم
+      let discountAmount = 0;
+      if (invoice.summary?.discount?.type === 'percentage') {
+        discountAmount = (subtotal * invoice.summary.discount.value) / 100;
+      } else if (invoice.summary?.discount?.type === 'fixed') {
+        discountAmount = invoice.summary.discount.value;
+      }
+      
+      const extraFee = invoice.summary?.extraFee || 0;
+      const deliveryFee = invoice.summary?.deliveryFee || 0;
+      const total = subtotal - discountAmount + extraFee + deliveryFee;
+      
+      // حساب الأرباح
+      const productsProfit = updatedItems.reduce((sum, item) => {
+        const purchasePrice = item.purchase_price || 0;
+        const profit = (item.price - purchasePrice) * item.quantity;
+        return sum + profit;
+      }, 0);
+      
+      const discountOnProducts = invoice.summary?.discount?.amount > 0 
+        ? (productsSubtotal > 0 ? (discountAmount * productsSubtotal) / subtotal : 0)
+        : 0;
+      
+      const finalProductsProfit = productsProfit - discountOnProducts;
+      const totalProfit = finalProductsProfit + servicesTotal + extraFee;
+      
+      // تحديث الفاتورة
+      const updatedInvoice = {
+        ...invoice,
+        items: updatedItems,
+        summary: {
+          ...invoice.summary,
+          productsSubtotal,
+          servicesTotal,
+          subtotal,
+          discount: invoice.summary?.discount ? {
+            ...invoice.summary.discount,
+            amount: discountAmount
+          } : null,
+          total,
+          productsProfit,
+          discountOnProducts,
+          finalProductsProfit,
+          totalProfit
+        }
+      };
+      
+      await invoiceStorage.updateInvoice(invoice.id, updatedInvoice);
+      await loadInvoices();
+      setToast({ message: '✅ تم حذف المنتج من الفاتورة', type: 'success' });
+    } catch (error) {
+      setToast({ message: 'فشل حذف المنتج', type: 'error' });
+    }
+  };
+
+  // 🆕 حذف خدمة من الفاتورة
+  const deleteServiceFromInvoice = async (invoice, serviceIndex) => {
+    try {
+      // تصفية الخدمات (حذف الخدمة المطلوبة)
+      const updatedServices = invoice.services.filter((_, idx) => idx !== serviceIndex);
+      
+      // إعادة حساب المجاميع
+      const productsSubtotal = invoice.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0;
+      const servicesTotal = updatedServices.reduce((sum, service) => sum + service.amount, 0);
+      const subtotal = productsSubtotal + servicesTotal;
+      
+      // حساب الخصم
+      let discountAmount = 0;
+      if (invoice.summary?.discount?.type === 'percentage') {
+        discountAmount = (subtotal * invoice.summary.discount.value) / 100;
+      } else if (invoice.summary?.discount?.type === 'fixed') {
+        discountAmount = invoice.summary.discount.value;
+      }
+      
+      const extraFee = invoice.summary?.extraFee || 0;
+      const deliveryFee = invoice.summary?.deliveryFee || 0;
+      const total = subtotal - discountAmount + extraFee + deliveryFee;
+      
+      // حساب الأرباح
+      const productsProfit = invoice.items?.reduce((sum, item) => {
+        const purchasePrice = item.purchase_price || 0;
+        const profit = (item.price - purchasePrice) * item.quantity;
+        return sum + profit;
+      }, 0) || 0;
+      
+      const discountOnProducts = invoice.summary?.discount?.amount > 0 
+        ? (productsSubtotal > 0 ? (discountAmount * productsSubtotal) / subtotal : 0)
+        : 0;
+      
+      const finalProductsProfit = productsProfit - discountOnProducts;
+      const totalProfit = finalProductsProfit + servicesTotal + extraFee;
+      
+      // تحديث الفاتورة
+      const updatedInvoice = {
+        ...invoice,
+        services: updatedServices,
+        summary: {
+          ...invoice.summary,
+          productsSubtotal,
+          servicesTotal,
+          subtotal,
+          discount: invoice.summary?.discount ? {
+            ...invoice.summary.discount,
+            amount: discountAmount
+          } : null,
+          total,
+          productsProfit,
+          discountOnProducts,
+          finalProductsProfit,
+          totalProfit
+        }
+      };
+      
+      await invoiceStorage.updateInvoice(invoice.id, updatedInvoice);
+      await loadInvoices();
+      setToast({ message: '✅ تم حذف الخدمة من الفاتورة', type: 'success' });
+    } catch (error) {
+      setToast({ message: 'فشل حذف الخدمة', type: 'error' });
+    }
   };
 
   // Filter invoices
@@ -803,6 +941,13 @@ export default function InvoicesPage() {
                           </span>
                         )}
                         
+                        {/* 🆕 عرض اسم الكاشير */}
+                        {invoice.soldBy?.employeeName && (
+                          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-indigo-50 to-blue-50 text-indigo-700 border border-indigo-200">
+                            👤 {invoice.soldBy.employeeName}
+                          </span>
+                        )}
+                        
                         {/* 🆕 Payment Status - Editable Dropdown */}
                         <select
                           value={invoice.paymentStatus || 'paid_full'}
@@ -1134,9 +1279,23 @@ export default function InvoicesPage() {
                                 <span className="text-xs text-gray-600">{formatPrice(item.price)} × {item.quantity}</span>
                               </div>
                             </div>
-                            <span className="font-bold text-blue-700 text-xs">
-                              {formatPrice(Number(item.price) * item.quantity)}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-blue-700 text-xs">
+                                {formatPrice(Number(item.price) * item.quantity)}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm(`هل تريد حذف "${item.name}" من الفاتورة؟`)) {
+                                    deleteProductFromInvoice(invoice, item.id);
+                                  }
+                                }}
+                                className="opacity-0 group-hover:opacity-100 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-md flex items-center justify-center transition-all text-xs font-bold"
+                                title="حذف المنتج"
+                              >
+                                ×
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1152,14 +1311,33 @@ export default function InvoicesPage() {
                       </div>
                       <div className="space-y-1.5">
                         {invoice.services.map((service, index) => (
-                          <div key={index} className="flex items-center justify-between text-xs bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-2 border border-purple-200">
-                            <div className="flex items-center gap-2">
+                          <div key={index} className="group flex items-center justify-between text-xs bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-2 border border-purple-200 hover:border-purple-400 transition-all">
+                            <div className="flex items-center gap-2 flex-1">
                               <span className="text-lg">🔧</span>
-                              <span className="font-semibold text-gray-900">{service.description}</span>
+                              <div className="flex-1">
+                                <span className="font-semibold text-gray-900 block">{service.description}</span>
+                                {service.employeeName && (
+                                  <span className="text-[10px] text-purple-600 font-medium">👤 {service.employeeName}</span>
+                                )}
+                              </div>
                             </div>
-                            <span className="font-bold text-purple-700">
-                              {formatPrice(service.amount)}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-purple-700">
+                                {formatPrice(service.amount)}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm(`هل تريد حذف خدمة "${service.description}" من الفاتورة؟`)) {
+                                    deleteServiceFromInvoice(invoice, index);
+                                  }
+                                }}
+                                className="opacity-0 group-hover:opacity-100 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-md flex items-center justify-center transition-all text-xs font-bold"
+                                title="حذف الخدمة"
+                              >
+                                ×
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
