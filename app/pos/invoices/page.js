@@ -1178,6 +1178,21 @@ export default function InvoicesPage() {
                     </div>
                   )}
 
+                  {/* Order Notes - if available */}
+                  {invoice.orderNotes && (
+                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-3 mb-3 border-2 border-purple-300">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-7 h-7 bg-purple-500 rounded-full flex items-center justify-center">
+                          <span className="text-white text-sm">📝</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-purple-900">ملاحظات على الطلب</h4>
+                      </div>
+                      <div className="bg-white rounded-md p-2 border border-purple-200">
+                        <p className="text-xs text-purple-900 whitespace-pre-wrap leading-relaxed">{invoice.orderNotes}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* 🆕 Payment Status for Delivery Orders */}
                   {invoice.deliveryPayment && (
                     <div className={`rounded-lg p-3 mb-3 border-2 ${

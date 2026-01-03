@@ -743,6 +743,7 @@ const usePOSStore = create(persist((set, get) => ({
             : null,
           note: paymentDetails.deliveryPayment.note || null
         } : null,
+        orderNotes: paymentDetails.orderNotes || '',
         synced: false
       };
 

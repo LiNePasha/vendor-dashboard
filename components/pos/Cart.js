@@ -31,6 +31,7 @@ export function Cart({
   deliveryPaymentStatus = 'cash_on_delivery',
   deliveryPaidAmount = 0,
   deliveryPaymentNote = '',
+  orderNotes = '',
   paymentMethod = 'cash',
   onDiscountChange,
   onDiscountTypeChange,
@@ -42,6 +43,7 @@ export function Cart({
   onDeliveryPaymentStatusChange,
   onDeliveryPaidAmountChange,
   onDeliveryPaymentNoteChange,
+  onOrderNotesChange,
   onPaymentMethodChange
 }) {
   const productsSubtotal = items.reduce(
@@ -748,6 +750,22 @@ export function Cart({
             </select>
           </div>
         )}
+
+        {/* Order Notes (ملاحظات الطلب) */}
+        <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-300 rounded-lg p-2">
+          <label className="text-xs font-bold text-purple-800 mb-1 flex items-center gap-1">
+            <span className="text-base">📝</span>
+            ملاحظات على الطلب
+          </label>
+          <textarea
+            value={orderNotes}
+            onChange={(e) => onOrderNotesChange(e.target.value)}
+            placeholder="أي ملاحظات أو تفاصيل إضافية..."
+            rows={2}
+            className="w-full px-2 py-1.5 bg-white border-2 border-purple-300 rounded-lg text-xs
+              focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none text-purple-900"
+          />
+        </div>
 
         {/* Totals */}
         <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-gray-200">

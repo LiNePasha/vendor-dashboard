@@ -570,6 +570,21 @@ function PrintInvoiceContent() {
           </div>
         )}
 
+        {/* Order Notes - ملاحظات على الطلب */}
+        {invoice.orderNotes && (
+          <div style={{ 
+            marginBottom: '2mm', 
+            padding: '2mm',
+            border: '2px solid #000',
+            fontSize: '9px',
+            color: '#000',
+            backgroundColor: '#f5f5f5'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '10px' }}>📝 ملاحظات على الطلب:</div>
+            <div style={{ lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>{invoice.orderNotes}</div>
+          </div>
+        )}
+
         {/* Footer */}
         <div style={{ textAlign: 'center', borderTop: '1px dashed #000', paddingTop: '2mm', fontSize: '10px' }}>
           <div style={{ fontSize: '9px', color: '#222' }}>موقع {vendorInfo.name} الرسمي</div>

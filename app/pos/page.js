@@ -47,6 +47,7 @@ export default function POSPage() {
   const [deliveryPaymentStatus, setDeliveryPaymentStatus] = useState('cash_on_delivery');
   const [deliveryPaidAmount, setDeliveryPaidAmount] = useState(0);
   const [deliveryPaymentNote, setDeliveryPaymentNote] = useState('');
+  const [orderNotes, setOrderNotes] = useState('');
 
   // 🆕 Multi-Tabs System for Multiple Invoices
   const [tabs, setTabs] = useState([]);
@@ -158,6 +159,17 @@ export default function POSPage() {
     }
   }, [tabs, activeTabId]);
 
+  // 🔥 التأكد دايماً إن الـ activeTabId موجود ضمن الـ tabs
+  useEffect(() => {
+    if (tabs.length > 0) {
+      const activeExists = tabs.some(t => t.id === activeTabId);
+      if (!activeExists) {
+        // لو الـ activeTabId مش موجود، اختار أول tab
+        setActiveTabId(tabs[0].id);
+      }
+    }
+  }, [tabs, activeTabId]);
+
   useEffect(() => {
     if (!initialized) {
       // تحميل الموظفين النشطين
@@ -234,6 +246,7 @@ export default function POSPage() {
       deliveryPaymentStatus: 'cash_on_delivery',
       deliveryPaidAmount: 0,
       deliveryPaymentNote: '',
+      orderNotes: '',
       paymentMethod: 'cash',
       orderType: 'store',
       selectedCustomer: null,
@@ -500,6 +513,7 @@ export default function POSPage() {
       extraFee: activeTab.extraFee,
       extraFeeType: activeTab.extraFeeType, 
       paymentMethod: activeTab.paymentMethod,
+      orderNotes: activeTab.orderNotes || '',
       soldBy: {
         employeeId: selectedEmployee.id,
         employeeName: selectedEmployee.name,
@@ -545,31 +559,51 @@ export default function POSPage() {
         });
       }
       
-      // إعادة تهيئة الـ tab الحالي (مسح السلة)
-      updateActiveTab(createNewTab(activeTab.customName));
+      // إعادة تهيئة الـ tab الحالي (مسح السلة فقط مع الحفاظ على الـ ID)
+      updateActiveTab({
+        cart: [],
+        services: [],
+        discount: 0,
+        discountType: 'amount',
+        discountApplyMode: 'both',
+        extraFee: 0,
+        extraFeeType: 'amount',
+        deliveryFee: 0,
+        deliveryNotes: '',
+        deliveryPaymentStatus: 'cash_on_delivery',
+        deliveryPaidAmount: 0,
+        deliveryPaymentNote: '',
+        orderNotes: '',
+        paymentMethod: 'cash',
+        orderType: 'store',
+        selectedCustomer: null
+      });
       
-      // 🔄 إعادة تحميل البيانات بعد البيع
-      try {
-        await syncAllProducts();
-        
-        const invoiceId = result.invoice.id;
-        const checkSyncStatus = setInterval(async () => {
-          try {
-            const { invoiceStorage } = await import('@/app/lib/localforage');
-            const updatedInvoice = await invoiceStorage.getInvoice(invoiceId);
-            if (updatedInvoice && updatedInvoice.synced) {
-              setLastInvoice(updatedInvoice);
-              clearInterval(checkSyncStatus);
-            }
-          } catch (error) {
-            // Silently handle error
+      // 🔄 إعادة تحميل المنتجات تلقائياً بعد الفاتورة عشان الكاشير يشتغل صح
+      setTimeout(async () => {
+        try {
+          await syncAllProducts();
+        } catch (error) {
+          console.error('Error syncing products after checkout:', error);
+        }
+      }, 500);
+      
+      // 🔄 مزامنة الفاتورة في الخلفية بدون إعادة تحميل كل المنتجات
+      const invoiceId = result.invoice.id;
+      const checkSyncStatus = setInterval(async () => {
+        try {
+          const { invoiceStorage } = await import('@/app/lib/localforage');
+          const updatedInvoice = await invoiceStorage.getInvoice(invoiceId);
+          if (updatedInvoice && updatedInvoice.synced) {
+            setLastInvoice(updatedInvoice);
+            clearInterval(checkSyncStatus);
           }
-        }, 2000);
-        
-        setTimeout(() => clearInterval(checkSyncStatus), 40000);
-      } catch (error) {
-        console.error('Error reloading data after checkout:', error);
-      }
+        } catch (error) {
+          clearInterval(checkSyncStatus);
+        }
+      }, 2000);
+      
+      setTimeout(() => clearInterval(checkSyncStatus), 30000);
     } else {
       setToast({ message: result.error || 'فشل أثناء المحاولة', type: 'error' });
     }
@@ -862,6 +896,7 @@ export default function POSPage() {
                 deliveryPaymentStatus={activeTab?.deliveryPaymentStatus || deliveryPaymentStatus}
                 deliveryPaidAmount={activeTab?.deliveryPaidAmount ?? deliveryPaidAmount}
                 deliveryPaymentNote={activeTab?.deliveryPaymentNote || deliveryPaymentNote}
+                orderNotes={activeTab?.orderNotes || orderNotes}
                 paymentMethod={activeTab?.paymentMethod || paymentMethod}
                 onDiscountChange={(v) => {
                   setDiscount(Number(v));
@@ -902,6 +937,10 @@ export default function POSPage() {
                 onDeliveryPaymentNoteChange={(v) => {
                   setDeliveryPaymentNote(v);
                   updateActiveTab({ deliveryPaymentNote: v });
+                }}
+                onOrderNotesChange={(v) => {
+                  setOrderNotes(v);
+                  updateActiveTab({ orderNotes: v });
                 }}
                 onPaymentMethodChange={(v) => {
                   setPaymentMethod(v);
