@@ -488,17 +488,26 @@ export default function OrderDetailsModal({
               {/* 🆕 إخفاء الشحن لو استلام من المتجر */}
               {!isStorePickup && order.shipping_total && parseFloat(order.shipping_total) > 0 && (
                 <div className="flex justify-between items-center text-gray-700">
-                  <span className="font-medium">🚚 الشحن</span>
-                  <span className="font-semibold">{order.shipping_total} {order.currency}</span>
+                  <span className="font-medium">🚚 رنج الشحن</span>
+                  <span className="font-semibold">من {order.shipping_total - 25} إلي {order.shipping_total} {order.currency}</span>
+                </div>
+              )}
+
+              {!isStorePickup && order.shipping_total && parseFloat(order.shipping_total) > 0 && (
+                <div className="flex justify-between items-center text-gray-700">
+                  <span className="font-medium"> 💰 مجموع الاوردر</span>
+                  <p className="text-gray-900 font-bold text-xl flex items-center gap-2">
+                      {(parseFloat(order.total) - parseFloat(order.shipping_total || 0)).toFixed(2)} {order.currency}
+                    </p>
                 </div>
               )}
               
-              <div className="flex justify-between items-center pt-3 border-t-2 border-blue-200">
+              {/* <div className="flex justify-between items-center pt-3 border-t-2 border-blue-200">
                 <h3 className="font-bold text-xl text-gray-800">المجموع الكلي</h3>
                 <p className="text-3xl font-bold text-blue-600">
                   {order.total} {order.currency}
                 </p>
-              </div>
+              </div> */}
             </div>
           </section>
         </div>

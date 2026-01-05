@@ -148,7 +148,7 @@ export function Cart({
   };
 
   return (
-    <div className="h-full flex flex-col bg-white">
+    <div className="h-full flex flex-col bg-white relative">
       {/* Header */}
       {/* <div className="p-2 bg-blue-900 text-white flex-shrink-0">
         <h2 className="text-base font-bold flex items-center gap-2">
@@ -312,7 +312,7 @@ export function Cart({
       </div>
 
       {/* Cart Items */}
-      <div className="flex-1 overflow-y-auto p-2 bg-gray-50" style={{ minHeight: '10rem' }}>
+      <div className="flex-1 overflow-y-auto p-2 bg-gray-50 pb-20" style={{ minHeight: '10rem' }}>
         {items.length === 0 ? (
           <div className="text-center text-gray-400 py-8">
             <div className="text-4xl mb-2">🛒</div>
@@ -641,7 +641,8 @@ export function Cart({
         </div>
       </div>
 
-      <div className="border-t p-2 bg-white space-y-2">
+      {/* Payment Settings Section - Scrollable */}
+      <div className="border-t p-2 bg-white space-y-2 overflow-y-auto" style={{ minHeight: '200px' }}>
         {/* Payment, Discount & Extra Fee - في صف واحد */}
         <div className="grid grid-cols-3 gap-1.5">
           {/* Payment Method */}
@@ -766,8 +767,10 @@ export function Cart({
               focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none text-purple-900"
           />
         </div>
+      </div>
 
-        {/* Totals */}
+      {/* Totals - خارج الـ scrollable section عشان يكون دايماً مرئي */}
+      <div className="border-t border-gray-200 p-2 bg-white pb-24">
         <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
           {productsSubtotal > 0 && (
             <div className="flex justify-between text-sm text-gray-700 font-bold">
@@ -819,36 +822,103 @@ export function Cart({
             </div>
           )}
           
-          <div className="flex justify-between text-lg font-black pt-2 border-t-2 border-gray-400">
+          {/* <div className="flex justify-between text-lg font-black pt-2 border-t-2 border-gray-400">
             <span className="text-gray-900">الإجمالي:</span>
             <span className="text-blue-600">{total.toFixed(2)} ج.م</span>
-          </div>
+          </div> */}
         </div>
 
-        <button
-          onClick={onCheckout}
-          disabled={items.length === 0 && services.length === 0 || processing}
-          className={`w-full py-3 px-4 rounded-lg font-bold text-white text-base
-            transition-all
-            ${
-              (items.length === 0 && services.length === 0) || processing
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-green-600 hover:bg-green-700 shadow-lg hover:shadow-xl'
-            }
-          `}
-        >
-          {processing ? (
-            <span className="flex items-center justify-center gap-2">
-              <span className="animate-spin">⏳</span>
-              جاري المعالجة...
-            </span>
-          ) : (
-            <span className="flex items-center justify-center gap-2">
-              <span>✓</span>
-              إتمام البيع
-            </span>
-          )}
-        </button>
+        {/* ملخص حالة الدفع للتوصيل */}
+        {orderType === 'delivery' && deliveryPaymentStatus && (
+          <div className={`p-3 rounded-lg border-2 mt-2 ${
+            deliveryPaymentStatus === 'cash_on_delivery' ? 'bg-red-50 border-red-300' :
+            deliveryPaymentStatus === 'half_paid' ? 'bg-yellow-50 border-yellow-300' :
+            'bg-green-50 border-green-300'
+          }`}>
+            {deliveryPaymentStatus === 'cash_on_delivery' && (
+              <div className="text-center">
+                <p className="text-xs font-semibold text-red-700 mb-1">📦 دفع عند الاستلام</p>
+                <p className="text-sm font-black text-red-900">
+                  المطلوب تحصيله: {total.toFixed(2)} ج.م
+                </p>
+              </div>
+            )}
+            
+            {deliveryPaymentStatus === 'half_paid' && (
+              <div>
+                <p className="text-xs font-semibold text-yellow-700 mb-1 text-center">🕐 نصف المبلغ مدفوع</p>
+                <div className="space-y-1 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-700">✅ مدفوع الآن:</span>
+                    <span className="text-green-700 font-bold">{deliveryPaidAmount?.toFixed(2) || '0.00'} ج.م</span>
+                  </div>
+                  <div className="flex items-center justify-between bg-white rounded p-1.5">
+                    <span className="text-gray-900 font-bold">📦 المطلوب تحصيله:</span>
+                    <span className="text-red-700 font-black">{(total - (deliveryPaidAmount || 0)).toFixed(2)} ج.م</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {deliveryPaymentStatus === 'fully_paid' && (
+              <div className="text-center">
+                <p className="text-xs font-semibold text-green-700 mb-1">✅ مدفوع بالكامل</p>
+                <p className="text-sm font-black text-green-900">
+                  لا يوجد مبلغ للتحصيل (0 ج.م)
+                </p>
+              </div>
+            )}
+            
+            {deliveryPaymentStatus === 'fully_paid_no_delivery' && (
+              <div className="text-center">
+                <p className="text-xs font-semibold text-green-700 mb-1">🚧 مدفوع كامل بدون توصيل</p>
+                <p className="text-sm font-black text-blue-900">
+                  المطلوب تحصيله: {Number(deliveryFee)} ج.م (رسوم التوصيل فقط)
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* � Fixed Bottom - الإجمالي وزر إتمام البيع فقط (compact) */}
+      <div className="fixed bottom-0 left-0 right-0 md:left-auto md:w-96 bg-white border-t-2 border-gray-300 shadow-lg z-50">
+        {/* Total + Button - في صف واحد compact */}
+        <div className="p-3 flex items-center gap-3">
+          {/* الإجمالي */}
+          <div className="flex-1">
+            <div className="text-xs text-gray-600 mb-0.5">الإجمالي</div>
+            <div className="text-2xl font-black text-blue-600">
+              {total.toFixed(2)} <span className="text-sm">ج.م</span>
+            </div>
+          </div>
+          
+          {/* زرار إتمام البيع */}
+          <button
+            onClick={onCheckout}
+            disabled={items.length === 0 && services.length === 0 || processing}
+            className={`flex-1 py-3 px-4 rounded-lg font-bold text-base
+              transition-all transform active:scale-95
+              ${
+                (items.length === 0 && services.length === 0) || processing
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-green-600 to-green-500 text-white shadow-lg hover:shadow-xl'
+              }
+            `}
+          >
+            {processing ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="animate-spin">⏳</span>
+                <span className="text-sm">جاري...</span>
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <span>✓</span>
+                <span>إتمام البيع</span>
+              </span>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

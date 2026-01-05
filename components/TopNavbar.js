@@ -186,14 +186,11 @@ export default function TopNavbar() {
               <div className="hidden lg:flex items-center gap-2 flex-1 justify-center max-w-5xl">
                 {filteredMenuItems.slice(0, 6).map((item) => {
                   const isActive = pathname === item.href;
-                  const isPOS = item.href === '/pos';
                   
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
-                      target={isPOS ? '_blank' : undefined}
-                      rel={isPOS ? 'noopener noreferrer' : undefined}
                       className={`flex flex-col items-center justify-center px-4 py-2 rounded-xl transition-all group min-w-[80px] ${
                         isActive
                           ? `bg-gradient-to-r ${item.color} text-white shadow-lg scale-105`
@@ -311,14 +308,11 @@ export default function TopNavbar() {
               <div className="grid grid-cols-2 gap-3 mb-4">
                 {filteredMenuItems.map((item) => {
                   const isActive = pathname === item.href;
-                  const isPOS = item.href === '/pos';
                   
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
-                      target={isPOS ? '_blank' : undefined}
-                      rel={isPOS ? 'noopener noreferrer' : undefined}
                       onClick={() => !isPOS && setIsMobileMenuOpen(false)}
                       className={`flex flex-col items-center gap-2 p-4 rounded-xl transition-all ${
                         isActive

@@ -87,6 +87,12 @@ const menuItems = [
     href: "/employees/audit",
     badge: null,
   },
+  {
+    title: "الإعدادات",
+    icon: "⚙️",
+    href: "/settings",
+    badge: null,
+  },
 ];
 
 const quickActions = [

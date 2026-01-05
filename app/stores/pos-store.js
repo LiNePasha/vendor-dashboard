@@ -157,7 +157,11 @@ const usePOSStore = create(persist((set, get) => ({
   },
 
   selectCustomer: (customer) => {
-    set({ selectedCustomer: customer });
+    const deliveryFee = customer?.shippingCost || 0;
+    set({ 
+      selectedCustomer: customer,
+      deliveryFee: deliveryFee
+    });
   },
 
   setDeliveryFee: (fee) => {
@@ -731,7 +735,28 @@ const usePOSStore = create(persist((set, get) => ({
         profitDetails: itemsWithProfit,
         itemsWithoutProfit: itemsWithoutPurchasePrice, // 🆕 قائمة المنتجات بدون سعر شراء
         paymentMethod: paymentDetails.paymentMethod,
-        paymentStatus: 'paid_full', // القيمة الافتراضية، يمكن تعديلها من صفحة الفواتير
+        // 🔥 حساب paymentStatus بناءً على deliveryPaymentStatus
+        paymentStatus: (() => {
+          // إذا مفيش توصيل - مدفوع بالكامل دائماً
+          if (orderType !== 'delivery') {
+            return 'paid_full';
+          }
+          
+          // إذا فيه توصيل - نشوف حالة الدفع
+          const deliveryStatus = paymentDetails.deliveryPayment?.status;
+          
+          if (deliveryStatus === 'cash_on_delivery') {
+            return 'unpaid'; // الكل غير مدفوع
+          } else if (deliveryStatus === 'half_paid') {
+            return 'partial'; // مدفوع جزئي
+          } else if (deliveryStatus === 'fully_paid_no_delivery') {
+            return 'partial'; // 🔥 مدفوع المنتجات فقط، رسوم التوصيل غير مدفوعة
+          } else if (deliveryStatus === 'fully_paid') {
+            return 'paid_full'; // مدفوع بالكامل
+          }
+          
+          return 'paid_full'; // افتراضي
+        })(),
         // 🆕 إضافة معلومات البائع
         soldBy: paymentDetails.soldBy || null,
         // 🆕 بيانات الدفع للتوصيل
@@ -740,7 +765,9 @@ const usePOSStore = create(persist((set, get) => ({
           paidAmount: paymentDetails.deliveryPayment.paidAmount || null,
           remainingAmount: paymentDetails.deliveryPayment.status === 'half_paid' 
             ? (finalTotal - (paymentDetails.deliveryPayment.paidAmount || 0))
-            : null,
+            : (paymentDetails.deliveryPayment.status === 'fully_paid_no_delivery' 
+              ? finalDeliveryFee // 🔥 المتبقي = رسوم التوصيل فقط
+              : null),
           note: paymentDetails.deliveryPayment.note || null
         } : null,
         orderNotes: paymentDetails.orderNotes || '',
@@ -826,9 +853,16 @@ const usePOSStore = create(persist((set, get) => ({
           await invoiceStorage.markInvoiceAsSynced(invoice.id);
         }
 
-        // Refresh products list to get updated stock quantities
-        const { fetchProducts } = get();
-        fetchProducts({ page: 1 });
+        // 🔄 Full Sync - تحديث كامل للمنتجات من Cashier API
+        const { syncAllProducts } = get();
+        console.log('🔄 Syncing products after checkout...');
+        syncAllProducts().then(result => {
+          if (result.success) {
+            console.log(`✅ Products synced: ${result.totalProducts} products loaded`);
+          } else {
+            console.error('❌ Sync failed after checkout:', result.error);
+          }
+        });
       }
 
       // Return success with invoice

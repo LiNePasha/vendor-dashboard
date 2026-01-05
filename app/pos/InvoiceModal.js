@@ -130,6 +130,15 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
                     )}
                   </div>
                 )}
+                {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && invoice.deliveryPayment.remainingAmount > 0 && (
+                  <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-blue-800">المطلوب تحصيله:</span>
+                      <span className="font-bold text-blue-700 text-base">{invoice.deliveryPayment.remainingAmount.toFixed(2)} ج.م</span>
+                    </div>
+                    <div className="text-xs text-blue-600 mt-1 text-center">(رسوم التوصيل فقط)</div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -403,6 +412,15 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
                   {invoice.deliveryPayment.note && (
                     <div style={{ fontSize: '8px', marginTop: '1px' }}>ملاحظة: {invoice.deliveryPayment.note}</div>
                   )}
+                </div>
+              )}
+              {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && invoice.deliveryPayment.remainingAmount > 0 && (
+                <div style={{ marginTop: '2px', borderTop: '1px solid #ddd', paddingTop: '2px', backgroundColor: '#dbeafe' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '10px' }}>
+                    <span>المطلوب تحصيله:</span>
+                    <span style={{ color: '#1e40af' }}>{invoice.deliveryPayment.remainingAmount.toFixed(2)} ج.م</span>
+                  </div>
+                  <div style={{ fontSize: '8px', marginTop: '1px', textAlign: 'center', color: '#1e40af' }}>(رسوم التوصيل فقط)</div>
                 </div>
               )}
             </div>

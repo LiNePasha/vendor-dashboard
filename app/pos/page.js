@@ -831,7 +831,12 @@ export default function POSPage() {
                 }}
                 onCustomerSelect={(customer) => {
                   selectCustomer(customer);
-                  updateActiveTab({ selectedCustomer: customer });
+                  const shippingCost = customer?.shippingCost || 0;
+                  updateActiveTab({ 
+                    selectedCustomer: customer,
+                    deliveryFee: shippingCost  // تحديث رسوم التوصيل تلقائيًا
+                  });
+                  setDeliveryFee(shippingCost); // تحديث الـ store أيضًا
                 }}
                 onUpdateQuantity={handleUpdateQuantity}
                 onAddItem={(tempProduct) => {

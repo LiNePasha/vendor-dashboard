@@ -167,6 +167,12 @@ function DashboardContent() {
       color: 'from-orange-500 to-orange-600',
       action: () => router.push('/pos/invoices'),
     },
+    {
+      title: 'الإعدادات',
+      icon: '⚙️',
+      color: 'from-gray-700 to-gray-800',
+      action: () => router.push('/settings'),
+    },
   ];
 
   return (

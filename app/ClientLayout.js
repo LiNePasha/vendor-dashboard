@@ -8,12 +8,32 @@ import TopNavbar from "@/components/TopNavbar";
 import NetworkStatus from "@/components/NetworkStatus";
 import usePOSStore from "@/app/stores/pos-store";
 import { useRouter, usePathname } from "next/navigation";
+import { requestPersistentStorage, setupAutoBackup } from "@/app/lib/data-persistence";
 
 export default function ClientLayout({ children }) {
   const router = useRouter();
   const pathname = usePathname();
   const vendorInfo = usePOSStore((s) => s.vendorInfo);
   const getVendorInfo = usePOSStore((s) => s.getVendorInfo);
+
+  // 🆕 Initialize data persistence on app load
+  useEffect(() => {
+    const initDataPersistence = async () => {
+      try {
+        // Request persistent storage to prevent browser from deleting data
+        const result = await requestPersistentStorage();
+        console.log('💾 Persistent storage:', result.granted ? 'Granted ✅' : `Not granted (${result.reason}) ⚠️`);
+        
+        // Setup auto-backup system (runs every 7 days)
+        setupAutoBackup();
+        console.log('🔄 Auto-backup system initialized ✅');
+      } catch (error) {
+        console.error('❌ Error initializing data persistence:', error);
+      }
+    };
+    
+    initDataPersistence();
+  }, []); // Run once on mount
 
   useEffect(() => {
     // Avoid fetching vendor info on the login page to prevent unnecessary 401s

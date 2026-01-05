@@ -2,7 +2,7 @@
 
 import localforage from 'localforage';
 
-// Initialize localforage
+// Configure localforage
 localforage.config({
   name: 'vendor-pos',
   storeName: 'invoices'
@@ -68,7 +68,7 @@ export const invoiceStorage = {
   }
 };
 
-// Cart management in localforage
+// Cart management
 export const cartStorage = {
   async saveCart(items) {
     await localforage.setItem('current-cart', items);
@@ -80,7 +80,7 @@ export const cartStorage = {
   },
 
   async clearCart() {
-    await localforage.setItem('current-cart', []);
+    await localforage.removeItem('current-cart');
   }
 };
 
@@ -169,16 +169,15 @@ export const productsCacheStorage = {
     return Date.now() - cache.timestamp; // milliseconds
   },
 
-  async isCacheStale(maxAgeMs = 3 * 60 * 1000) { // تقليل لـ 3 دقائق (كان 5)
+  async isCacheStale(maxAgeMs = 3 * 60 * 1000) {
     const age = await this.getCacheAge();
     return age > maxAgeMs;
   },
 
   async invalidateCache() {
-    // مسح الـ timestamp عشان يتحدث في المرة الجاية
     const cache = await this.getCache();
     if (cache) {
-      cache.timestamp = 0; // قديم جداً
+      cache.timestamp = 0;
       await localforage.setItem('products-cache', cache);
     }
   },
@@ -227,3 +226,5 @@ export const productsCacheStorage = {
     await localforage.removeItem('products-cache');
   }
 };
+
+export default localforage;

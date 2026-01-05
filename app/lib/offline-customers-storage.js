@@ -26,7 +26,11 @@ export async function addOfflineCustomer(customerData) {
       address: {
         street: customerData.address?.street || '',
         city: customerData.address?.city || '',
+        cityId: customerData.address?.cityId || '',
         state: customerData.address?.state || '',
+        district: customerData.address?.district || '',
+        districtId: customerData.address?.districtId || '',
+        zoneId: customerData.address?.zoneId || '',
         area: customerData.address?.area || '',
         building: customerData.address?.building || '',
         floor: customerData.address?.floor || '',

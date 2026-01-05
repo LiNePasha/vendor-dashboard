@@ -19,6 +19,18 @@ const nextConfig = {
       },
     ],
   },
+  webpack: (config, { isServer }) => {
+    // Ignore electron and fs modules in browser bundle
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        electron: false,
+      };
+    }
+    return config;
+  },
 };
 
 export default withPWA(nextConfig);

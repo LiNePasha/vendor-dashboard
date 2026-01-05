@@ -22,6 +22,7 @@ export default function CustomersPage() {
   const [offlineCustomers, setOfflineCustomers] = useState([]);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [customerInvoices, setCustomerInvoices] = useState([]);
 
   // Fetch orders if not loaded
   useEffect(() => {
@@ -36,19 +37,56 @@ export default function CustomersPage() {
     setOfflineCustomers(customers);
   };
 
+  // 🆕 جلب طلبات العميل الأوفلاين من LocalForage
+  useEffect(() => {
+    const loadCustomerInvoices = async () => {
+      if (selectedCustomer && selectedCustomer.type === 'offline') {
+        try {
+          const localforage = (await import('localforage')).default;
+          localforage.config({ name: 'vendor-pos', storeName: 'invoices' });
+          const allInvoices = await localforage.getItem('invoices') || [];
+          
+          // فلترة الفواتير بتاعة هذا العميل
+          const customerOrders = allInvoices
+            .filter(inv => 
+              inv.orderType === 'delivery' && 
+              inv.delivery?.customer?.id === selectedCustomer.id
+            )
+            .sort((a, b) => new Date(b.date) - new Date(a.date));
+          
+          setCustomerInvoices(customerOrders);
+        } catch (error) {
+          console.error('Error loading customer invoices:', error);
+          setCustomerInvoices([]);
+        }
+      } else {
+        setCustomerInvoices([]);
+      }
+    };
+    
+    loadCustomerInvoices();
+  }, [selectedCustomer]);
+
   // Get online customers from orders
   const onlineCustomers = useMemo(() => getCustomers(), [orders]);
   // دمج العملاء الأونلاين والأوفلاين
   const allCustomers = useMemo(() => {
-    const online = onlineCustomers.map(c => ({ ...c, type: 'online', source: 'وردبريس' }));
-    const offline = offlineCustomers.map(c => ({ 
-      ...c, 
-      type: 'offline',
-      source: 'محلي',
-      total_spent: c.totalSpent || 0,
-      orders_count: c.totalOrders || 0,
-      last_order_date: c.lastOrderAt || c.updatedAt
-    }));
+    const online = onlineCustomers.map(c => ({ ...c, type: 'online', source: 'الموقع' }));
+    const offline = offlineCustomers.map(c => { 
+      const totalSpent = c.totalSpent || 0;
+      const ordersCount = c.totalOrders || 0;
+      const averageOrder = ordersCount > 0 ? totalSpent / ordersCount : 0;
+      
+      return {
+        ...c, 
+        type: 'offline',
+        source: 'محلي',
+        total_spent: totalSpent,
+        orders_count: ordersCount,
+        average_order: averageOrder,
+        last_order_date: c.lastOrderAt || c.updatedAt
+      };
+    });
     return [...online, ...offline];
   }, [onlineCustomers, offlineCustomers]);
 
@@ -156,6 +194,8 @@ export default function CustomersPage() {
     return new Intl.NumberFormat("ar-EG", {
       style: "currency",
       currency: "EGP",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount);
   };
 
@@ -240,19 +280,8 @@ export default function CustomersPage() {
               className="px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             >
               <option value="all">كل الأنواع</option>
-              <option value="online">أونلاين (وردبريس)</option>
+              <option value="online">أونلاين (الموقع)</option>
               <option value="offline">أوفلاين (محلي)</option>
-            </select>
-
-            {/* Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-            >
-              <option value="">كل العملاء</option>
-              <option value="active">نشط (آخر 30 يوم)</option>
-              <option value="inactive">غير نشط</option>
             </select>
 
             {/* Sort */}
@@ -292,7 +321,6 @@ export default function CustomersPage() {
                     <th className="px-6 py-4 text-right font-bold">عدد الطلبات</th>
                     <th className="px-6 py-4 text-right font-bold">إجمالي الإنفاق</th>
                     <th className="px-6 py-4 text-right font-bold">آخر طلب</th>
-                    <th className="px-6 py-4 text-right font-bold">الحالة</th>
                     <th className="px-6 py-4 text-center font-bold">إجراءات</th>
                   </tr>
                 </thead>
@@ -351,17 +379,6 @@ export default function CustomersPage() {
                             {formatDate(customer.last_order_date)}
                           </div>
                         )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            customer.status === "active"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {customer.status === "active" ? "نشط" : "غير نشط"}
-                        </span>
                       </td>
                       <td className="px-6 py-4 text-center">
                         <div className="flex items-center justify-center gap-2">
@@ -513,8 +530,11 @@ export default function CustomersPage() {
                     <div className="flex items-start gap-2 text-gray-700">
                       <span>📍</span>
                       <span>
-                        {selectedCustomer.address}
-                        {selectedCustomer.city && `, ${selectedCustomer.city}`}
+                        {typeof selectedCustomer.address === 'string' 
+                          ? selectedCustomer.address 
+                          : `${selectedCustomer.address.street || ''} ${selectedCustomer.address.building || ''} ${selectedCustomer.address.floor ? `الدور ${selectedCustomer.address.floor}` : ''} ${selectedCustomer.address.apartment ? `شقة ${selectedCustomer.address.apartment}` : ''} ${selectedCustomer.address.area || ''} ${selectedCustomer.address.city || ''} ${selectedCustomer.address.state || ''} ${selectedCustomer.address.landmark ? `علامة: ${selectedCustomer.address.landmark}` : ''}`.trim()
+                        }
+                        {selectedCustomer.city && typeof selectedCustomer.address !== 'object' && `, ${selectedCustomer.city}`}
                       </span>
                     </div>
                   )}
@@ -526,10 +546,10 @@ export default function CustomersPage() {
                 <div className="bg-blue-50 rounded-lg p-4">
                   <div className="text-sm text-blue-600 mb-1">إجمالي الطلبات</div>
                   <div className="text-2xl font-bold text-blue-700">
-                    {selectedCustomer.orders.length}
+                    {selectedCustomer.orders?.length || selectedCustomer.orders_count || 0}
                   </div>
                   <div className="text-xs text-blue-500 mt-1">
-                    مدفوعة: {selectedCustomer.orders_count}
+                    مدفوعة: {selectedCustomer.orders_count || 0}
                   </div>
                 </div>
                 <div className="bg-green-50 rounded-lg p-4">
@@ -553,14 +573,16 @@ export default function CustomersPage() {
               </div>
 
               {/* Orders History */}
-              <div>
-                <h3 className="text-lg font-bold text-gray-800 mb-3">
-                  تاريخ الطلبات ({selectedCustomer.orders.length})
-                </h3>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {selectedCustomer.orders
-                    .sort((a, b) => new Date(b.date) - new Date(a.date))
-                    .map((order) => {
+              {selectedCustomer.type === 'online' && selectedCustomer.orders && selectedCustomer.orders.length > 0 ? (
+                // 🌐 طلبات الموقع (WooCommerce)
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800 mb-3">
+                    تاريخ الطلبات ({selectedCustomer.orders.length})
+                  </h3>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {selectedCustomer.orders
+                      .sort((a, b) => new Date(b.date) - new Date(a.date))
+                      .map((order) => {
                       const isPaid = order.status === 'completed' || order.status === 'processing';
                       const statusLabel = 
                         order.status === 'completed' ? '✅ مكتمل' :
@@ -603,8 +625,90 @@ export default function CustomersPage() {
                         </div>
                       );
                     })}
+                  </div>
                 </div>
-              </div>
+              ) : selectedCustomer.type === 'offline' && customerInvoices.length > 0 ? (
+                // 🏪 طلبات الكاشير (POS)
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800 mb-3">
+                    📦 طلبات الكاشير ({customerInvoices.length})
+                  </h3>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {customerInvoices.map((invoice) => {
+                      const invoiceDate = new Date(invoice.date);
+                      const itemsCount = (invoice.items?.length || 0) + (invoice.services?.length || 0);
+                      
+                      return (
+                        <div
+                          key={invoice.id}
+                          className="rounded-lg p-3 bg-green-50 hover:bg-green-100 transition-colors border-2 border-green-200"
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold text-gray-800">
+                              🏪 فاتورة #{invoice.id}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {invoiceDate.toLocaleDateString('ar-EG')}
+                            </span>
+                          </div>
+                          
+                          {/* قائمة المنتجات */}
+                          {invoice.items && invoice.items.length > 0 && (
+                            <div className="mb-2 bg-white rounded p-2 border border-green-200">
+                              <div className="text-xs text-gray-600 font-semibold mb-1">📦 المنتجات:</div>
+                              {invoice.items.map((item, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-xs py-1">
+                                  <span className="text-gray-700">
+                                    {item.name} <span className="text-gray-500">(×{item.quantity})</span>
+                                  </span>
+                                  <span className="font-semibold text-gray-800">
+                                    {formatCurrency(item.price * item.quantity)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {/* قائمة الخدمات */}
+                          {invoice.services && invoice.services.length > 0 && (
+                            <div className="mb-2 bg-yellow-50 rounded p-2 border border-yellow-200">
+                              <div className="text-xs text-gray-600 font-semibold mb-1">🔧 الخدمات:</div>
+                              {invoice.services.map((service, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-xs py-1">
+                                  <span className="text-gray-700">{service.description}</span>
+                                  <span className="font-semibold text-gray-800">
+                                    {formatCurrency(service.amount)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {/* الإجمالي */}
+                          <div className="flex items-center justify-between text-sm pt-2 border-t border-green-300">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-600">
+                                {itemsCount} عنصر
+                              </span>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-600 text-white">
+                                ✅ مدفوع
+                              </span>
+                            </div>
+                            <span className="font-bold text-green-700 text-base">
+                              {formatCurrency(invoice.summary?.total || 0)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-lg p-6 text-center">
+                  <div className="text-4xl mb-2">📋</div>
+                  <p className="text-gray-600">لا توجد طلبات لهذا العميل بعد</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
