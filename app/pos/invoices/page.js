@@ -18,6 +18,7 @@ export default function InvoicesPage() {
   const [filterDate, setFilterDate] = useState('all'); // all, today, yesterday, last7days, last30days
   const [searchTerm, setSearchTerm] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [editingDeliveryFee, setEditingDeliveryFee] = useState(null); // { invoiceId, value }
 
   // Helper function to format numbers nicely (removes decimals, adds thousands separator)
   const formatPrice = (price) => {
@@ -43,6 +44,72 @@ export default function InvoicesPage() {
     console.log('📦 Latest invoice:', sortedInvoices[0]);
     setInvoices(sortedInvoices);
     setLoading(false);
+  };
+
+  // 🆕 تعديل رسوم الشحن
+  const saveDeliveryFee = async (invoiceId) => {
+    if (!editingDeliveryFee || editingDeliveryFee.invoiceId !== invoiceId) return;
+    
+    try {
+      const invoice = invoices.find(inv => inv.id === invoiceId);
+      if (!invoice) return;
+
+      const fee = parseFloat(editingDeliveryFee.value) || 0;
+      
+      console.log('📊 Invoice Summary Before:', invoice.summary);
+      console.log('💰 New Delivery Fee:', fee);
+      
+      // إعادة حساب الإجمالي
+      const subtotal = parseFloat(invoice.summary.subtotal) || 0;
+      const discountAmount = parseFloat(invoice.summary.discount) || 0;
+      const extraFeeAmount = parseFloat(invoice.summary.extraFee) || 0;
+      const newTotal = subtotal - discountAmount + extraFeeAmount + fee;
+      
+      console.log('🧮 Calculation:', { subtotal, discountAmount, extraFeeAmount, fee, newTotal });
+      
+      // تحديث deliveryPayment.remainingAmount لو كان fully_paid_no_delivery
+      let updatedDeliveryPayment = invoice.deliveryPayment;
+      if (invoice.deliveryPayment?.status === 'fully_paid_no_delivery') {
+        updatedDeliveryPayment = {
+          ...invoice.deliveryPayment,
+          remainingAmount: fee,
+          paidAmount: subtotal - discountAmount + extraFeeAmount
+        };
+      }
+      
+      // تحديث الفاتورة
+      const updatedInvoice = {
+        ...invoice,
+        summary: {
+          ...invoice.summary,
+          deliveryFee: fee,
+          total: newTotal
+        },
+        deliveryPayment: updatedDeliveryPayment
+      };
+
+      console.log('📦 Updated Invoice Summary:', updatedInvoice.summary);
+
+      // حفظ في LocalForage - استخدام updateInvoice بدل saveInvoice
+      await invoiceStorage.updateInvoice(invoiceId, updatedInvoice);
+      
+      console.log('💾 Saved to LocalForage');
+      
+      // تحديث UI
+      setInvoices(prev => prev.map(inv => 
+        inv.id === invoiceId ? updatedInvoice : inv
+      ));
+      
+      if (selectedInvoice?.id === invoiceId) {
+        setSelectedInvoice(updatedInvoice);
+      }
+      
+      setEditingDeliveryFee(null);
+      setToast({ message: '✅ تم تحديث رسوم الشحن - يمكنك الطباعة الآن', type: 'success' });
+    } catch (error) {
+      console.error('Error updating delivery fee:', error);
+      setToast({ message: '❌ فشل تحديث رسوم الشحن', type: 'error' });
+    }
   };
 
   const syncInvoice = async (invoice) => {
@@ -227,7 +294,8 @@ export default function InvoicesPage() {
   };
 
   const printInvoice = (invoice) => {
-    const url = `/pos/invoices/print?id=${encodeURIComponent(invoice.id)}`;
+    // إضافة timestamp لتجنب الـ cache
+    const url = `/pos/invoices/print?id=${encodeURIComponent(invoice.id)}&t=${Date.now()}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
@@ -1075,10 +1143,41 @@ export default function InvoicesPage() {
                       )}
 
                       {/* Delivery/Shipping Fee */}
-                      {invoice.summary?.deliveryFee > 0 && (
+                      {(invoice.summary?.deliveryFee > 0 || invoice.orderType === 'delivery') && (
                         <div className="flex justify-between items-center bg-cyan-50 rounded-md px-2 py-1.5 border border-cyan-200">
                           <span className="text-cyan-700 font-medium">🚚 شحن</span>
-                          <span className="font-bold text-cyan-800">+ {formatPrice(invoice.summary.deliveryFee)}</span>
+                          {editingDeliveryFee?.invoiceId === invoice.id ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={editingDeliveryFee.value}
+                                onChange={(e) => setEditingDeliveryFee({ 
+                                  invoiceId: invoice.id, 
+                                  value: e.target.value 
+                                })}
+                                className="w-20 px-2 py-1 text-sm border-2 border-cyan-500 rounded text-right font-bold"
+                                placeholder="0"
+                              />
+                              <button
+                                onClick={() => saveDeliveryFee(invoice.id)}
+                                className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 font-bold"
+                              >
+                                حفظ
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setEditingDeliveryFee({ 
+                                invoiceId: invoice.id, 
+                                value: invoice.summary.deliveryFee || 0 
+                              })}
+                              className="font-bold text-cyan-800 hover:bg-cyan-100 px-2 py-1 rounded"
+                              title="اضغط للتعديل"
+                            >
+                              + {formatPrice(invoice.summary.deliveryFee || 0)} ✏️
+                            </button>
+                          )}
                         </div>
                       )}
 

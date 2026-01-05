@@ -396,12 +396,25 @@ export class BostaAPI {
         const errorData = await res.json();
         console.error('❌ Bosta Error Response:', errorData);
         
-        // 🆕 لو District Not Found - جرب تاني بدون district
-        if (errorData.errorCode === 3003 && payload.dropOffAddress.districtId) {
-          console.log('⚠️ District Not Found - Retrying without districtId');
+        // 🆕 لو District Not Found أو errorCode 777 - جرب تاني مع districtName
+        if ((errorData.errorCode === 3003 || errorData.errorCode === 777) && payload._meta) {
+          console.log('⚠️ District Issue - Retrying with districtName instead of districtId');
           
-          // حذف districtId والمحاولة تاني
+          // حذف districtId واستخدام districtName
           delete payload.dropOffAddress.districtId;
+          
+          if (payload._meta.districtName) {
+            payload.dropOffAddress.districtName = payload._meta.districtName;
+            console.log('🔄 Using districtName:', payload._meta.districtName);
+          }
+          
+          if (payload._meta.cityId) {
+            payload.dropOffAddress.cityId = payload._meta.cityId;
+            console.log('🔄 Using cityId:', payload._meta.cityId);
+          }
+          
+          // حذف _meta قبل الإرسال
+          delete payload._meta;
           
           const retryRes = await fetch(`${this.baseURL}/deliveries?apiVersion=1`, {
             method: 'POST',
@@ -426,6 +439,9 @@ export class BostaAPI {
         throw new Error(errorData.message || errorData.error || 'Failed to create delivery');
       }
 
+      // حذف _meta قبل إرجاع النتيجة
+      delete payload._meta;
+      
       const data = await res.json();
       console.log('✅ Bosta Response:', data);
       return data;
@@ -501,12 +517,16 @@ export class BostaAPI {
       allowToOpenPackage: false
     };
 
-    // إضافة districtId و cityId
+    // إضافة districtId و cityId و أسمائهم
     const districtId = getMetaValue('_shipping_district_id');
+    const districtName = getMetaValue('_shipping_district_name');
     const cityId = getMetaValue('_shipping_city_id');
+    const cityName = getMetaValue('_shipping_city_name');
     
     console.log('🔍 District ID from meta:', districtId);
+    console.log('🔍 District Name from meta:', districtName);
     console.log('🔍 City ID from meta:', cityId);
+    console.log('🔍 City Name from meta:', cityName);
     
     // Strategy: استخدام districtId مع cityId
     if (districtId && cityId) {
@@ -521,6 +541,14 @@ export class BostaAPI {
       // Fallback: استخدام اسم المدينة
       console.log('⚠️ No cityId/districtId - using city name only');
     }
+
+    // 🆕 حفظ الأسماء للاستخدام في الـ retry
+    payload._meta = {
+      districtName,
+      cityName,
+      districtId,
+      cityId
+    };
 
     // إضافة businessLocationId إذا موجود
     if (this.businessLocationId) {
