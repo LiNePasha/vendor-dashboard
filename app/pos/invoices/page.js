@@ -19,6 +19,7 @@ export default function InvoicesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [exporting, setExporting] = useState(false);
   const [editingDeliveryFee, setEditingDeliveryFee] = useState(null); // { invoiceId, value }
+  const [editingInvoiceDiscount, setEditingInvoiceDiscount] = useState(null); // { invoiceId, value }
 
   // Helper function to format numbers nicely (removes decimals, adds thousands separator)
   const formatPrice = (price) => {
@@ -109,6 +110,56 @@ export default function InvoicesPage() {
     } catch (error) {
       console.error('Error updating delivery fee:', error);
       setToast({ message: '❌ فشل تحديث رسوم الشحن', type: 'error' });
+    }
+  };
+
+  // 🆕 حفظ خصم الفاتورة
+  const saveInvoiceDiscount = async (invoiceId) => {
+    if (!editingInvoiceDiscount || editingInvoiceDiscount.invoiceId !== invoiceId) return;
+    
+    try {
+      const invoice = invoices.find(inv => inv.id === invoiceId);
+      if (!invoice) return;
+
+      const discountAmount = parseFloat(editingInvoiceDiscount.value) || 0;
+      
+      // إعادة حساب الإجمالي
+      const subtotal = parseFloat(invoice.summary.subtotal) || 0;
+      const originalDiscount = parseFloat(invoice.summary.discount) || 0; // الخصم الأصلي على المنتجات
+      const extraFeeAmount = parseFloat(invoice.summary.extraFee) || 0;
+      const deliveryFee = parseFloat(invoice.summary.deliveryFee) || 0;
+      
+      // الخصم الكلي = الخصم الأصلي + خصم الفاتورة
+      const totalDiscount = originalDiscount + discountAmount;
+      const newTotal = subtotal - totalDiscount + extraFeeAmount + deliveryFee;
+      
+      // تحديث الفاتورة
+      const updatedInvoice = {
+        ...invoice,
+        summary: {
+          ...invoice.summary,
+          invoiceDiscount: discountAmount, // خصم الفاتورة منفصل
+          total: newTotal
+        }
+      };
+
+      // حفظ في LocalForage
+      await invoiceStorage.updateInvoice(invoiceId, updatedInvoice);
+      
+      // تحديث UI
+      setInvoices(prev => prev.map(inv => 
+        inv.id === invoiceId ? updatedInvoice : inv
+      ));
+      
+      if (selectedInvoice?.id === invoiceId) {
+        setSelectedInvoice(updatedInvoice);
+      }
+      
+      setEditingInvoiceDiscount(null);
+      setToast({ message: '✅ تم إضافة خصم الفاتورة', type: 'success' });
+    } catch (error) {
+      console.error('Error updating invoice discount:', error);
+      setToast({ message: '❌ فشل إضافة الخصم', type: 'error' });
     }
   };
 
@@ -1180,6 +1231,43 @@ export default function InvoicesPage() {
                           )}
                         </div>
                       )}
+
+                      {/* 🆕 خصم الفاتورة */}
+                      <div className="flex justify-between items-center bg-orange-50 rounded-md px-2 py-1.5 border border-orange-200">
+                        <span className="text-orange-700 font-medium">🎁 خصم فاتورة</span>
+                        {editingInvoiceDiscount?.invoiceId === invoice.id ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={editingInvoiceDiscount.value}
+                              onChange={(e) => setEditingInvoiceDiscount({ 
+                                invoiceId: invoice.id, 
+                                value: e.target.value 
+                              })}
+                              className="w-20 px-2 py-1 text-sm border-2 border-orange-500 rounded text-right font-bold"
+                              placeholder="0"
+                            />
+                            <button
+                              onClick={() => saveInvoiceDiscount(invoice.id)}
+                              className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 font-bold"
+                            >
+                              حفظ
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setEditingInvoiceDiscount({ 
+                              invoiceId: invoice.id, 
+                              value: invoice.summary.invoiceDiscount || 0 
+                            })}
+                            className="font-bold text-orange-800 hover:bg-orange-100 px-2 py-1 rounded"
+                            title="اضغط للتعديل"
+                          >
+                            - {formatPrice(invoice.summary.invoiceDiscount || 0)} ✏️
+                          </button>
+                        )}
+                      </div>
 
                       {/* Profit breakdown - Enhanced */}
                       {(invoice.summary?.totalProfit > 0 || invoice.summary?.productsProfit > 0) && (

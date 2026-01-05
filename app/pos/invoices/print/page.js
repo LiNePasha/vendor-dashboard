@@ -441,6 +441,12 @@ function PrintInvoiceContent() {
               <span>+ {Number(invoice.summary.deliveryFee).toFixed(2)} ج.م</span>
             </div>
           )}
+          {invoice.summary.invoiceDiscount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', color: '#d97706', fontWeight: 'bold' }}>
+              <span>🎁 خصم الفاتورة:</span>
+              <span>- {Number(invoice.summary.invoiceDiscount).toFixed(2)} ج.م</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 'bold', borderTop: '1px solid #000', paddingTop: '1mm', marginTop: '1mm' }}>
             <span>الإجمالي:</span>
             <span>{Number(invoice.summary.total).toFixed(2)} ج.م</span>
