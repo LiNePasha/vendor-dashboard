@@ -91,6 +91,18 @@ function PrintInvoiceContent() {
   const address = customer?.address || {};
   const deliveryNotes = invoice.delivery?.notes;
   
+  // 🔍 Console Debug للطلبات الأونلاين
+  console.log('🔍 Invoice Debug Info:', {
+    orderId: invoice.orderId,
+    source: invoice.source,
+    deliveryFee: invoice.summary?.deliveryFee,
+    hasDeliveryPayment: !!invoice.deliveryPayment,
+    deliveryPaymentStatus: invoice.deliveryPayment?.status,
+    paymentMethod: invoice.paymentMethod,
+    isOnlineOrder: invoice.source === 'order' || !!invoice.orderId,
+    shouldShowBox: (invoice.source === 'order' || invoice.orderId) && invoice.summary?.deliveryFee > 0
+  });
+  
   // 🆕 بيانات الدفع الجزئي
   const paymentDetails = invoice.paymentDetails;
   const isHalfPayment = paymentDetails?.type === 'half_payment';
@@ -501,6 +513,36 @@ function PrintInvoiceContent() {
               {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && '💳 مدفوع كاملاً بدون توصيل'}
             </div>
             
+            {/* توضيح للطلبات الأونلاين: المدفوع في الستور والمطلوب تحصيله - بس لو مش fully_paid_no_delivery */}
+            {(invoice.source === 'order' || invoice.orderId) && 
+             invoice.summary.deliveryFee > 0 && 
+             invoice.deliveryPayment.status !== 'fully_paid_no_delivery' && (
+              <>
+                <div style={{ backgroundColor: '#d1fae5', padding: '2mm', borderRadius: '1mm', marginTop: '2mm', marginBottom: '2mm', border: '1px solid #10b981' }}>
+                  <div style={{ textAlign: 'center', marginBottom: '1mm', fontSize: '9px', fontWeight: 'bold', color: '#047857' }}>
+                    ✓ تم الدفع في الستور (ثمن المنتجات فقط)
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a', fontSize: '10px' }}>المبلغ المدفوع:</span>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a', fontSize: '11px' }}>
+                      {(Number(invoice.summary.total) - Number(invoice.summary.deliveryFee || 0)).toFixed(2)} ج.م
+                    </span>
+                  </div>
+                </div>
+                <div style={{ backgroundColor: '#fef3c7', padding: '3mm', borderRadius: '1mm', border: '3px solid #f59e0b' }}>
+                  <div style={{ textAlign: 'center', marginBottom: '1mm', fontSize: '10px', fontWeight: 'bold', color: '#dc2626' }}>
+                    📦 المطلوب تحصيله من العميل
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 'bold', color: '#dc2626', fontSize: '11px' }}>رسوم التوصيل:</span>
+                    <span style={{ fontWeight: 'bold', color: '#dc2626', fontSize: '14px' }}>
+                      {Number(invoice.summary.deliveryFee || 0).toFixed(2)} ج.م
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+            
             {invoice.deliveryPayment.status === 'half_paid' && invoice.deliveryPayment.paidAmount > 0 && (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000' }}>
@@ -548,10 +590,29 @@ function PrintInvoiceContent() {
               </div>
             )}
 
-            {invoice.deliveryPayment.status === 'fully_paid' && (
-              <div style={{ marginTop: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000', fontSize: '10px', textAlign: 'center', fontWeight: 'bold', color: '#16a34a' }}>
-                ✓ تم الدفع بالكامل - {Number(invoice.summary.total).toFixed(2)} ج.م
-              </div>
+            {invoice.deliveryPayment.status === 'fully_paid' && invoice.summary.deliveryFee > 0 && (
+              <>
+                <div style={{ marginTop: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000', fontSize: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm' }}>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>✓ المدفوع (ثمن المنتجات):</span>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>
+                      {(Number(invoice.summary.total) - Number(invoice.summary.deliveryFee || 0)).toFixed(2)} ج.م
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm' }}>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>✓ رسوم التوصيل المدفوعة:</span>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>
+                      {Number(invoice.summary.deliveryFee || 0).toFixed(2)} ج.م
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#d1fae5', padding: '1mm', borderRadius: '1mm', marginTop: '1mm', borderTop: '1px solid #10b981' }}>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a', fontSize: '11px' }}>✓ إجمالي المدفوع:</span>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a', fontSize: '11px' }}>
+                      {Number(invoice.summary.total).toFixed(2)} ج.م
+                    </span>
+                  </div>
+                </div>
+              </>
             )}
 
             {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && (

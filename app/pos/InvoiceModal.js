@@ -130,6 +130,24 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
                     )}
                   </div>
                 )}
+                {invoice.deliveryPayment.status === 'fully_paid' && invoice.summary.deliveryFee > 0 && (
+                  <div className="mt-2 p-2 bg-green-50 rounded border border-green-200">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-green-700">✓ المدفوع (ثمن المنتجات):</span>
+                      <span className="font-bold text-green-700 text-base">
+                        {(invoice.summary.total - invoice.summary.deliveryFee).toFixed(2)} ج.م
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-green-700">✓ رسوم التوصيل المدفوعة:</span>
+                      <span className="font-bold text-green-700 text-base">{invoice.summary.deliveryFee.toFixed(2)} ج.م</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1 border-t border-green-300">
+                      <span className="font-semibold text-green-800">✓ إجمالي المدفوع:</span>
+                      <span className="font-bold text-green-800 text-lg">{invoice.summary.total.toFixed(2)} ج.م</span>
+                    </div>
+                  </div>
+                )}
                 {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && invoice.deliveryPayment.remainingAmount > 0 && (
                   <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
                     <div className="flex justify-between items-center mb-1">
@@ -418,6 +436,22 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
                   {invoice.deliveryPayment.note && (
                     <div style={{ fontSize: '8px', marginTop: '1px' }}>ملاحظة: {invoice.deliveryPayment.note}</div>
                   )}
+                </div>
+              )}
+              {invoice.deliveryPayment.status === 'fully_paid' && invoice.summary.deliveryFee > 0 && (
+                <div style={{ marginTop: '2px', borderTop: '1px solid #10b981', paddingTop: '2px', backgroundColor: '#d1fae5' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px', fontSize: '9px' }}>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>✓ المدفوع (منتجات):</span>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>{(invoice.summary.total - invoice.summary.deliveryFee).toFixed(2)} ج.م</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px', fontSize: '9px' }}>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>✓ رسوم التوصيل:</span>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>{invoice.summary.deliveryFee.toFixed(2)} ج.م</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px solid #10b981', paddingTop: '1px', marginTop: '1px', fontSize: '10px' }}>
+                    <span style={{ color: '#16a34a' }}>✓ الإجمالي:</span>
+                    <span style={{ color: '#16a34a' }}>{invoice.summary.total.toFixed(2)} ج.م</span>
+                  </div>
                 </div>
               )}
               {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && invoice.deliveryPayment.remainingAmount > 0 && (

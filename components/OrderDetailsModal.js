@@ -108,6 +108,7 @@ export default function OrderDetailsModal({
         date: new Date().toISOString(),
         items: invoiceItems,
         services: [],
+        orderType: 'delivery', // 🚚 نوع الطلب
         summary: {
           productsSubtotal: productsSubtotal,
           servicesTotal: 0,
@@ -125,6 +126,7 @@ export default function OrderDetailsModal({
         },
         profitDetails: [],
         paymentMethod: order.payment_method_title || 'غير محدد',
+        paymentStatus: 'partial', // 🔥 مدفوع جزئي (المنتجات فقط)
         customerInfo: {
           name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
           phone: order.billing?.phone || '',
@@ -138,15 +140,27 @@ export default function OrderDetailsModal({
           remainingAmount: parseFloat(remainingAmount || 0),
           note: paymentNote || ''
         } : null,
+        // 🚚 حالة دفع التوصيل - مدفوع بدون رسوم توصيل
+        deliveryPayment: {
+          status: 'fully_paid_no_delivery', // 🔥 دفع المنتج في الستور، رسوم التوصيل للتحصيل
+          paidAmount: productsSubtotal - discountAmount, // المدفوع = ثمن المنتجات بعد الخصم
+          remainingAmount: shippingFee, // المتبقي = رسوم التوصيل فقط
+          note: 'تم الدفع في الستور (ثمن المنتجات فقط) - رسوم التوصيل للتحصيل'
+        },
         // 🆕 بيانات التوصيل التفصيلية
         delivery: !isStorePickup && shippingAddressIndex ? {
           type: 'delivery',
           address: shippingAddressIndex,
           customer: {
             name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
-            phone: order.billing?.phone || ''
-          }
+            phone: order.billing?.phone || '',
+            email: order.billing?.email || '',
+            address: shippingAddressIndex
+          },
+          fee: shippingFee,
+          notes: ''
         } : null,
+        deliveryStatus: 'pending', // 🔥 حالة التوصيل
         synced: true,
         source: 'order'
       };

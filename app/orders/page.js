@@ -1518,12 +1518,23 @@ function OrdersContent() {
                       <span className="text-gray-400 text-base">💰</span>
                       {(parseFloat(order.total) - parseFloat(order.shipping_total || 0))} جنيه
                     </p>
+                    {/* تنبيه: المبلغ المدفوع في الستور هو ثمن المنتج فقط */}
+                    {order.payment_method_title && order.payment_method_title !== 'الدفع نقدًا عند الاستلام' && (
+                      <div className="bg-blue-50 border border-blue-300 rounded-lg p-2">
+                        <p className="text-blue-700 text-xs font-semibold mb-0.5">✓ تم دفع ثمن المنتج فقط</p>
+                        <p className="text-blue-900 text-sm font-bold">
+                          {(parseFloat(order.total) - parseFloat(order.shipping_total || 0)).toFixed(2)} جنيه
+                        </p>
+                      </div>
+                    )}
                     {/* 🚚 الشحن منفصل */}
                     {parseFloat(order.shipping_total || 0) > 0 && (
-                      <p className="text-orange-600 font-medium text-sm flex items-center gap-2">
-                        <span className="text-orange-400">🚚</span>
-                        رنج الشحن: من {parseFloat(order.shipping_total) - 25} إلي {parseFloat(order.shipping_total)} جنيه
-                      </p>
+                      <div className="bg-orange-50 border border-orange-300 rounded-lg p-2">
+                        <p className="text-orange-700 text-xs font-semibold mb-0.5">🚚 رسوم التوصيل للتحصيل</p>
+                        <p className="text-orange-900 text-sm font-bold">
+                          من {parseFloat(order.shipping_total) - 25} إلي {parseFloat(order.shipping_total)} جنيه
+                        </p>
+                      </div>
                     )}
                   </div>
 
