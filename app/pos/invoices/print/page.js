@@ -100,7 +100,11 @@ function PrintInvoiceContent() {
     deliveryPaymentStatus: invoice.deliveryPayment?.status,
     paymentMethod: invoice.paymentMethod,
     isOnlineOrder: invoice.source === 'order' || !!invoice.orderId,
-    shouldShowBox: (invoice.source === 'order' || invoice.orderId) && invoice.summary?.deliveryFee > 0
+    shouldShowBox: (invoice.source === 'order' || invoice.orderId) && invoice.summary?.deliveryFee > 0,
+    // 🏠 Debug للعنوان
+    customerAddress: customer?.address,
+    addressType: typeof customer?.address,
+    addressKeys: customer?.address ? Object.keys(customer.address) : []
   });
   
   // 🆕 بيانات الدفع الجزئي
@@ -131,15 +135,17 @@ function PrintInvoiceContent() {
     : (invoice.customerInfo?.address ? parseShippingAddress(invoice.customerInfo.address) : null);
   
   // تنسيق العنوان الكامل
-  const fullAddress = [
-    address.state,
-    address.city,
-    address.area,
-    address.street,
-    address.building && `عقار ${address.building}`,
-    address.floor && `دور ${address.floor}`,
-    address.apartment && `شقة ${address.apartment}`,
-  ].filter(Boolean).join(' - ');
+  const fullAddress = typeof address === 'string' 
+    ? address // لو العنوان string، استخدمه مباشرة
+    : [
+        address.state,
+        address.city,
+        address.area,
+        address.street,
+        address.building && `عقار ${address.building}`,
+        address.floor && `دور ${address.floor}`,
+        address.apartment && `شقة ${address.apartment}`,
+      ].filter(Boolean).join(' - ');
   
   // Translate payment method to Arabic
   const paymentMethodAr = {
@@ -282,9 +288,6 @@ function PrintInvoiceContent() {
                 )}
                 {customer.phone && (
                   <div style={{ marginBottom: '0.5mm' }}>📞 {customer.phone}</div>
-                )}
-                {customer.email && (
-                  <div style={{ marginBottom: '0.5mm' }}>📧 {customer.email}</div>
                 )}
                 {fullAddress && (
                   <div style={{ marginBottom: '0.5mm', lineHeight: '1.3' }}>📍 {fullAddress}</div>

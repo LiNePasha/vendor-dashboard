@@ -102,6 +102,23 @@ export default function OrderDetailsModal({
       const discountAmount = parseFloat(order.discount_total || 0);
       const orderTotal = parseFloat(order.total);
       
+      // 🏠 تحليل العنوان من meta_data لإنشاء address object
+      const parseAddress = () => {
+        const addressObj = {
+          state: getMetaValue('_shipping_state') || order.shipping?.state || '',
+          city: getMetaValue('_shipping_city') || order.shipping?.city || '',
+          area: getMetaValue('_shipping_area') || '',
+          street: getMetaValue('_shipping_address_1') || order.shipping?.address_1 || '',
+          building: getMetaValue('_shipping_building') || '',
+          floor: getMetaValue('_shipping_floor') || '',
+          apartment: getMetaValue('_shipping_apartment') || '',
+          landmark: getMetaValue('_shipping_landmark') || ''
+        };
+        return addressObj;
+      };
+      
+      const addressObject = parseAddress();
+      
       const invoice = {
         id: `order-${order.id}-${Date.now()}`,
         orderId: order.id,
@@ -148,14 +165,14 @@ export default function OrderDetailsModal({
           note: 'تم الدفع في الستور (ثمن المنتجات فقط) - رسوم التوصيل للتحصيل'
         },
         // 🆕 بيانات التوصيل التفصيلية
-        delivery: !isStorePickup && shippingAddressIndex ? {
+        delivery: !isStorePickup ? {
           type: 'delivery',
           address: shippingAddressIndex,
           customer: {
             name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
             phone: order.billing?.phone || '',
             email: order.billing?.email || '',
-            address: shippingAddressIndex
+            address: addressObject // 🏠 استخدام address object بدل string
           },
           fee: shippingFee,
           notes: ''
