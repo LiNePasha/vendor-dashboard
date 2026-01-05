@@ -106,17 +106,24 @@ export async function PATCH(req) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
-  const { orderId, status } = await req.json();
+  const body = await req.json();
+  const { orderId, status, meta_data } = body;
 
   try {
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
+    
+    // Build update payload
+    const updateData = {};
+    if (status) updateData.status = status;
+    if (meta_data) updateData.meta_data = meta_data;
+    
     const res = await fetch(`${API_BASE}/wp-json/wc/v3/orders/${orderId}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(updateData),
     });
 
     if (!res.ok) {

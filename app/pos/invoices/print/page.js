@@ -549,9 +549,22 @@ function PrintInvoiceContent() {
             )}
 
             {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && (
-              <div style={{ marginTop: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000', fontSize: '10px', textAlign: 'center', fontWeight: 'bold', color: '#2563eb' }}>
-                💳 تم الدفع بالكامل (بدون توصيل) - {Number(invoice.summary.total).toFixed(2)} ج.م
-              </div>
+              <>
+                <div style={{ marginTop: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000', fontSize: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm' }}>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>✓ المدفوع (ثمن المنتجات):</span>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>
+                      {(Number(invoice.summary.total) - Number(invoice.summary.deliveryFee || 0)).toFixed(2)} ج.م
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', backgroundColor: '#fef3c7', padding: '1mm', borderRadius: '1mm' }}>
+                    <span style={{ fontWeight: 'bold', color: '#dc2626' }}>📦 المطلوب تحصيله (رسوم التوصيل):</span>
+                    <span style={{ fontWeight: 'bold', color: '#dc2626', fontSize: '11px' }}>
+                      {Number(invoice.summary.deliveryFee || 0).toFixed(2)} ج.م
+                    </span>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}

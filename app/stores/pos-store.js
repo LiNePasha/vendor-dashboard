@@ -762,12 +762,18 @@ const usePOSStore = create(persist((set, get) => ({
         // 🆕 بيانات الدفع للتوصيل
         deliveryPayment: paymentDetails.deliveryPayment ? {
           status: paymentDetails.deliveryPayment.status,
-          paidAmount: paymentDetails.deliveryPayment.paidAmount || null,
+          paidAmount: paymentDetails.deliveryPayment.status === 'half_paid' 
+            ? (paymentDetails.deliveryPayment.paidAmount || 0)
+            : (paymentDetails.deliveryPayment.status === 'fully_paid_no_delivery'
+              ? (finalTotal - finalDeliveryFee) // المدفوع = ثمن المنتجات
+              : (paymentDetails.deliveryPayment.status === 'fully_paid' 
+                ? finalTotal 
+                : 0)),
           remainingAmount: paymentDetails.deliveryPayment.status === 'half_paid' 
             ? (finalTotal - (paymentDetails.deliveryPayment.paidAmount || 0))
             : (paymentDetails.deliveryPayment.status === 'fully_paid_no_delivery' 
               ? finalDeliveryFee // 🔥 المتبقي = رسوم التوصيل فقط
-              : null),
+              : 0),
           note: paymentDetails.deliveryPayment.note || null
         } : null,
         orderNotes: paymentDetails.orderNotes || '',

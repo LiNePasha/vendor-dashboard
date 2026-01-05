@@ -299,8 +299,8 @@ function OrdersContent() {
           deliveryStatus = 'picked_up';
         }
         
-        // Update invoice with new status
-        const updates = { 
+        // Update invoice
+        await updatePOSInvoice(invoice.id, {
           deliveryStatus,
           bosta: {
             ...invoice.bosta,
@@ -308,12 +308,83 @@ function OrdersContent() {
             statusCode: result.data.state?.code,
             lastUpdated: new Date().toISOString()
           }
-        };
+        });
         
-        await updatePOSInvoice(invoice.id, updates);
+        setToast({ message: '✅ تم مزامنة حالة الطلب', type: 'success' });
       }
     } catch (error) {
-      console.error('Sync Status Error:', error);
+      console.error('Sync Error:', error);
+      setToast({ message: 'فشل المزامنة: ' + error.message, type: 'error' });
+    }
+  };
+
+  // 🆕 إرسال أوردر الموقع لبوسطة
+  const sendWebsiteOrderToBosta = async (order) => {
+    // Check if already sent
+    const bostaTrackingMeta = order.meta_data?.find(m => m.key === 'bosta_tracking_number');
+    if (bostaTrackingMeta && bostaTrackingMeta.value) {
+      setToast({ message: 'تم إرسال هذا الطلب لبوسطة مسبقاً', type: 'info' });
+      return;
+    }
+
+    setSendingToBosta(order.id);
+    
+    try {
+      // 1. تحميل الإعدادات
+      const settings = await getBostaSettings();
+      if (!settings.enabled || !settings.apiKey) {
+        setToast({ message: 'يجب تفعيل Bosta من صفحة الإعدادات', type: 'error' });
+        return;
+      }
+
+      const bostaAPI = new BostaAPI(settings.apiKey, settings.businessLocationId);
+
+      // 2. إرسال الطلب
+      const result = await bostaAPI.createWebsiteDelivery(order);
+      
+      if (result.error) {
+        setToast({ message: 'فشل الإرسال: ' + result.error, type: 'error' });
+        return;
+      }
+
+      // 3. حفظ tracking number في meta_data عبر الـ API
+      const trackingNumber = result.data?.trackingNumber || result.trackingNumber;
+      const orderId = result.data?._id || result._id;
+      const statusValue = result.data?.state?.value || result.state?.value || 'created';
+      
+      const metaDataToUpdate = [
+        { key: 'bosta_tracking_number', value: trackingNumber },
+        { key: 'bosta_order_id', value: orderId },
+        { key: 'bosta_status', value: statusValue },
+        { key: 'bosta_sent_at', value: new Date().toISOString() }
+      ];
+
+      const updateRes = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          meta_data: metaDataToUpdate
+        })
+      });
+
+      if (!updateRes.ok) {
+        console.error('Failed to update order meta_data');
+      }
+
+      setToast({ 
+        message: `✅ تم إرسال الطلب لبوسطة بنجاح!\nرقم التتبع: ${trackingNumber}`, 
+        type: 'success' 
+      });
+
+      // Refresh orders to get updated meta_data
+      setTimeout(() => fetchOrders(), 1000);
+
+    } catch (error) {
+      console.error('Bosta Send Error:', error);
+      setToast({ message: 'حدث خطأ: ' + error.message, type: 'error' });
+    } finally {
+      setSendingToBosta(null);
     }
   };
 
@@ -1457,25 +1528,65 @@ function OrdersContent() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex gap-2 px-1" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-2.5 rounded-lg transition-all font-medium text-sm shadow-md hover:shadow-lg"
-                      onClick={() => setSelectedOrder(order)}
-                    >
-                      📄 التفاصيل
-                    </button>
-                    <select
-                      className="border-2 border-gray-200 rounded-lg px-2 py-2 text-xs bg-white hover:border-blue-500 transition-colors font-medium"
-                      value={order.status}
-                      onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {STATUS_OPTIONS.map((status) => (
-                        <option key={status.value} value={status.value}>
-                          {status.label}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="space-y-2 px-1" onClick={(e) => e.stopPropagation()}>
+                    {/* 🆕 Bosta Section - لو التوصيل home_delivery */}
+                    {bostaEnabled && order.meta_data?.some(m => m.key === '_delivery_type' && m.value === 'home_delivery') && (
+                      <div>
+                        {order.meta_data?.find(m => m.key === 'bosta_tracking_number')?.value ? (
+                          // إذا تم الإرسال - عرض معلومات التتبع
+                          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-300 rounded-lg p-2 text-xs">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-purple-700 font-bold flex items-center gap-1">
+                                ✅ تم الإرسال لبوسطة
+                              </p>
+                            </div>
+                            <p className="text-gray-700 font-medium mb-1">
+                              رقم التتبع: {order.meta_data.find(m => m.key === 'bosta_tracking_number').value}
+                            </p>
+                            <button
+                              onClick={() => openTrackingModal(order.meta_data.find(m => m.key === 'bosta_tracking_number').value)}
+                              className="w-full text-blue-600 hover:text-blue-700 hover:underline text-xs font-medium"
+                            >
+                              🔗 تتبع الشحنة
+                            </button>
+                          </div>
+                        ) : (
+                          // إذا لم يتم الإرسال - زر الإرسال
+                          <button
+                            onClick={() => sendWebsiteOrderToBosta(order)}
+                            disabled={sendingToBosta === order.id}
+                            className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 
+                                     text-white px-3 py-2 rounded-lg text-sm font-bold
+                                     hover:from-purple-600 hover:to-indigo-700 
+                                     disabled:opacity-50 disabled:cursor-not-allowed
+                                     transition-all shadow-md hover:shadow-lg"
+                          >
+                            {sendingToBosta === order.id ? '⏳ جاري الإرسال...' : '📦 إرسال لبوسطة'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    
+                    <div className="flex gap-2">
+                      <button
+                        className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-2.5 rounded-lg transition-all font-medium text-sm shadow-md hover:shadow-lg"
+                        onClick={() => setSelectedOrder(order)}
+                      >
+                        📄 التفاصيل
+                      </button>
+                      <select
+                        className="border-2 border-gray-200 rounded-lg px-2 py-2 text-xs bg-white hover:border-blue-500 transition-colors font-medium"
+                        value={order.status}
+                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {STATUS_OPTIONS.map((status) => (
+                          <option key={status.value} value={status.value}>
+                            {status.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>

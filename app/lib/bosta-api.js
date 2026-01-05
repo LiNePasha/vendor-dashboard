@@ -375,7 +375,165 @@ export class BostaAPI {
   }
 
   /**
-   * 5️⃣ تتبع الشحنة
+   * 5️⃣ إنشاء شحنة من أوردر الموقع
+   */
+  async createWebsiteDelivery(order) {
+    try {
+      const payload = this.convertWebsiteOrderToBosta(order);
+      
+      console.log('📦 Sending Website Order to Bosta:', payload);
+
+      const res = await fetch(`${this.baseURL}/deliveries?apiVersion=1`, {
+        method: 'POST',
+        headers: {
+          'Authorization': this.apiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error('❌ Bosta Error Response:', errorData);
+        
+        // 🆕 لو District Not Found - جرب تاني بدون district
+        if (errorData.errorCode === 3003 && payload.dropOffAddress.districtId) {
+          console.log('⚠️ District Not Found - Retrying without districtId');
+          
+          // حذف districtId والمحاولة تاني
+          delete payload.dropOffAddress.districtId;
+          
+          const retryRes = await fetch(`${this.baseURL}/deliveries?apiVersion=1`, {
+            method: 'POST',
+            headers: {
+              'Authorization': this.apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+          
+          if (!retryRes.ok) {
+            const retryError = await retryRes.json();
+            console.error('❌ Retry Failed:', retryError);
+            throw new Error(retryError.message || retryError.error || 'Failed to create delivery');
+          }
+          
+          const retryData = await retryRes.json();
+          console.log('✅ Retry Success:', retryData);
+          return retryData;
+        }
+        
+        throw new Error(errorData.message || errorData.error || 'Failed to create delivery');
+      }
+
+      const data = await res.json();
+      console.log('✅ Bosta Response:', data);
+      return data;
+      
+    } catch (error) {
+      console.error('Bosta Create Website Delivery Error:', error);
+      return { error: error.message };
+    }
+  }
+
+  /**
+   * 6️⃣ تحويل Website Order → Bosta Format
+   */
+  convertWebsiteOrderToBosta(order) {
+    // استخراج البيانات من meta_data
+    const getMetaValue = (key) => {
+      const meta = order.meta_data?.find(m => m.key === key);
+      return meta?.value || '';
+    };
+
+    // استخراج المبلغ المدفوع
+    const paidAmount = parseFloat(getMetaValue('_instapay_payment_amount') || 0);
+    const total = parseFloat(order.total);
+    const shippingTotal = parseFloat(order.shipping_total);
+    
+    // حساب COD = shipping_total (لأن العميل دفع ثمن المنتجات)
+    const codAmount = shippingTotal;
+
+    // تقسيم الاسم
+    const fullName = `${order.billing.first_name} ${order.billing.last_name}`.trim();
+    const nameParts = fullName.split(' ');
+    const firstName = nameParts[0] || 'عميل';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    // تجميع وصف المنتجات
+    const itemsDescription = order.line_items
+      ?.map(item => `${item.name} (${item.quantity})`)
+      .join(', ') || 'منتجات';
+
+    // حساب عدد القطع
+    const itemsCount = order.line_items?.reduce((sum, item) => sum + item.quantity, 0) || 1;
+
+    // بناء firstLine من العنوان
+    const firstLine = order.billing.address_1 || 'عنوان غير محدد';
+
+    const payload = {
+      type: 10, // Send
+      specs: {
+        packageType: 'Parcel',
+        size: 'MEDIUM',
+        packageDetails: {
+          itemsCount: itemsCount,
+          description: itemsDescription.substring(0, 200)
+        }
+      },
+      cod: codAmount,
+      notes: order.customer_note || '',
+      dropOffAddress: {
+        city: order.shipping.city || order.billing.city || '',
+        firstLine: firstLine,
+        secondLine: order.billing.address_2 || '',
+        buildingNumber: '',
+        floor: '',
+        apartment: ''
+      },
+      receiver: {
+        firstName: firstName,
+        lastName: lastName,
+        phone: order.billing.phone || '',
+        email: order.billing.email || undefined
+      },
+      businessReference: order.id.toString(),
+      allowToOpenPackage: false
+    };
+
+    // إضافة districtId و cityId
+    const districtId = getMetaValue('_shipping_district_id');
+    const cityId = getMetaValue('_shipping_city_id');
+    
+    console.log('🔍 District ID from meta:', districtId);
+    console.log('🔍 City ID from meta:', cityId);
+    
+    // Strategy: استخدام districtId مع cityId
+    if (districtId && cityId) {
+      payload.dropOffAddress.districtId = districtId;
+      payload.dropOffAddress.cityId = cityId;
+      console.log('✅ Using districtId + cityId');
+    } else if (cityId) {
+      // لو في cityId بس بدون district
+      payload.dropOffAddress.cityId = cityId;
+      console.log('⚠️ Using cityId only (no district)');
+    } else {
+      // Fallback: استخدام اسم المدينة
+      console.log('⚠️ No cityId/districtId - using city name only');
+    }
+
+    // إضافة businessLocationId إذا موجود
+    if (this.businessLocationId) {
+      payload.businessLocationId = this.businessLocationId;
+    }
+    
+    console.log('📦 Final Bosta Payload:', JSON.stringify(payload, null, 2));
+
+    return payload;
+  }
+
+  /**
+   * 7️⃣ تتبع الشحنة
    */
   async getTrackingDetails(trackingNumber) {
     try {

@@ -132,9 +132,15 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
                 )}
                 {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && invoice.deliveryPayment.remainingAmount > 0 && (
                   <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-green-700">✓ المدفوع (ثمن المنتجات):</span>
+                      <span className="font-bold text-green-700 text-base">
+                        {(invoice.summary.total - invoice.deliveryPayment.remainingAmount).toFixed(2)} ج.م
+                      </span>
+                    </div>
                     <div className="flex justify-between items-center">
-                      <span className="font-semibold text-blue-800">المطلوب تحصيله:</span>
-                      <span className="font-bold text-blue-700 text-base">{invoice.deliveryPayment.remainingAmount.toFixed(2)} ج.م</span>
+                      <span className="font-semibold text-red-700">📦 المطلوب تحصيله:</span>
+                      <span className="font-bold text-red-700 text-base">{invoice.deliveryPayment.remainingAmount.toFixed(2)} ج.م</span>
                     </div>
                     <div className="text-xs text-blue-600 mt-1 text-center">(رسوم التوصيل فقط)</div>
                   </div>
@@ -416,11 +422,17 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
               )}
               {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && invoice.deliveryPayment.remainingAmount > 0 && (
                 <div style={{ marginTop: '2px', borderTop: '1px solid #ddd', paddingTop: '2px', backgroundColor: '#dbeafe' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '10px' }}>
-                    <span>المطلوب تحصيله:</span>
-                    <span style={{ color: '#1e40af' }}>{invoice.deliveryPayment.remainingAmount.toFixed(2)} ج.م</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1px', fontSize: '9px' }}>
+                    <span style={{ color: '#16a34a' }}>✓ المدفوع (منتجات):</span>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>
+                      {(invoice.summary.total - invoice.deliveryPayment.remainingAmount).toFixed(2)} ج.م
+                    </span>
                   </div>
-                  <div style={{ fontSize: '8px', marginTop: '1px', textAlign: 'center', color: '#1e40af' }}>(رسوم التوصيل فقط)</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '10px' }}>
+                    <span style={{ color: '#dc2626' }}>📦 المطلوب:</span>
+                    <span style={{ color: '#dc2626' }}>{invoice.deliveryPayment.remainingAmount.toFixed(2)} ج.م</span>
+                  </div>
+                  <div style={{ fontSize: '8px', marginTop: '1px', textAlign: 'center', color: '#1e40af' }}>(رسوم التوصيل)</div>
                 </div>
               )}
             </div>
