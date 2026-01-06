@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import ProductFormModal from "@/components/ProductFormModal";
 import BulkUploadModal from "@/components/BulkUploadModal";
+import InvoiceUploadModal from "@/components/InvoiceUploadModal";
 import Link from "next/link";
 import { productsCacheStorage } from "@/app/lib/localforage";
 import { getVendorLogo } from "@/app/lib/vendor-constants";
@@ -93,6 +94,7 @@ export default function ProductsPage() {
   const [initialized, setInitialized] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const [showInvoiceUpload, setShowInvoiceUpload] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
 
   // Get vendor info for logo fallback
@@ -406,6 +408,15 @@ export default function ProductsPage() {
               </p>
             </div>
             <div className="flex gap-2">
+              <button
+                onClick={() => setShowInvoiceUpload(true)}
+                className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white px-5 py-2.5 rounded-lg hover:from-purple-700 hover:to-indigo-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2"
+                title="رفع صورة فاتورة لاستخراج المنتجات تلقائياً بالذكاء الاصطناعي"
+              >
+                <span className="text-lg">📸</span>
+                <span className="hidden sm:inline">رفع فاتورة</span>
+                <span className="sm:hidden">فاتورة</span>
+              </button>
               <button
                 onClick={() => setShowBulkUpload(true)}
                 className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-2.5 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2"
@@ -750,6 +761,17 @@ export default function ProductsPage() {
       {imageModal && (
         <ImageModal src={imageModal} onClose={() => setImageModal(null)} />
       )}
+
+      {/* Invoice Upload Modal */}
+      <InvoiceUploadModal
+        isOpen={showInvoiceUpload}
+        onClose={() => setShowInvoiceUpload(false)}
+        onSuccess={(product) => {
+          // handleQuickAddSuccess is called for each product
+          handleQuickAddSuccess(product);
+        }}
+        setToast={setToast}
+      />
 
       {/* Edit Product Modal */}
       <ProductFormModal

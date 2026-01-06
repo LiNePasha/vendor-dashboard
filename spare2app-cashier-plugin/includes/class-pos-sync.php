@@ -385,11 +385,25 @@ class Spare2App_POS_Sync {
                 $thumbnail_id = get_term_meta($term->term_id, 'thumbnail_id', true);
                 $image_url = $thumbnail_id ? wp_get_attachment_url($thumbnail_id) : null;
                 
+                // ✅ Count products in this category for THIS VENDOR ONLY
+                $count = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(DISTINCT p.ID) 
+                     FROM {$wpdb->posts} p
+                     INNER JOIN {$wpdb->term_relationships} tr ON p.ID = tr.object_id
+                     INNER JOIN {$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
+                     WHERE p.post_author = %d 
+                     AND p.post_type = 'product' 
+                     AND p.post_status = 'publish'
+                     AND tt.term_id = %d",
+                    $vendor_id,
+                    $term->term_id
+                ));
+                
                 $categories[] = array(
                     'id' => $term->term_id,
                     'name' => $term->name,
                     'slug' => $term->slug,
-                    'count' => $term->count,
+                    'count' => (int) $count, // ✅ العدد الصحيح للـvendor بس
                     'parent' => $term->parent,
                     'image' => $image_url
                 );

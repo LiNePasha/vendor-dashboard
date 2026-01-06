@@ -30,7 +30,9 @@
       "next.config.mjs"
     ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "public/icons/icon-512x512.png"
     }
   },
@@ -41,6 +43,7 @@
     "date-fns-tz": "^3.2.0",
     "formidable": "^3.5.4",
     "googleapis": "^166.0.0",
+    "groq-sdk": "^0.37.0",
     "localforage": "^1.10.0",
     "multer": "^2.0.2",
     "next": "15.5.7",
