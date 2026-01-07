@@ -28,7 +28,7 @@ export const VENDOR_STORE_BUNDLE_LINKS = {
   20: 'https://www.spare2app.com/bundle/ashrafhelmy55?ids=',
   19: 'https://www.spare2app.com/bundle/samerpepo1?ids=',
   46: 'https://www.spare2app.com/bundle/spare2appeg?ids=',
-  22: 'https://abosh3ban.com/bundle/p=',
+  22: 'https://abosh3ban.com/bundle?p=',
 };
 
 /**
