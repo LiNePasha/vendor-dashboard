@@ -354,8 +354,21 @@ export default function OrderDetailsModal({
                     </a>
                   )}
                 </div>
-              )}
-            </div>
+              )}              
+              {/* Customer Note */}
+              {order.customer_note && order.customer_note.trim() && (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 rounded-lg p-3 mt-3">
+                  <div className="flex items-start gap-2">
+                    <span className="text-yellow-600 text-base flex-shrink-0">📝</span>
+                    <div className="flex-1">
+                      <div className="text-sm font-bold text-yellow-800 mb-1">ملاحظة العميل:</div>
+                      <p className="text-sm text-gray-800 leading-relaxed">
+                        {order.customer_note}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}            </div>
           </section>
 
           {/* Payment Method */}

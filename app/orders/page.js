@@ -992,6 +992,20 @@ function OrdersContent() {
                           <span className="font-medium">{order.delivery.customer.phone}</span>
                         </p>
                       )}
+                      {/* Customer Note */}
+                      {order.customer_note && order.customer_note.trim() && (
+                        <div className="mt-2 pt-2 border-t border-blue-200">
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-yellow-600 text-sm flex-shrink-0">📝</span>
+                            <div className="flex-1">
+                              <div className="text-xs font-bold text-gray-700 mb-0.5">ملاحظة العميل:</div>
+                              <p className="text-xs text-gray-800 leading-relaxed bg-white rounded px-2 py-1 border border-yellow-200">
+                                {order.customer_note}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Products Summary */}
@@ -1153,14 +1167,23 @@ function OrdersContent() {
                                   {formatBostaStatus(order.bosta.status)}
                                 </span>
                               </div>
-                              <p className="text-gray-700 font-medium mb-1">
+                              <p className="text-gray-700 font-medium mb-2">
                                 رقم التتبع: {order.bosta.trackingNumber}
                               </p>
                               <button
                                 onClick={() => openTrackingModal(order.bosta.trackingNumber)}
-                                className="w-full text-blue-600 hover:text-blue-700 hover:underline text-xs font-medium"
+                                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:from-blue-600 hover:to-blue-700 transition-all shadow-md hover:shadow-lg mb-2"
                               >
-                                🔗 تتبع الشحنة
+                                🔍 تتبع الطلب
+                              </button>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(`https://bosta.co/ar-eg/tracking-shipments?shipment-number=${order.bosta.trackingNumber}`);
+                                  setToast({ message: 'تم نسخ لينك التتبع للعميل!', type: 'success' });
+                                }}
+                                className="w-full text-blue-600 hover:text-blue-700 text-xs font-medium border border-blue-300 rounded-lg py-1.5 hover:bg-blue-50 transition-all"
+                              >
+                                📋 نسخ لينك للعميل
                               </button>
                             </div>
                           ) : (
@@ -1513,6 +1536,22 @@ function OrdersContent() {
                       <span className="text-gray-400">💳</span>
                       {order.payment_method_title}
                     </p>
+                    
+                    {/* Customer Note */}
+                    {order.customer_note && order.customer_note.trim() && (
+                      <div className="bg-yellow-50 border-l-4 border-yellow-400 rounded-lg p-2">
+                        <div className="flex items-start gap-2">
+                          <span className="text-yellow-600 text-base flex-shrink-0">📝</span>
+                          <div className="flex-1">
+                            <div className="text-xs font-bold text-yellow-800 mb-0.5">ملاحظة العميل:</div>
+                            <p className="text-xs text-gray-800 leading-relaxed">
+                              {order.customer_note}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* 💰 المجموع بدون الشحن */}
                     <p className="text-gray-900 font-bold text-xl flex items-center gap-2">
                       <span className="text-gray-400 text-base">💰</span>
@@ -1552,14 +1591,23 @@ function OrdersContent() {
                                 ✅ تم الإرسال لبوسطة
                               </p>
                             </div>
-                            <p className="text-gray-700 font-medium mb-1">
+                            <p className="text-gray-700 font-medium mb-2">
                               رقم التتبع: {order.meta_data.find(m => m.key === 'bosta_tracking_number').value}
                             </p>
                             <button
                               onClick={() => openTrackingModal(order.meta_data.find(m => m.key === 'bosta_tracking_number').value)}
-                              className="w-full text-blue-600 hover:text-blue-700 hover:underline text-xs font-medium"
+                              className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:from-blue-600 hover:to-blue-700 transition-all shadow-md hover:shadow-lg mb-2"
                             >
-                              🔗 تتبع الشحنة
+                              🔍 تتبع الطلب
+                            </button>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(`https://bosta.co/ar-eg/tracking-shipments?shipment-number=${order.meta_data.find(m => m.key === 'bosta_tracking_number').value}`);
+                                setToast({ message: 'تم نسخ لينك التتبع للعميل!', type: 'success' });
+                              }}
+                              className="w-full text-blue-600 hover:text-blue-700 text-xs font-medium border border-blue-300 rounded-lg py-1.5 hover:bg-blue-50 transition-all"
+                            >
+                              📋 نسخ لينك للعميل
                             </button>
                           </div>
                         ) : (
