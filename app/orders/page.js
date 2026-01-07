@@ -1540,8 +1540,9 @@ function OrdersContent() {
 
                   {/* Actions */}
                   <div className="space-y-2 px-1" onClick={(e) => e.stopPropagation()}>
-                    {/* 🆕 Bosta Section - لو التوصيل home_delivery */}
-                    {bostaEnabled && order.meta_data?.some(m => m.key === '_delivery_type' && m.value === 'home_delivery') && (
+                    {/* 🆕 Bosta Section - لكل الطلبات ماعدا الاستلام */}
+                    {bostaEnabled && order.status === 'processing' && 
+                     order.meta_data?.find(m => m.key === '_delivery_type')?.value !== 'pickup' && (
                       <div>
                         {order.meta_data?.find(m => m.key === 'bosta_tracking_number')?.value ? (
                           // إذا تم الإرسال - عرض معلومات التتبع
