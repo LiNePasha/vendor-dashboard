@@ -12,6 +12,7 @@ import InvoiceModal from './InvoiceModal';
 import EmployeeSelector from '@/components/EmployeeSelector';
 import CustomerSelector from '@/components/CustomerSelector';
 import { useCashierSync } from '@/app/hooks/useCashierSync';
+import BundleLinkModal from '@/components/BundleLinkModal';
 
 export default function POSPage() {
   const [search, setSearch] = useState('');
@@ -43,6 +44,7 @@ export default function POSPage() {
   const [editingProductId, setEditingProductId] = useState(null); // 🆕 للتعديل
   const [variationSelectorProduct, setVariationSelectorProduct] = useState(null); // 🆕 للـ variation selector
   const [variationSelectorVariations, setVariationSelectorVariations] = useState([]); // 🆕 variations list
+  const [showBundleModal, setShowBundleModal] = useState(false); // 🆕 Bundle Link Modal
   // 🆕 حالة الدفع للتوصيل
   const [deliveryPaymentStatus, setDeliveryPaymentStatus] = useState('cash_on_delivery');
   const [deliveryPaidAmount, setDeliveryPaidAmount] = useState(0);
@@ -665,6 +667,16 @@ export default function POSPage() {
 
               {/* Actions */}
               <div className="flex items-center gap-2">
+                {/* Bundle Link Button */}
+                <button
+                  onClick={() => setShowBundleModal(true)}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-2"
+                  title="حزمة منتجات أونلاين"
+                >
+                  <span>🔗</span>
+                  <span className="hidden lg:inline">حزمة منتجات</span>
+                </button>
+
                 {/* View Invoices Button */}
                 <button
                   onClick={() => setShowInvoicesModal(true)}
@@ -1119,6 +1131,7 @@ export default function POSPage() {
               <button
                 onClick={() => setShowInvoicesModal(false)}
                 className="text-white hover:bg-white hover:bg-opacity-20 rounded-lg px-4 py-2 transition-colors text-2xl font-bold"
+                title="الفواتير"
               >
                 ✕
               </button>
@@ -1135,6 +1148,14 @@ export default function POSPage() {
           </div>
         </div>
       )}
+
+      {/* Bundle Link Modal */}
+      <BundleLinkModal
+        isOpen={showBundleModal}
+        onClose={() => setShowBundleModal(false)}
+        allProducts={allProducts}
+        vendorId={vendorInfo?.id}
+      />
     </>
   );
 }
