@@ -13,6 +13,7 @@ import EmployeeSelector from '@/components/EmployeeSelector';
 import CustomerSelector from '@/components/CustomerSelector';
 import { useCashierSync } from '@/app/hooks/useCashierSync';
 import BundleLinkModal from '@/components/BundleLinkModal';
+import WholesalePricingModal from '@/components/WholesalePricingModal';
 
 export default function POSPage() {
   const [search, setSearch] = useState('');
@@ -45,6 +46,7 @@ export default function POSPage() {
   const [variationSelectorProduct, setVariationSelectorProduct] = useState(null); // 🆕 للـ variation selector
   const [variationSelectorVariations, setVariationSelectorVariations] = useState([]); // 🆕 variations list
   const [showBundleModal, setShowBundleModal] = useState(false); // 🆕 Bundle Link Modal
+  const [showWholesaleModal, setShowWholesaleModal] = useState(false); // 🆕 Wholesale Pricing Modal
   // 🆕 حالة الدفع للتوصيل
   const [deliveryPaymentStatus, setDeliveryPaymentStatus] = useState('cash_on_delivery');
   const [deliveryPaidAmount, setDeliveryPaidAmount] = useState(0);
@@ -678,6 +680,16 @@ export default function POSPage() {
 
                 {/* Actions */}
                 <div className="flex items-center gap-1 sm:gap-2">
+                  {/* Wholesale Pricing Button */}
+                  <button
+                    onClick={() => setShowWholesaleModal(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-1 sm:gap-2"
+                    title="تسعير جملة"
+                  >
+                    <span className="text-sm sm:text-base">🏪</span>
+                    <span className="hidden lg:inline text-sm sm:text-base">جملة</span>
+                  </button>
+
                   {/* Bundle Link Button */}
                   <button
                     onClick={() => setShowBundleModal(true)}
@@ -1167,6 +1179,16 @@ export default function POSPage() {
         onClose={() => setShowBundleModal(false)}
         allProducts={allProducts}
         vendorId={vendorInfo?.id}
+      />
+
+      {/* Wholesale Pricing Modal */}
+      <WholesalePricingModal
+        isOpen={showWholesaleModal}
+        onClose={() => {
+          setShowWholesaleModal(false);
+        }}
+        products={allProducts}
+        vendorInfo={vendorInfo}
       />
     </>
   );
