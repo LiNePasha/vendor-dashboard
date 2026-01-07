@@ -711,7 +711,7 @@ export default function POSPage() {
                   {/* Quick Add */}
                   <button
                     onClick={() => setShowQuickAdd(true)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-4 py-2 rounded-lg font-bold transition-colors hidden md:flex items-center gap-1 sm:gap-2"
+                    className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-4 py-2 rounded-lg font-bold transition-colors md:flex items-center gap-1 sm:gap-2"
                     title="إضافة منتج"
                   >
                     <span className="text-sm sm:text-base">➕</span>
