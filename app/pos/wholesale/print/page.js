@@ -182,141 +182,115 @@ export default function WholesalePrintPage() {
           {date.toLocaleString('ar-EG', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
         </div>
 
-        {/* Tiers Summary */}
-        <div style={{ 
-          marginBottom: '2mm', 
-          padding: '2mm',
-          border: '1px solid #000',
-          fontSize: '11px',
-          color: '#000'
-        }}>
-          <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '12px', textAlign: 'center' }}>
-            📊 شرائح الخصومات:
-          </div>
-          {printData.tiers.map((tier, index) => (
-            <div key={index} style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              marginBottom: '0.5mm',
-              paddingBottom: '0.5mm',
-              borderBottom: index < printData.tiers.length - 1 ? '1px dashed #ccc' : 'none'
-            }}>
-              <span>{tier.from}-{tier.to || '+'} قطع</span>
-              <span style={{ fontWeight: 'bold' }}>
-                {tier.discountType === 'percentage' 
-                  ? `خصم ${tier.discountValue}%` 
-                  : `خصم ${tier.discountValue} ج`
-                }
-              </span>
-            </div>
-          ))}
-        </div>
-
         {/* Products List */}
         <div style={{ borderTop: '1px dashed #000', paddingTop: '2mm', marginBottom: '2mm' }}>
           <div style={{ fontWeight: 'bold', marginBottom: '2mm', fontSize: '13px', textAlign: 'center' }}>
             📦 المنتجات ({printData.products.length})
           </div>
           
-          {printData.products.map((product, index) => (
-            <div key={product.id} style={{ 
-              marginBottom: '2mm',
-              paddingBottom: '2mm',
-              borderBottom: index < printData.products.length - 1 ? '1px solid #000' : 'none'
-            }}>
-              {/* Product Header */}
-              <div style={{ 
-                backgroundColor: '#f3f4f6',
-                padding: '1mm 2mm',
-                marginBottom: '1mm',
-                border: '1px solid #000'
+          {printData.products.map((product, index) => {
+            const productTiers = product.tiers || [];
+            
+            return (
+              <div key={product.id} style={{ 
+                marginBottom: '2mm',
+                paddingBottom: '2mm',
+                borderBottom: index < printData.products.length - 1 ? '1px solid #000' : 'none'
               }}>
-                <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#000', marginBottom: '0.5mm' }}>
-                  {product.name}
+                {/* Product Header */}
+                <div style={{ 
+                  backgroundColor: '#f3f4f6',
+                  padding: '1mm 2mm',
+                  marginBottom: '1mm',
+                  border: '1px solid #000'
+                }}>
+                  <div style={{ fontWeight: 'bold', fontSize: '13px', color: '#000', marginBottom: '0.5mm' }}>
+                    {product.name}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666' }}>
+                    {product.sku && <span>كود: {product.sku}</span>}
+                    <span style={{ fontWeight: 'bold', color: '#000' }}>سعر التجزئة: {formatPrice(product.regularPrice)} ج</span>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#666' }}>
-                  {product.sku && <span>كود: {product.sku}</span>}
-                  <span style={{ fontWeight: 'bold', color: '#000' }}>سعر التجزئة: {formatPrice(product.regularPrice)} ج</span>
-                </div>
-              </div>
 
-              {/* Pricing Table */}
-              <table style={{ 
-                width: '100%', 
-                borderCollapse: 'collapse',
-                fontSize: '11px',
-                border: '1px solid #000'
-              }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#e5e7eb' }}>
-                    <th style={{ 
-                      padding: '1mm', 
-                      border: '1px solid #000',
-                      fontWeight: 'bold',
-                      textAlign: 'center'
-                    }}>
-                      الكمية
-                    </th>
-                    <th style={{ 
-                      padding: '1mm', 
-                      border: '1px solid #000',
-                      fontWeight: 'bold',
-                      textAlign: 'center'
-                    }}>
-                      الخصم
-                    </th>
-                    <th style={{ 
-                      padding: '1mm', 
-                      border: '1px solid #000',
-                      fontWeight: 'bold',
-                      textAlign: 'center'
-                    }}>
-                      السعر
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {printData.tiers.map((tier, tidx) => {
-                    const discountedPrice = calculatePrice(product.regularPrice, tier);
-                    const discountLabel = tier.discountType === 'percentage' 
-                      ? `${tier.discountValue}%` 
-                      : `${tier.discountValue} ج`;
-                    
-                    return (
-                      <tr key={tidx} style={{ backgroundColor: tidx % 2 === 0 ? 'white' : '#f9fafb' }}>
-                        <td style={{ 
-                          padding: '1mm', 
-                          border: '1px solid #000',
-                          textAlign: 'center',
-                          fontWeight: 'bold'
-                        }}>
-                          {tier.from}-{tier.to || '+'}
-                        </td>
-                        <td style={{ 
-                          padding: '1mm', 
-                          border: '1px solid #000',
-                          textAlign: 'center',
-                          color: tier.discountValue > 0 ? '#dc2626' : '#666',
-                          fontSize: '10px'
-                        }}>
-                          {tier.discountValue > 0 ? discountLabel : '-'}
-                        </td>
-                        <td style={{ 
-                          padding: '1mm', 
-                          border: '1px solid #000',
-                          textAlign: 'center',
-                          fontWeight: 'bold',
-                          fontSize: '12px'
-                        }}>
-                          {formatPrice(discountedPrice)} ج
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ))}
+                {/* Pricing Table */}
+                <table style={{ 
+                  width: '100%', 
+                  borderCollapse: 'collapse',
+                  fontSize: '11px',
+                  border: '1px solid #000'
+                }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#e5e7eb' }}>
+                      <th style={{ 
+                        padding: '1mm', 
+                        border: '1px solid #000',
+                        fontWeight: 'bold',
+                        textAlign: 'center'
+                      }}>
+                        الكمية
+                      </th>
+                      <th style={{ 
+                        padding: '1mm', 
+                        border: '1px solid #000',
+                        fontWeight: 'bold',
+                        textAlign: 'center'
+                      }}>
+                        الخصم
+                      </th>
+                      <th style={{ 
+                        padding: '1mm', 
+                        border: '1px solid #000',
+                        fontWeight: 'bold',
+                        textAlign: 'center'
+                      }}>
+                        السعر
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productTiers.map((tier, tidx) => {
+                      const discountedPrice = calculatePrice(product.regularPrice, tier);
+                      const discountLabel = tier.discountType === 'percentage' 
+                        ? `${tier.discountValue}%` 
+                        : `${tier.discountValue} ج`;
+                      
+                      return (
+                        <tr key={tidx} style={{ backgroundColor: tidx % 2 === 0 ? 'white' : '#f9fafb' }}>
+                          <td style={{ 
+                            padding: '1mm', 
+                            border: '1px solid #000',
+                            textAlign: 'center',
+                            fontWeight: 'bold'
+                          }}>
+                            {tier.from}-{tier.to || '+'}
+                          </td>
+                          <td style={{ 
+                            padding: '1mm', 
+                            border: '1px solid #000',
+                            textAlign: 'center',
+                            color: tier.discountValue > 0 ? '#dc2626' : '#666',
+                            fontSize: '10px'
+                          }}>
+                            {tier.discountValue > 0 ? discountLabel : '-'}
+                          </td>
+                          <td style={{ 
+                            padding: '1mm', 
+                            border: '1px solid #000',
+                            textAlign: 'center',
+                            fontWeight: 'bold',
+                            fontSize: '12px'
+                          }}>
+                            {formatPrice(discountedPrice)} ج
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </div>
 
         {/* Footer */}

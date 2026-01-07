@@ -16,13 +16,11 @@ export default function WholesalePricingModal({
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [listName, setListName] = useState(`تسعير جملة - ${new Date().toLocaleDateString('ar-EG')}`);
   
-  // Tiers configuration
-  const [tiers, setTiers] = useState([
-    { from: 1, to: 4, discountType: 'percentage', discountValue: 0 }, // percentage or amount
-    { from: 5, to: 10, discountType: 'percentage', discountValue: 10 },
-    { from: 11, to: 20, discountType: 'percentage', discountValue: 15 },
-    { from: 21, to: null, discountType: 'percentage', discountValue: 20 } // null means "and above"
-  ]);
+  // Tiers configuration per product: { productId: [tiers] }
+  const [productTiers, setProductTiers] = useState({});
+  
+  // Track which product is expanded in Step 2
+  const [expandedProduct, setExpandedProduct] = useState(null);
 
   // Reset on close
   useEffect(() => {
@@ -31,12 +29,8 @@ export default function WholesalePricingModal({
       setSelectedProducts([]);
       setSearch("");
       setSelectedCategory("all");
-      setTiers([
-        { from: 1, to: 4, discountType: 'percentage', discountValue: 0 },
-        { from: 5, to: 10, discountType: 'percentage', discountValue: 10 },
-        { from: 11, to: 20, discountType: 'percentage', discountValue: 15 },
-        { from: 21, to: null, discountType: 'percentage', discountValue: 20 }
-      ]);
+      setProductTiers({});
+      setExpandedProduct(null);
     }
   }, [isOpen]);
 
@@ -75,17 +69,42 @@ export default function WholesalePricingModal({
 
   // Toggle product selection
   const toggleProduct = (productId) => {
-    setSelectedProducts(prev => 
-      prev.includes(productId)
+    setSelectedProducts(prev => {
+      const newSelected = prev.includes(productId)
         ? prev.filter(id => id !== productId)
-        : [...prev, productId]
-    );
+        : [...prev, productId];
+      
+      // Initialize tiers for newly selected products
+      if (newSelected.includes(productId) && !productTiers[productId]) {
+        setProductTiers(prevTiers => ({
+          ...prevTiers,
+          [productId]: [
+            { from: 5, to: 20, discountType: 'percentage', discountValue: 0 },
+            { from: 20, to: 40, discountType: 'percentage', discountValue: 0 }
+          ]
+        }));
+      }
+      
+      return newSelected;
+    });
   };
 
   // Select all filtered
   const selectAll = () => {
     const allIds = filteredProducts.map(p => p.id);
     setSelectedProducts(allIds);
+    
+    // Initialize tiers for all selected products
+    const newTiers = { ...productTiers };
+    allIds.forEach(id => {
+      if (!newTiers[id]) {
+        newTiers[id] = [
+          { from: 5, to: 20, discountType: 'percentage', discountValue: 0 },
+          { from: 20, to: 40, discountType: 'percentage', discountValue: 0 }
+        ];
+      }
+    });
+    setProductTiers(newTiers);
   };
 
   // Clear all
@@ -93,32 +112,46 @@ export default function WholesalePricingModal({
     setSelectedProducts([]);
   };
 
-  // Add new tier
-  const addTier = () => {
-    const lastTier = tiers[tiers.length - 1];
+  // Add new tier for a product
+  const addTier = (productId) => {
+    const currentTiers = productTiers[productId] || [];
+    const lastTier = currentTiers[currentTiers.length - 1];
     const newFrom = lastTier.to ? lastTier.to + 1 : lastTier.from + 10;
-    setTiers([...tiers, { from: newFrom, to: newFrom + 9, discountType: 'percentage', discountValue: 0 }]);
+    
+    setProductTiers(prev => ({
+      ...prev,
+      [productId]: [...currentTiers, { from: newFrom, to: newFrom + 9, discountType: 'percentage', discountValue: 0 }]
+    }));
   };
 
-  // Remove tier
-  const removeTier = (index) => {
-    if (tiers.length <= 1) return; // Keep at least one tier
-    setTiers(tiers.filter((_, i) => i !== index));
+  // Remove tier for a product
+  const removeTier = (productId, index) => {
+    const currentTiers = productTiers[productId] || [];
+    if (currentTiers.length <= 1) return; // Keep at least one tier
+    
+    setProductTiers(prev => ({
+      ...prev,
+      [productId]: currentTiers.filter((_, i) => i !== index)
+    }));
   };
 
-  // Update tier
-  const updateTier = (index, field, value) => {
-    const newTiers = [...tiers];
+  // Update tier for a product
+  const updateTier = (productId, index, field, value) => {
+    const currentTiers = [...(productTiers[productId] || [])];
     if (field === 'to' && value === '') {
-      newTiers[index][field] = null; // null means "and above"
+      currentTiers[index][field] = null;
     } else if (field === 'discountType') {
-      newTiers[index][field] = value;
+      currentTiers[index][field] = value;
     } else if (field === 'discountValue') {
-      newTiers[index][field] = value === '' ? 0 : parseFloat(value) || 0;
+      currentTiers[index][field] = value === '' ? 0 : parseFloat(value) || 0;
     } else {
-      newTiers[index][field] = value === '' ? 0 : parseFloat(value) || 0;
+      currentTiers[index][field] = value === '' ? 0 : parseFloat(value) || 0;
     }
-    setTiers(newTiers);
+    
+    setProductTiers(prev => ({
+      ...prev,
+      [productId]: currentTiers
+    }));
   };
 
   // Calculate price for a product based on tier
@@ -140,13 +173,8 @@ export default function WholesalePricingModal({
         name: p.name,
         sku: p.sku,
         regularPrice: parseFloat(p.price) || 0,
-        image: p.images?.[0]?.src || p.image
-      })),
-      tiers: tiers.map(t => ({
-        from: t.from,
-        to: t.to,
-        discountType: t.discountType,
-        discountValue: t.discountValue
+        image: p.images?.[0]?.src || p.image,
+        tiers: productTiers[p.id] || []
       })),
       date: new Date().toISOString()
     };
@@ -267,107 +295,161 @@ export default function WholesalePricingModal({
     );
   };
 
-  // Step 2: Tiers Configuration
+  // Step 2: Tiers Configuration (Per Product)
   const renderStep2 = () => {
+    const selectedProductsData = products.filter(p => selectedProducts.includes(p.id));
+    
+    // Set initial expanded product if none is set
+    if (expandedProduct === null && selectedProductsData.length > 0) {
+      setExpandedProduct(selectedProductsData[0].id);
+    }
+    
     return (
       <div className="p-6">
         <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-bold text-blue-900 mb-2">📊 تحديد شرائح الخصومات</h3>
+          <h3 className="font-bold text-blue-900 mb-2">📊 تحديد شرائح الخصومات لكل منتج</h3>
           <p className="text-sm text-blue-700">
-            حدد الخصم لكل شريحة كمية. سيتم حساب السعر تلقائياً لكل منتج ({selectedCount} منتج)
+            قم بتحديد شرائح الخصومات لكل منتج على حدة ({selectedCount} منتج)
           </p>
         </div>
 
-        <div className="space-y-3 mb-6">
-          {tiers.map((tier, index) => (
-            <div key={index} className="flex items-center gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-3">
-                <div>
-                  <label className="text-xs text-gray-600 font-medium">من (قطعة)</label>
-                  <input
-                    type="number"
-                    value={tier.from}
-                    onChange={(e) => updateTier(index, 'from', parseInt(e.target.value) || 1)}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-center font-bold focus:ring-2 focus:ring-green-500 outline-none"
-                    min="1"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-600 font-medium">إلى (قطعة)</label>
-                  <input
-                    type="number"
-                    value={tier.to === null ? '' : tier.to}
-                    onChange={(e) => updateTier(index, 'to', e.target.value ? parseInt(e.target.value) : null)}
-                    placeholder="فأكثر"
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-center font-bold focus:ring-2 focus:ring-green-500 outline-none"
-                    min={tier.from + 1}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-600 font-medium">نوع الخصم</label>
-                  <select
-                    value={tier.discountType}
-                    onChange={(e) => updateTier(index, 'discountType', e.target.value)}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-center font-bold focus:ring-2 focus:ring-green-500 outline-none"
-                  >
-                    <option value="percentage">نسبة %</option>
-                    <option value="amount">مبلغ ج</option>
-                  </select>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="text-xs text-gray-600 font-medium">
-                    {tier.discountType === 'percentage' ? 'نسبة الخصم (%)' : 'مبلغ الخصم (ج)'}
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      value={tier.discountValue}
-                      onChange={(e) => updateTier(index, 'discountValue', parseFloat(e.target.value) || 0)}
-                      className="w-full border-2 border-green-400 rounded px-3 py-2 text-center font-bold text-green-700 text-lg focus:ring-2 focus:ring-green-500 outline-none"
-                      min="0"
-                      max={tier.discountType === 'percentage' ? 100 : undefined}
-                      step={tier.discountType === 'percentage' ? '1' : '0.5'}
-                      placeholder={tier.discountType === 'percentage' ? '10' : '20'}
-                    />
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-lg">
-                      {tier.discountType === 'percentage' ? '%' : 'ج'}
-                    </span>
+        <div className="space-y-4 max-h-[500px] overflow-y-auto">
+          {selectedProductsData.map((product) => {
+            const productId = product.id;
+            const tiers = productTiers[productId] || [];
+            const isExpanded = expandedProduct === productId;
+            
+            return (
+              <div key={productId} className="border-2 border-gray-200 rounded-lg overflow-hidden">
+                {/* Product Header */}
+                <div 
+                  className="bg-gray-100 p-4 cursor-pointer hover:bg-gray-200 transition-colors"
+                  onClick={() => setExpandedProduct(isExpanded ? null : productId)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {product.images?.[0]?.src && (
+                        <img 
+                          src={product.images[0].src} 
+                          alt={product.name}
+                          className="w-12 h-12 object-cover rounded border border-gray-300"
+                        />
+                      )}
+                      <div>
+                        <h4 className="font-bold text-gray-900">{product.name}</h4>
+                        <p className="text-sm text-gray-600">
+                          سعر التجزئة: <span className="font-bold">{parseFloat(product.price) || 0} ج</span>
+                          {product.sku && <span className="mr-2">• كود: {product.sku}</span>}
+                        </p>
+                      </div>
+                    </div>
+                    <button className="text-2xl text-gray-600">
+                      {isExpanded ? '▼' : '◀'}
+                    </button>
                   </div>
                 </div>
+
+                {/* Tiers Configuration */}
+                {isExpanded && (
+                  <div className="p-4 bg-white">
+                    <div className="space-y-3 mb-4">
+                      {tiers.map((tier, index) => (
+                        <div key={index} className="flex items-center gap-2 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                          <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-2">
+                            <div>
+                              <label className="text-xs text-gray-600 font-medium">من</label>
+                              <input
+                                type="number"
+                                value={tier.from}
+                                onChange={(e) => updateTier(productId, index, 'from', parseInt(e.target.value) || 1)}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-center text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                                min="1"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-600 font-medium">إلى</label>
+                              <input
+                                type="number"
+                                value={tier.to === null ? '' : tier.to}
+                                onChange={(e) => updateTier(productId, index, 'to', e.target.value ? parseInt(e.target.value) : null)}
+                                placeholder="+"
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-center text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                                min={tier.from + 1}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-600 font-medium">نوع</label>
+                              <select
+                                value={tier.discountType}
+                                onChange={(e) => updateTier(productId, index, 'discountType', e.target.value)}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-center text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                              >
+                                <option value="percentage">%</option>
+                                <option value="amount">ج</option>
+                              </select>
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="text-xs text-gray-600 font-medium">قيمة الخصم</label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  value={tier.discountValue}
+                                  onChange={(e) => updateTier(productId, index, 'discountValue', parseFloat(e.target.value) || 0)}
+                                  className="w-full border-2 border-green-400 rounded px-2 py-1 text-center font-bold text-green-700 focus:ring-2 focus:ring-green-500 outline-none"
+                                  min="0"
+                                  max={tier.discountType === 'percentage' ? 100 : undefined}
+                                  step={tier.discountType === 'percentage' ? '1' : '0.5'}
+                                />
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">
+                                  {tier.discountType === 'percentage' ? '%' : 'ج'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {tiers.length > 1 && (
+                            <button
+                              onClick={() => removeTier(productId, index)}
+                              className="text-red-500 hover:text-red-700 px-2 py-1 text-lg"
+                              title="حذف"
+                            >
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => addTier(productId)}
+                      className="w-full border-2 border-dashed border-green-400 text-green-600 px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-50 transition-colors"
+                    >
+                      + إضافة شريحة
+                    </button>
+                  </div>
+                )}
               </div>
-              
-              {tiers.length > 1 && (
-                <button
-                  onClick={() => removeTier(index)}
-                  className="text-red-500 hover:text-red-700 px-3 py-2 text-xl"
-                  title="حذف الشريحة"
-                >
-                  🗑️
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        <button
-          onClick={addTier}
-          className="w-full border-2 border-dashed border-green-400 text-green-600 px-4 py-3 rounded-lg font-bold hover:bg-green-50 transition-colors"
-        >
-          + إضافة شريحة جديدة
-        </button>
-
-        {/* Quick Templates */}
-        <div className="mt-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <h4 className="font-bold text-gray-700 mb-3">⚡ قوالب سريعة:</h4>
+        {/* Quick Apply to All */}
+        <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <h4 className="font-bold text-yellow-900 mb-3">⚡ تطبيق سريع على الكل:</h4>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => {
-                setTiers([
-                  { from: 1, to: 9, discountType: 'percentage', discountValue: 0 },
-                  { from: 10, to: 19, discountType: 'percentage', discountValue: 10 },
-                  { from: 20, to: 49, discountType: 'percentage', discountValue: 15 },
-                  { from: 50, to: null, discountType: 'percentage', discountValue: 20 }
-                ]);
+                const newTiers = {
+                  1: { from: 1, to: 9, discountType: 'percentage', discountValue: 0 },
+                  2: { from: 10, to: 19, discountType: 'percentage', discountValue: 10 },
+                  3: { from: 20, to: 49, discountType: 'percentage', discountValue: 15 },
+                  4: { from: 50, to: null, discountType: 'percentage', discountValue: 20 }
+                };
+                const updated = {};
+                selectedProducts.forEach(id => {
+                  updated[id] = Object.values(newTiers);
+                });
+                setProductTiers(updated);
               }}
               className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm font-medium"
             >
@@ -375,15 +457,20 @@ export default function WholesalePricingModal({
             </button>
             <button
               onClick={() => {
-                setTiers([
+                const newTiers = [
                   { from: 1, to: 4, discountType: 'percentage', discountValue: 0 },
                   { from: 5, to: 10, discountType: 'percentage', discountValue: 5 },
                   { from: 11, to: null, discountType: 'percentage', discountValue: 10 }
-                ]);
+                ];
+                const updated = {};
+                selectedProducts.forEach(id => {
+                  updated[id] = newTiers;
+                });
+                setProductTiers(updated);
               }}
               className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 text-sm font-medium"
             >
-              تجار تجزئة (5-10%)
+              تجار (5-10%)
             </button>
           </div>
         </div>
@@ -400,13 +487,15 @@ export default function WholesalePricingModal({
         <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
           <h3 className="font-bold text-green-900 mb-2">✓ معاينة قائمة التسعير</h3>
           <p className="text-sm text-green-700">
-            {selectedCount} منتج مع {tiers.length} شريحة تسعير
+            {selectedCount} منتج مع شرائح خصومات مخصصة لكل منتج
           </p>
         </div>
 
         <div className="space-y-4 max-h-96 overflow-y-auto">
           {selectedProductsData.map(product => {
             const regularPrice = parseFloat(product.price) || 0;
+            const tiers = productTiers[product.id] || [];
+            
             return (
               <div key={product.id} className="border border-gray-200 rounded-lg p-4 bg-white">
                 <div className="flex items-start gap-4">
@@ -541,9 +630,13 @@ export default function WholesalePricingModal({
                   return;
                 }
                 if (currentStep === 2) {
-                  const hasValidTier = tiers.some(t => t.discountValue > 0 || t.discountValue === 0);
-                  if (!hasValidTier) {
-                    alert('⚠️ حدد خصومات الشرائح أولاً');
+                  // Check if all selected products have at least one tier
+                  const hasInvalidProduct = selectedProducts.some(id => {
+                    const tiers = productTiers[id] || [];
+                    return tiers.length === 0;
+                  });
+                  if (hasInvalidProduct) {
+                    alert('⚠️ حدد شرائح الخصومات لجميع المنتجات');
                     return;
                   }
                 }
