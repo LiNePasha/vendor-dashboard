@@ -297,8 +297,14 @@ export default function POSPage() {
 
   // 🔍 معالجة البحث - instant local filtering
   const handleSearch = (e) => {
-    setSearch(e.target.value);
-    // الفلترة تتم automatically في useMemo
+    const searchValue = e.target.value;
+    setSearch(searchValue);
+    
+    // 🔥 إذا كتب المستخدم شيء في البحث، انتقل تلقائياً لعرض المنتجات
+    if (searchValue.trim() && viewMode === 'categories') {
+      setViewMode('products');
+      setCategory('all'); // عرض كل المنتجات عند البحث
+    }
   };
 
   // 🆕 دالة اختيار التصنيف
@@ -629,83 +635,89 @@ export default function POSPage() {
       <div className="h-screen flex flex-col bg-gray-100 pos-content">
         {/* Header */}
         <div className="bg-blue-900 text-white shadow-lg sticky top-0 z-30">
-          <div className="max-w-screen-2xl mx-auto px-4 py-3">
-            <div className="flex items-center gap-3 mb-2">
-              {/* Logo */}
-              <div className="flex items-center gap-2 bg-blue-800 px-3 py-2 rounded-lg">
-                <span className="text-2xl">🏪</span>
-                <span className="font-bold text-lg hidden md:inline">كاشير</span>
+          <div className="max-w-screen-2xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-2">
+              {/* Top Row on Mobile: Logo + Search */}
+              <div className="flex items-center gap-2 w-full sm:flex-initial">
+                {/* Logo */}
+                <div className="flex items-center gap-2 bg-blue-800 px-2 sm:px-3 py-2 rounded-lg flex-shrink-0">
+                  <span className="text-xl sm:text-2xl">🏪</span>
+                  <span className="font-bold text-sm sm:text-lg hidden sm:inline">كاشير</span>
+                </div>
+
+                {/* Search Bar */}
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder="🔍 ابحث..."
+                    value={search}
+                    onChange={handleSearch}
+                    className="w-full px-3 sm:px-4 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                  />
+                </div>
               </div>
 
-              {/* Search Bar */}
-              <div className="flex-1">
-                <input
-                  type="text"
-                  placeholder="🔍 ابحث عن منتج..."
-                  value={search}
-                  onChange={handleSearch}
-                  className="w-full px-4 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              {/* Second Row on Mobile: Employee + Actions */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {/* Employee Selector - Compact */}
+                <div className="flex-1 sm:flex-initial sm:w-48">
+                  <EmployeeSelector
+                    employees={employees}
+                    selectedEmployee={selectedEmployee}
+                    onChange={(employee) => {
+                      setSelectedEmployee(employee);
+                      if (employee) {
+                        localStorage.setItem('selectedPOSEmployee', employee.id);
+                      } else {
+                        localStorage.removeItem('selectedPOSEmployee');
+                      }
+                    }}
+                    required={true}
+                  />
+                </div>
 
-              {/* Employee Selector - Compact */}
-              <div className="w-48">
-                <EmployeeSelector
-                  employees={employees}
-                  selectedEmployee={selectedEmployee}
-                  onChange={(employee) => {
-                    setSelectedEmployee(employee);
-                    if (employee) {
-                      localStorage.setItem('selectedPOSEmployee', employee.id);
-                    } else {
-                      localStorage.removeItem('selectedPOSEmployee');
-                    }
-                  }}
-                  required={true}
-                />
-              </div>
+                {/* Actions */}
+                <div className="flex items-center gap-1 sm:gap-2">
+                  {/* Bundle Link Button */}
+                  <button
+                    onClick={() => setShowBundleModal(true)}
+                    className="bg-orange-600 hover:bg-orange-700 text-white px-2 sm:px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-1 sm:gap-2"
+                    title="حزمة منتجات أونلاين"
+                  >
+                    <span className="text-sm sm:text-base">🔗</span>
+                    <span className="hidden lg:inline text-sm sm:text-base">حزمة منتجات</span>
+                  </button>
 
-              {/* Actions */}
-              <div className="flex items-center gap-2">
-                {/* Bundle Link Button */}
-                <button
-                  onClick={() => setShowBundleModal(true)}
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-2"
-                  title="حزمة منتجات أونلاين"
-                >
-                  <span>🔗</span>
-                  <span className="hidden lg:inline">حزمة منتجات</span>
-                </button>
+                  {/* View Invoices Button */}
+                  <button
+                    onClick={() => setShowInvoicesModal(true)}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-2 sm:px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-1 sm:gap-2"
+                    title="شوف الفواتير"
+                  >
+                    <span className="text-sm sm:text-base">📋</span>
+                    <span className="hidden lg:inline text-sm sm:text-base">شوف الفواتير</span>
+                  </button>
 
-                {/* View Invoices Button */}
-                <button
-                  onClick={() => setShowInvoicesModal(true)}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-2"
-                  title="شوف الفواتير"
-                >
-                  <span>📋</span>
-                  <span className="hidden lg:inline">شوف الفواتير</span>
-                </button>
+                  {/* Sync Button */}
+                  <button
+                    onClick={syncNow}
+                    disabled={syncInProgress}
+                    className="bg-blue-800 hover:bg-blue-700 px-2 sm:px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+                    title="تحديث الآن"
+                  >
+                    <span className={`${syncInProgress ? 'animate-spin' : ''} text-base sm:text-xl`}>🔄</span>
+                  </button>
 
-                {/* Sync Button */}
-                <button
-                  onClick={syncNow}
-                  disabled={syncInProgress}
-                  className="bg-blue-800 hover:bg-blue-700 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
-                  title="تحديث الآن"
-                >
-                  <span className={syncInProgress ? 'animate-spin text-xl' : 'text-xl'}>🔄</span>
-                </button>
-
-                {/* Quick Add */}
-                <button
-                  onClick={() => setShowQuickAdd(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-colors hidden md:flex items-center gap-2"
-                  title="إضافة منتج"
-                >
-                  <span>➕</span>
-                  <span className="hidden lg:inline">منتج جديد</span>
-                </button>
+                  {/* Quick Add */}
+                  <button
+                    onClick={() => setShowQuickAdd(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-4 py-2 rounded-lg font-bold transition-colors hidden md:flex items-center gap-1 sm:gap-2"
+                    title="إضافة منتج"
+                  >
+                    <span className="text-sm sm:text-base">➕</span>
+                    <span className="hidden lg:inline text-sm sm:text-base">منتج جديد</span>
+                  </button>
+                </div>
               </div>
             </div>
 
