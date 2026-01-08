@@ -105,13 +105,58 @@ export default function POSPage() {
       );
     }
 
-    // فلترة حسب البحث
+    // فلترة حسب البحث - نسخة محسّنة مع Scoring والترتيب حسب الدقة
     if (search.trim()) {
-      const searchLower = search.toLowerCase();
-      filtered = filtered.filter(product =>
-        product.name?.toLowerCase().includes(searchLower) ||
-        product.sku?.toLowerCase().includes(searchLower)
-      );
+      const searchWords = search.toLowerCase().trim().split(/\s+/);
+      
+      filtered = filtered
+        .map(product => {
+          const productName = product.name?.toLowerCase() || '';
+          const productSku = product.sku?.toLowerCase() || '';
+          const productBarcode = product.barcode?.toLowerCase() || '';
+          
+          // أولاً: تحقق إن كل الكلمات موجودة (شرط أساسي)
+          const allWordsMatch = searchWords.every(word =>
+            productName.includes(word) || productSku.includes(word) || productBarcode.includes(word)
+          );
+          
+          if (!allWordsMatch) {
+            return null; // لو مش كل الكلمات موجودة، استبعد المنتج
+          }
+          
+          // حساب Score للترتيب (بس للمنتجات اللي فيها كل الكلمات)
+          let score = 0;
+          
+          searchWords.forEach(word => {
+            // بحث في الاسم
+            if (productName.includes(word)) {
+              score += 10;
+              // بونص لو الكلمة في البداية
+              if (productName.startsWith(word)) score += 20;
+            }
+            
+            // بحث في SKU (أولوية عالية)
+            if (productSku.includes(word)) {
+              score += 50;
+              if (productSku === word) score += 100; // Match كامل
+            }
+            
+            // بحث في الباركود (أولوية عالية جداً)
+            if (productBarcode && productBarcode.includes(word)) {
+              score += 200;
+              if (productBarcode === word) score += 500; // Match كامل
+            }
+          });
+          
+          // بونص إضافي لو كل الكلمات موجودة في الاسم لوحده
+          const allWordsInName = searchWords.every(word => productName.includes(word));
+          if (allWordsInName) score += 15;
+          
+          return { product, score };
+        })
+        .filter(item => item !== null) // استبعاد المنتجات المرفوضة
+        .sort((a, b) => b.score - a.score) // ترتيب حسب الـ Score (الأعلى أولاً)
+        .map(item => item.product); // استخراج المنتجات
     }
 
     // 🔥 إنشاء unique ID لكل منتج للتخلص من duplicate keys
