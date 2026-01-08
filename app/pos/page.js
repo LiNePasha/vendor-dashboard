@@ -15,8 +15,21 @@ import { useCashierSync } from '@/app/hooks/useCashierSync';
 import BundleLinkModal from '@/components/BundleLinkModal';
 import WholesalePricingModal from '@/components/WholesalePricingModal';
 
+// 🔧 دالة معالجة الأحرف العربية
+const normalizeArabic = (text) => {
+  if (!text) return '';
+  return text
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/[ى]/g, 'ي')
+    .replace(/[ؤ]/g, 'و')
+    .replace(/[ئ]/g, 'ء')
+    .replace(/[ة]/g, 'ه')  // تاء مربوطة → هاء
+    .replace(/[\u064B-\u065F]/g, ''); // إزالة التشكيل
+};
+
 export default function POSPage() {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState(''); // 🆕 Debounced search
   const [category, setCategory] = useState('all');
   const [viewMode, setViewMode] = useState('categories'); // 🆕 categories or products
   const [toast, setToast] = useState(null);
@@ -94,6 +107,14 @@ export default function POSPage() {
   // 🚀 Auto-sync كل 30 ثانية
   const { syncNow } = useCashierSync();
 
+  // ⏱️ Debouncing للبحث - تأخير 300ms بعد توقف الكتابة
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   // 🔍 Frontend filtering - البحث والفلترة على الداتا المحملة locally
   const filteredProducts = useMemo(() => {
     let filtered = allProducts;
@@ -105,19 +126,20 @@ export default function POSPage() {
       );
     }
 
-    // فلترة حسب البحث - نسخة محسّنة مع Scoring والترتيب حسب الدقة
-    if (search.trim()) {
-      const searchWords = search.toLowerCase().trim().split(/\s+/);
+    // فلترة حسب البحث - نسخة محسّنة مع Scoring والترتيب حسب الدقة + معالجة الأحرف العربية
+    if (debouncedSearch.trim()) {
+      const searchWords = normalizeArabic(debouncedSearch.toLowerCase().trim()).split(/\s+/);
       
       filtered = filtered
         .map(product => {
-          const productName = product.name?.toLowerCase() || '';
-          const productSku = product.sku?.toLowerCase() || '';
-          const productBarcode = product.barcode?.toLowerCase() || '';
+          const productName = normalizeArabic(product.name?.toLowerCase() || '');
+          const productSku = normalizeArabic(product.sku?.toLowerCase() || '');
+          const productBarcode = normalizeArabic(product.barcode?.toLowerCase() || '');
+          const categoryNames = product.categories?.map(c => normalizeArabic(c.name?.toLowerCase() || '')).join(' ') || '';
           
           // أولاً: تحقق إن كل الكلمات موجودة (شرط أساسي)
           const allWordsMatch = searchWords.every(word =>
-            productName.includes(word) || productSku.includes(word) || productBarcode.includes(word)
+            productName.includes(word) || productSku.includes(word) || productBarcode.includes(word) || categoryNames.includes(word)
           );
           
           if (!allWordsMatch) {
@@ -145,6 +167,11 @@ export default function POSPage() {
             if (productBarcode && productBarcode.includes(word)) {
               score += 200;
               if (productBarcode === word) score += 500; // Match كامل
+            }
+            
+            // بحث في الكاتيجوري (أولوية متوسطة)
+            if (categoryNames.includes(word)) {
+              score += 5;
             }
           });
           
@@ -174,7 +201,7 @@ export default function POSPage() {
         uniqueId: `prod_${product.id}`, // unique ID للمنتجات العادية
       };
     });
-  }, [allProducts, category, search]);
+  }, [allProducts, category, debouncedSearch]);
 
   // 🆕 تحميل Tabs من localStorage
   useEffect(() => {
