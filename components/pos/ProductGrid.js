@@ -159,27 +159,170 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
               {product.name}
             </h3>
             
-            {/* 🆕 Variable Product Badge */}
-            {product.type === 'variable' && (
-              <div className="mb-2 flex flex-col gap-1">
-                {Array.isArray(product.attributes) && product.attributes.length > 0 ? (
-                  product.attributes.map((attr, idx) => (
-                    <span
-                      key={attr.id || idx}
-                      className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-bold rounded-md flex items-center gap-1 border border-purple-200"
+            {/* 🆕 Variable Product - Show All Variations Directly */}
+            {product.type === 'variable' && product.variations && product.variations.length > 0 ? (
+              (() => {
+                // Filter valid variations (must have variation_id or id, and not null)
+                const validVariations = product.variations.filter(v => v && (v.variation_id || v.id)).map(v => ({
+                  ...v,
+                  variation_id: v.variation_id || v.id, // Normalize variation_id
+                  attributes: (() => {
+                    // Convert attributes object to array format
+                    if (Array.isArray(v.attributes)) {
+                      return v.attributes;
+                    } else if (typeof v.attributes === 'object' && v.attributes !== null) {
+                      // Convert {"attribute_color": "red"} to [{name: "color", option: "red"}]
+                      return Object.entries(v.attributes).map(([key, value]) => {
+                        // Remove 'attribute_' prefix and decode URI
+                        const cleanKey = key.replace(/^attribute_/, '');
+                        const decodedKey = decodeURIComponent(cleanKey);
+                        return { name: decodedKey, option: value };
+                      });
+                    }
+                    return [];
+                  })()
+                }));
+                const validCount = validVariations.length;
+                
+                // Get available variations (with stock > 0)
+                const availableVariations = validVariations.filter(v => v.stock_quantity > 0);
+                const availableCount = availableVariations.length;
+                
+                return (
+                  <div className="mb-1">
+                    {/* Show available variations names */}
+                    {availableCount > 0 && (
+                      <div className="bg-gray-100 rounded p-1 mb-1 text-[9px] text-gray-700">
+                        <span className="font-bold">متاح ({availableCount}):</span> {availableVariations.map((v, idx) => {
+                          let name = 'نوع';
+                          if (Array.isArray(v.attributes)) {
+                            name = v.attributes.map(attr => attr.option).join('-');
+                          } else if (typeof v.attributes === 'object' && v.attributes !== null) {
+                            name = Object.values(v.attributes).join('-');
+                          } else if (v.name) {
+                            name = v.name.replace(product.name, '').replace(' - ', '').trim();
+                          }
+                          return idx === availableVariations.length - 1 ? name : name + '، ';
+                        })}
+                      </div>
+                    )}
+                    
+                    {/* Show all variations in grid */}
+                    <div className="flex gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-300 pb-1">
+                      {validVariations.map((variation) => {
+                  const varCartQty = getCartQuantity(variation);
+                  const isVarInCart = varCartQty > 0;
+                  const varKey = `${product.id}_var_${variation.variation_id}`;
+                  
+                  return (
+                    <div
+                      key={variation.variation_id}
+                      className="bg-gray-50 border border-gray-200 rounded p-1 hover:bg-blue-50 hover:border-blue-300 transition-all flex flex-col flex-shrink-0"
+                      style={{ minWidth: '65px' }}
                     >
-                      <span className="text-sm">🎨</span>
-                      {attr.name}: {Array.isArray(attr.options) ? attr.options.join('، ') : ''}
-                    </span>
-                  ))
-                ) : (
-                  <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-bold rounded-md flex items-center gap-1">
-                    لا يوجد متغيرات
-                  </span>
-                )}
+                      <div className="flex flex-col gap-0.5 mb-1">
+                        <div className="text-[9px] font-bold text-gray-800 truncate leading-tight text-center">
+                          {(() => {
+                            if (Array.isArray(variation.attributes)) {
+                              return variation.attributes.map(attr => attr.option).join('-');
+                            } else if (typeof variation.attributes === 'object' && variation.attributes !== null) {
+                              return Object.values(variation.attributes).join('-');
+                            } else if (variation.name) {
+                              return variation.name.replace(product.name, '').replace(' - ', '').trim();
+                            }
+                            return 'نوع';
+                          })()}
+                        </div>
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="text-[9px] font-bold text-blue-600">
+                            {variation.price}ج
+                          </span>
+                          <span className={`text-[8px] px-1 py-0.5 rounded font-bold ${
+                            variation.stock_quantity > 5 
+                              ? 'bg-green-100 text-green-700'
+                              : variation.stock_quantity > 0
+                                ? 'bg-orange-100 text-orange-700'
+                                : 'bg-red-100 text-red-700'
+                          }`}>
+                            {variation.stock_quantity > 0 ? `${variation.stock_quantity}` : 'نفذ'}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-center">
+                        {!isVarInCart ? (
+                          <button
+                            onClick={() => {
+                              let variationName = product.name;
+                              if (Array.isArray(variation.attributes)) {
+                                const attrs = variation.attributes.map(attr => attr.option).join(' - ');
+                                variationName = `${product.name} - ${attrs}`;
+                              } else if (typeof variation.attributes === 'object' && variation.attributes !== null) {
+                                const attrs = Object.values(variation.attributes).join(' - ');
+                                variationName = `${product.name} - ${attrs}`;
+                              } else if (variation.name) {
+                                variationName = variation.name;
+                              }
+                              
+                              const variationWithId = {
+                                ...variation,
+                                id: varKey,
+                                name: variationName,
+                                parent_id: product.id,
+                                parent_name: product.name,
+                                is_variation: true
+                              };
+                              onAddToCart(variationWithId);
+                            }}
+                            disabled={variation.stock_quantity === 0}
+                            className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all w-full ${
+                              variation.stock_quantity > 0
+                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            }`}
+                          >
+                            +
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-0 bg-blue-600 rounded text-white text-[9px] w-full justify-center">
+                            <button
+                              onClick={() => handleDecrease(variation)}
+                              className="px-1 py-0.5 hover:bg-blue-700 rounded-r transition-all font-bold flex-1"
+                            >
+                              −
+                            </button>
+                            <span className="px-1 py-0.5 font-bold">
+                              {varCartQty}
+                            </span>
+                            <button
+                              onClick={() => handleIncrease(variation)}
+                              disabled={varCartQty >= variation.stock_quantity}
+                              className="px-1 py-0.5 hover:bg-blue-700 rounded-l transition-all font-bold disabled:opacity-50 flex-1"
+                            >
+                              +
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            )}
+            </div>
+                );
+              })()
+            ) : product.type === 'variable' ? (
+              /* Fallback: Show select button if no variations loaded */
+              <button
+                onClick={() => onSelectVariation && onSelectVariation(product)}
+                className="w-full mb-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-purple-600 text-white hover:bg-purple-700 shadow-md"
+              >
+                🎯 اختر الأنواع
+              </button>
+            ) : null}
             
+            {/* Simple Product Controls */}
+            {product.type !== 'variable' && (
             <div className="flex items-center justify-between gap-2">
               {/* السعر مع دعم العروض */}
               <div className="flex flex-col">
@@ -201,54 +344,45 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                 )}
               </div>
               
-              {/* 🆕 Variable Product - Select Button */}
-              {product.type === 'variable' ? (
+              {/* Simple Product Counter */}
+              {!isInCart ? (
                 <button
-                  onClick={() => onSelectVariation && onSelectVariation(product)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-purple-600 text-white hover:bg-purple-700 shadow-md"
+                  onClick={() => {
+                    onAddToCart(product);
+                    const key = product.is_variation && product.variation_id ? `var_${product.variation_id}` : `prod_${product.id}`;
+                    setQuantities(prev => ({ ...prev, [key]: 1 }));
+                  }}
+                  disabled={product.stock_quantity === 0}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md border
+                    ${product.stock_quantity > 0
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 border-blue-500'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-300'
+                    }`}
                 >
-                  🎯 اختر
+                  {product.stock_quantity > 0 ? '+ إضافة' : 'نفذ'}
                 </button>
               ) : (
-                /* Simple Product - Counter Button */
-                !isInCart ? (
+                <div className="flex items-center gap-0 bg-blue-600 rounded-lg shadow-md border border-blue-500">
                   <button
-                    onClick={() => {
-                      onAddToCart(product);
-                      const key = product.is_variation && product.variation_id ? `var_${product.variation_id}` : `prod_${product.id}`;
-                      setQuantities(prev => ({ ...prev, [key]: 1 }));
-                    }}
-                    disabled={product.stock_quantity === 0}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md border
-                      ${product.stock_quantity > 0
-                        ? 'bg-blue-600 text-white hover:bg-blue-700 border-blue-500'
-                        : 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-300'
-                      }`}
+                    onClick={() => handleDecrease(product)}
+                    className="px-2 py-1.5 text-white hover:bg-blue-700 rounded-r-lg transition-all font-bold text-sm"
                   >
-                    {product.stock_quantity > 0 ? '+ إضافة' : 'نفذ'}
+                    −
                   </button>
-                ) : (
-                  <div className="flex items-center gap-0 bg-blue-600 rounded-lg shadow-md border border-blue-500">
-                    <button
-                      onClick={() => handleDecrease(product)}
-                      className="px-2 py-1.5 text-white hover:bg-blue-700 rounded-r-lg transition-all font-bold text-sm"
-                    >
-                      −
-                    </button>
-                    <span className="px-2 py-1 text-white font-bold text-sm min-w-[32px] text-center">
-                      {currentQty}
-                    </span>
-                    <button
-                      onClick={() => handleIncrease(product)}
-                      disabled={currentQty >= product.stock_quantity}
-                      className="px-2 py-1.5 text-white hover:bg-blue-700 rounded-l-lg transition-all font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      +
-                    </button>
-                  </div>
-                )
+                  <span className="px-2 py-1 text-white font-bold text-sm min-w-[32px] text-center">
+                    {currentQty}
+                  </span>
+                  <button
+                    onClick={() => handleIncrease(product)}
+                    disabled={currentQty >= product.stock_quantity}
+                    className="px-2 py-1.5 text-white hover:bg-blue-700 rounded-l-lg transition-all font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    +
+                  </button>
+                </div>
               )}
             </div>
+            )}
           </div>
         </div>
         );

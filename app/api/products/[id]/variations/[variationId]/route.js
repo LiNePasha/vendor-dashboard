@@ -52,24 +52,39 @@ export async function DELETE(req, { params }) {
 
     const { id, variationId } = await params;
 
+    console.log(`🗑️ Attempting to delete variation ${variationId} from product ${id}`);
+
     // Delete variation via WooCommerce API
     const response = await fetch(`${API_BASE}/wp-json/wc/v3/products/${id}/variations/${variationId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
-      }
+      },
+      // Add force=true to permanently delete
+      params: { force: true }
     });
 
+    const responseText = await response.text();
+    console.log(`WooCommerce response status: ${response.status}`);
+    console.log(`WooCommerce response:`, responseText);
+
     if (!response.ok) {
-      const errorData = await response.json();
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch {
+        errorData = { message: responseText };
+      }
+      console.error('❌ WooCommerce error:', errorData);
       return NextResponse.json(
         { error: errorData.message || 'Failed to delete variation' },
         { status: response.status }
       );
     }
 
-    const result = await response.json();
+    const result = JSON.parse(responseText);
+    console.log('✅ Variation deleted successfully');
     return NextResponse.json({ success: true, result });
   } catch (error) {
     console.error('Error deleting variation:', error);

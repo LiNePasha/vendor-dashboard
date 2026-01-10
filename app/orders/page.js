@@ -48,8 +48,13 @@ function OrdersContent() {
   // 🆕 Editing State for POS Orders
   const [editingInvoice, setEditingInvoice] = useState(null); // { orderStatus, paymentStatus }
   
-  // 🆕 View Mode State (Table or Grid) - Table is default
-  const [viewMode, setViewMode] = useState('table'); // 'grid' | 'table'
+  // 🆕 View Mode State (Table or Grid) - Grid is default, saved in localStorage
+  const [viewMode, setViewMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('orders-view-mode') || 'grid';
+    }
+    return 'grid';
+  });
   
   // 🆕 Auto-hide toast
   useEffect(() => {
@@ -58,6 +63,13 @@ function OrdersContent() {
       return () => clearTimeout(timer);
     }
   }, [toast]);
+
+  // 🆕 حفظ viewMode في localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('orders-view-mode', viewMode);
+    }
+  }, [viewMode]);
 
   // 🆕 قراءة search من URL أول مرة وجلب الطلب مباشرة
   useEffect(() => {
@@ -388,12 +400,34 @@ function OrdersContent() {
     }
   };
 
-  const handleStatusChange = (orderId, newStatus) => {
-    // Update global state
-    updateOrderStatus(orderId, newStatus);
+  const handleStatusChange = async (orderId, newStatus) => {
+    try {
+      // Show loading toast
+      setToast({ message: '⏳ جاري تحديث الحالة...', type: 'info' });
 
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus });
+      // Send API request to update order status
+      const response = await fetch('/api/orders/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, status: newStatus })
+      });
+
+      if (!response.ok) {
+        throw new Error('فشل تحديث حالة الطلب');
+      }
+
+      // Update global state
+      updateOrderStatus(orderId, newStatus);
+
+      // Update selected order if open
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: newStatus });
+      }
+
+      setToast({ message: '✅ تم تحديث حالة الطلب بنجاح', type: 'success' });
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      setToast({ message: '❌ فشل تحديث حالة الطلب', type: 'error' });
     }
   };
 
@@ -627,48 +661,59 @@ function OrdersContent() {
         </div>
       </div>
 
-      {/* View Mode Toggle - للطلبات من النظام فقط */}
-      {activeTab === 'system' && (
-        <div className="mb-4 flex justify-end gap-2">
-          <button
-            onClick={() => setViewMode('grid')}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              viewMode === 'grid'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-white text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            🔲 كاردات
-          </button>
-          <button
-            onClick={() => setViewMode('table')}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
-              viewMode === 'table'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-white text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            📊 جدول
-          </button>
-        </div>
-      )}
+      {/* View Mode Toggle - لكل الطلبات */}
+      <div className="mb-4 flex justify-end gap-2">
+        <button
+          onClick={() => setViewMode('grid')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+            viewMode === 'grid'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-white text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          🔲 كاردات
+        </button>
+        <button
+          onClick={() => setViewMode('table')}
+          className={`px-4 py-2 rounded-lg font-medium transition-all ${
+            viewMode === 'table'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-white text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          📊 جدول
+        </button>
+      </div>
 
-      {/* Table View - للطلبات من النظام فقط */}
-      {activeTab === 'system' && viewMode === 'table' && (
+      {/* Table View - لكل الطلبات */}
+      {viewMode === 'table' && (
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gradient-to-r from-green-500 to-green-600 text-white">
+              <thead className={`${activeTab === 'website' ? 'bg-gradient-to-r from-blue-500 to-blue-600' : 'bg-gradient-to-r from-green-500 to-green-600'} text-white`}>
                 <tr>
-                  <th className="px-2 py-3 text-right text-sm font-bold">رقم الفاتورة</th>
+                  <th className="px-2 py-3 text-right text-sm font-bold">
+                    {activeTab === 'website' ? 'رقم الطلب' : 'رقم الفاتورة'}
+                  </th>
                   <th className="px-2 py-3 text-right text-sm font-bold">العميل</th>
                   <th className="px-2 py-3 text-right text-sm font-bold">الهاتف</th>
                   <th className="px-2 py-3 text-right text-sm font-bold">المنتجات</th>
                   <th className="px-2 py-3 text-right text-sm font-bold">الإجمالي</th>
-                  <th className="px-2 py-3 text-right text-sm font-bold">تفاصيل الدفع</th>
-                  <th className="px-2 py-3 text-right text-sm font-bold">حالة الطلب</th>
-                  <th className="px-2 py-3 text-right text-sm font-bold">حالة الدفع</th>
-                  <th className="px-2 py-3 text-right text-sm font-bold">Bosta</th>
+                  {activeTab === 'website' && (
+                    <th className="px-2 py-3 text-right text-sm font-bold">طريقة الدفع</th>
+                  )}
+                  {activeTab === 'system' && (
+                    <th className="px-2 py-3 text-right text-sm font-bold">تفاصيل الدفع</th>
+                  )}
+                  <th className="px-2 py-3 text-right text-sm font-bold">
+                    {activeTab === 'website' ? 'الحالة' : 'حالة الطلب'}
+                  </th>
+                  {activeTab === 'system' && (
+                    <th className="px-2 py-3 text-right text-sm font-bold">حالة الدفع</th>
+                  )}
+                  {bostaEnabled && (
+                    <th className="px-2 py-3 text-right text-sm font-bold">Bosta</th>
+                  )}
                   <th className="px-2 py-3 text-center text-sm font-bold">إجراءات</th>
                 </tr>
               </thead>
@@ -681,7 +726,12 @@ function OrdersContent() {
                     </td>
                   </tr>
                 ) : (
-                  filteredOrders.map((order, index) => (
+                  filteredOrders.map((order, index) => {
+                    const isSystemOrder = activeTab === 'system';
+                    
+                    if (isSystemOrder) {
+                      // System Orders Table Row
+                      return (
                     <tr 
                       key={order.id} 
                       className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
@@ -886,7 +936,200 @@ function OrdersContent() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                      );
+                    } else {
+                      // Website Orders Table Row
+                      const statusObj = STATUS_OPTIONS.find(s => s.value === order.status);
+                      const itemsCount = order.line_items?.length || 0;
+                      const isNew = ((new Date() - new Date(order.date_created)) / 1000) < 180;
+                      const deliveryType = order.meta_data?.some(m => 
+                        (m.key === '_is_store_pickup' && m.value === 'yes') || 
+                        (m.key === '_delivery_type' && m.value === 'store_pickup')
+                      ) ? 'pickup' : 'delivery';
+                      const kashierTxId = order.meta_data?.find(m => m.key === '_kashier_transaction_id')?.value;
+                      const bostaTracking = order.meta_data?.find(m => m.key === 'bosta_tracking_number')?.value;
+                      const productTotal = parseFloat(order.total) - parseFloat(order.shipping_total || 0);
+                      const isPaid = order.payment_method_title && order.payment_method_title !== 'الدفع نقدًا عند الاستلام';
+                      
+                      return (
+                        <tr 
+                          key={order.id} 
+                          className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${
+                            isNew ? 'bg-yellow-50' : (index % 2 === 0 ? 'bg-white' : 'bg-gray-50')
+                          }`}
+                        >
+                          {/* Order ID + Badges */}
+                          <td className="px-2 py-3">
+                            <div className="flex items-center gap-1 mb-1">
+                              <span className="font-bold text-blue-600 text-sm">#{order.id}</span>
+                              {isNew && (
+                                <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full animate-pulse">🔔 جديد</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 mb-1">
+                              {deliveryType === 'pickup' ? (
+                                <span className="bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">🏪 استلام</span>
+                              ) : (
+                                <span className="bg-orange-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">🚚 توصيل</span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-gray-400">
+                              {new Date(order.date_created).toLocaleDateString('ar-EG', { 
+                                day: '2-digit', 
+                                month: 'short'
+                              })}
+                            </div>
+                          </td>
+
+                          {/* Customer + Phone + Notes */}
+                          <td className="px-2 py-3">
+                            <div className="text-xs">
+                              <div className="font-semibold text-gray-900 mb-0.5">
+                                👤 {order.billing?.first_name} {order.billing?.last_name}
+                              </div>
+                              {order.billing?.phone && (
+                                <div className="text-gray-600 mb-0.5">📱 {order.billing.phone}</div>
+                              )}
+                              {order.customer_note && order.customer_note.trim() && (
+                                <div className="bg-yellow-100 border border-yellow-300 rounded px-1 py-0.5 mt-1">
+                                  <span className="text-yellow-700 text-[10px]">📝 {order.customer_note.substring(0, 30)}{order.customer_note.length > 30 ? '...' : ''}</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Phone */}
+                          <td className="px-2 py-3">
+                            <div className="text-xs text-gray-700">
+                              {order.billing?.phone || '-'}
+                            </div>
+                          </td>
+
+                          {/* Products */}
+                          <td className="px-2 py-3">
+                            <div className="flex items-center justify-center">
+                              <div className="bg-blue-500 text-white rounded-lg w-10 h-10 flex items-center justify-center">
+                                <div className="text-center">
+                                  <div className="text-sm font-bold leading-none">{itemsCount}</div>
+                                  <div className="text-[8px] leading-none">منتج</div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-[10px] text-gray-500 text-center mt-1">
+                              {order.line_items?.[0]?.name?.substring(0, 15) || ''}{order.line_items?.[0]?.name?.length > 15 ? '...' : ''}
+                            </div>
+                          </td>
+
+                          {/* Total + Breakdown */}
+                          <td className="px-2 py-3">
+                            <div className="text-xs">
+                              {/* المنتجات */}
+                              <div className="font-bold text-gray-900 mb-1">
+                                💰 {productTotal.toFixed(2)} ج.م
+                              </div>
+                              {/* حالة الدفع */}
+                              {isPaid && (
+                                <div className="bg-blue-100 border border-blue-300 rounded px-1 py-0.5 mb-1">
+                                  <span className="text-blue-700 text-[10px] font-semibold">✓ مدفوع</span>
+                                </div>
+                              )}
+                              {/* الشحن */}
+                              {parseFloat(order.shipping_total || 0) > 0 && (
+                                <div className="bg-orange-100 border border-orange-300 rounded px-1 py-0.5">
+                                  <span className="text-orange-700 text-[10px] font-semibold">🚚 {order.shipping_total} ج.م</span>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Payment Method + Kashier */}
+                          <td className="px-2 py-3">
+                            <div className="text-xs">
+                              <div className="bg-gray-100 border border-gray-200 rounded px-1.5 py-1 mb-1">
+                                <p className="font-medium text-gray-700 text-[10px]">
+                                  💳 {order.payment_method_title}
+                                </p>
+                              </div>
+                              {kashierTxId && (
+                                <div className="bg-purple-100 border border-purple-300 rounded px-1.5 py-1">
+                                  <div className="text-purple-700 text-[9px] font-bold mb-0.5">🔖 كاشير:</div>
+                                  <div className="text-purple-900 text-[9px] font-mono">{kashierTxId.substring(0, 12)}...</div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Status */}
+                          <td className="px-2 py-3">
+                            <select
+                              value={order.status}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                handleStatusChange(order.id, e.target.value);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className={`text-[10px] font-bold px-2 py-1.5 rounded-lg border-2 focus:ring-2 focus:ring-blue-500 w-full ${statusObj?.color || 'bg-gray-500'} text-white`}
+                            >
+                              {STATUS_OPTIONS.map((status) => (
+                                <option key={status.value} value={status.value}>
+                                  {status.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+
+                          {/* Bosta Status */}
+                          {bostaEnabled && (
+                            <td className="px-2 py-3">
+                              {bostaTracking ? (
+                                <div className="text-xs">
+                                  <div className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg font-bold mb-1 text-[10px]">
+                                    ✅ {bostaTracking}
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openTrackingModal(bostaTracking);
+                                    }}
+                                    className="w-full bg-blue-500 text-white px-2 py-1 rounded text-[10px] hover:bg-blue-600"
+                                  >
+                                    🔍 تتبع
+                                  </button>
+                                </div>
+                              ) : order.status === 'processing' && deliveryType !== 'pickup' ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    sendWebsiteOrderToBosta(order);
+                                  }}
+                                  disabled={sendingToBosta === order.id}
+                                  className="bg-purple-500 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-purple-600 w-full"
+                                >
+                                  {sendingToBosta === order.id ? '⏳' : '📦 إرسال'}
+                                </button>
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                              )}
+                            </td>
+                          )}
+
+                          {/* Actions */}
+                          <td className="px-2 py-3">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedOrder(order);
+                              }}
+                              className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-bold w-full"
+                              title="التفاصيل"
+                            >
+                              📄 تفاصيل
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }
+                  })
                 )}
               </tbody>
             </table>
@@ -895,7 +1138,7 @@ function OrdersContent() {
       )}
 
       {/* Orders Grid */}
-      <div className={`${activeTab === 'system' && viewMode === 'table' ? 'hidden' : 'grid gap-6 md:grid-cols-2 lg:grid-cols-3'}`}>
+      <div className={`${viewMode === 'table' ? 'hidden' : 'grid gap-6 md:grid-cols-2 lg:grid-cols-3'}`}>
         {(activeTab === 'website' && ordersLoading) ? (
           // Loading Skeletons
           Array.from({ length: 6 }).map((_, idx) => (
@@ -1537,6 +1780,24 @@ function OrdersContent() {
                       {order.payment_method_title}
                     </p>
                     
+                    {/* Kashier Transaction ID */}
+                    {(() => {
+                      const kashierTxId = order.meta_data?.find(m => m.key === '_kashier_transaction_id')?.value;
+                      return kashierTxId && (
+                        <div className="bg-purple-50 border border-purple-300 rounded-lg p-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-purple-600 text-base">🔖</span>
+                            <div className="flex-1">
+                              <div className="text-xs font-bold text-purple-800 mb-0.5">رقم معاملة كاشير:</div>
+                              <p className="text-xs text-purple-900 font-mono font-semibold">
+                                {kashierTxId}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    
                     {/* Customer Note */}
                     {order.customer_note && order.customer_note.trim() && (
                       <div className="bg-yellow-50 border-l-4 border-yellow-400 rounded-lg p-2">
@@ -1562,7 +1823,7 @@ function OrdersContent() {
                       <div className="bg-blue-50 border border-blue-300 rounded-lg p-2">
                         <p className="text-blue-700 text-xs font-semibold mb-0.5">✓ تم دفع ثمن المنتج فقط</p>
                         <p className="text-blue-900 text-sm font-bold">
-                          {(parseFloat(order.total) - parseFloat(order.shipping_total || 0)).toFixed(2)} جنيه
+                          {(parseFloat(order.total) - parseFloat(order.shipping_total || 0))} جنيه
                         </p>
                       </div>
                     )}

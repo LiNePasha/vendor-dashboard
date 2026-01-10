@@ -54,6 +54,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   // Variable Product States
   const [attributes, setAttributes] = useState([]);
   const [variations, setVariations] = useState([]);
+  const [deletedVariationIds, setDeletedVariationIds] = useState([]); // 🆕 تتبع الـ variations المحذوفة
   const [generatedVariations, setGeneratedVariations] = useState(false);
   const [originalData, setOriginalData] = useState(null); // للمقارنة في حالة التعديل
 
@@ -225,8 +226,27 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
     generate();
 
+    // 🆕 Get existing variations (keep them if they match current combinations)
+    const existingVariations = [...variations];
+    const existingCombosMap = new Map();
+    
+    existingVariations.forEach(v => {
+      const comboKey = v.attributes.map(a => `${a.name}:${a.option}`).sort().join('|');
+      existingCombosMap.set(comboKey, v);
+    });
+
     const newVariations = combinations.map((combo, index) => {
       const description = combo.map(c => c.option).join(' - ');
+      const comboKey = combo.map(c => `${c.name}:${c.option}`).sort().join('|');
+      
+      // 🆕 Check if this combination already exists
+      const existing = existingCombosMap.get(comboKey);
+      if (existing) {
+        // Keep existing variation data (price, stock, image, etc.)
+        return existing;
+      }
+      
+      // Generate new variation only if it doesn't exist
       const baseSku = form.sku || 'VAR';
       
       // 🔥 توليد SKU فريدة باستخدام أول 3 حروف من كل خيار + timestamp
@@ -264,6 +284,11 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   };
 
   const removeVariation = (index) => {
+    const variation = variations[index];
+    // 🆕 إذا كان variation موجود في API (له ID حقيقي)، أضفه لقائمة المحذوفات
+    if (variation.id && !variation.id.toString().startsWith('temp_')) {
+      setDeletedVariationIds(prev => [...prev, variation.id]);
+    }
     setVariations(variations.filter((_, i) => i !== index));
   };
 
@@ -556,6 +581,23 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     
     let parentId = mode === 'edit' ? productId : null;
     
+    // 🆕 استخراج كل الـ options من الـ variations الموجودة فعلياً
+    const updatedAttributes = attributes.map(attr => {
+      // جمع كل الخيارات من الـ variations
+      const optionsFromVariations = new Set();
+      variations.forEach(v => {
+        const matchingAttr = v.attributes.find(a => a.name === attr.name);
+        if (matchingAttr && matchingAttr.option) {
+          optionsFromVariations.add(matchingAttr.option);
+        }
+      });
+      
+      return {
+        ...attr,
+        options: Array.from(optionsFromVariations) // استخدام الخيارات من الـ variations فقط
+      };
+    });
+    
     if (shouldUpdateParent) {
       const parentResponse = await fetch(
         mode === 'edit' 
@@ -570,12 +612,12 @@ export default function ProductForm({ mode = 'create', productId = null, initial
             type: 'variable',
             categories: form.categories.length > 0 ? form.categories : null,
             images: images.filter(img => !img.uploading).map(img => img.url), // 🆕 استخدام الصور المتعددة
-            attributes: attributes.map(attr => ({
+            attributes: updatedAttributes.map(attr => ({
               name: attr.name,
-            options: attr.options,
-            visible: true,
-            variation: true
-          }))
+              options: attr.options,
+              visible: true,
+              variation: true
+            }))
         })
       });
 
@@ -605,6 +647,27 @@ export default function ProductForm({ mode = 'create', productId = null, initial
           throw new Error('فشل الحصول على ID المنتج');
         }
       }
+    }
+
+    // 🆕 Delete removed variations first (خارج shouldUpdateParent - لازم يحصل دايماً)
+    if (mode === 'edit' && deletedVariationIds.length > 0 && parentId) {
+      console.log('🗑️ Deleting variations:', deletedVariationIds);
+      for (const varId of deletedVariationIds) {
+        try {
+          const deleteResponse = await fetch(`/api/products/${parentId}/variations/${varId}`, {
+            method: 'DELETE'
+          });
+          if (deleteResponse.ok) {
+            console.log('✅ Deleted variation:', varId);
+          } else {
+            console.error('❌ Failed to delete variation:', varId);
+          }
+        } catch (err) {
+          console.error('Error deleting variation:', varId, err);
+        }
+      }
+      // Clear deleted list after deletion
+      setDeletedVariationIds([]);
     }
 
     // Create/Update variations (فقط المتغيرة)
