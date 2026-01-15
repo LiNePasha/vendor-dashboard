@@ -289,9 +289,9 @@ export default function ProductsPage() {
         setLoading(true);
       }
       
-      // � استخدام API الجديد /initial - أسرع وأكثر كفاءة
+      // 🚀 استخدام Cashier API مع all=true - أسرع وأكثر كفاءة (نفس الكاشير)
       const timestamp = Date.now();
-      const res = await fetch(`/api/products/initial?include_variations=true&_t=${timestamp}`, {
+      const res = await fetch(`/api/cashier/initial?all=true&_t=${timestamp}`, {
         credentials: "include",
         cache: 'no-store',
         headers: {
@@ -303,10 +303,7 @@ export default function ProductsPage() {
       if (!res.ok) throw new Error("فشل جلب المنتجات");
       const data = await res.json();
       
-      if (!data.success) {
-        throw new Error(data.error || "فشل جلب المنتجات");
-      }
-      
+      // Cashier API بيرجع البيانات مباشرة بدون success flag
       const allProducts = data.products || [];
       const allCategories = data.categories || [];
       
@@ -315,7 +312,7 @@ export default function ProductsPage() {
         new Map(allProducts.map(p => [p.id, p])).values()
       );
       
-      console.log(`✅ تم تحميل ${allProducts.length} منتج (${uniqueProducts.length} منتج فريد) من /initial`);
+      console.log(`✅ تم تحميل ${allProducts.length} منتج (${uniqueProducts.length} منتج فريد) من Cashier API`);
       
       setProducts(uniqueProducts);
       setCategories(allCategories);

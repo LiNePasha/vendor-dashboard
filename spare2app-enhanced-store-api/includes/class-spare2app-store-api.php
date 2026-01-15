@@ -859,6 +859,7 @@ class Spare2App_Enhanced_Store_API {
             'name' => $product->get_name(),
             'slug' => $product->get_slug(),
             'type' => $product->get_type(), // simple, variable, grouped, external
+            'status' => $product->get_status(), // publish, draft, pending, private
             'description' => $product->get_description(),
             'short_description' => $product->get_short_description(),
             'price' => $product->get_price(),

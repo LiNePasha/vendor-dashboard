@@ -977,32 +977,25 @@ const usePOSStore = create(persist((set, get) => ({
         set({ ordersLoading: true });
       }
       
-      // 🚀 Progressive Loading - عرض أول 50 فوراً، وباقي الطلبات في الخلفية
-      let allOrders = [];
-      let currentPage = 1;
-      const perPage = filters.per_page || 50;
-      
-      // 1️⃣ جلب وعرض أول صفحة فوراً
       const params = new URLSearchParams();
       if (filters.status) params.append('status', filters.status);
-      params.append('per_page', perPage.toString());
-      params.append('page', currentPage.toString());
+      if (filters.per_page) params.append('per_page', filters.per_page);
       if (filters.after) params.append('after', filters.after);
-      if (filters.search) params.append('search', filters.search);
+      if (filters.search) params.append('search', filters.search); // 🆕 دعم البحث
       
-      const firstRes = await fetch(`/api/orders?${params}`, {
+      const res = await fetch(`/api/orders?${params}`, {
         credentials: 'include',
       });
       
-      if (!firstRes.ok) throw new Error('Failed to fetch orders');
+      if (!res.ok) throw new Error('Failed to fetch orders');
       
-      const firstData = await firstRes.json();
-      const firstOrders = firstData.orders || firstData || [];
-      allOrders = [...firstOrders];
+      const data = await res.json();
+      let fetchedOrders = data.orders || data || [];
       
-      // 🆕 بناء bosta object لأول دفعة
-      let processedOrders = allOrders.map(order => {
+      // 🆕 بناء bosta object من meta_data لكل order
+      fetchedOrders = fetchedOrders.map(order => {
         if (order.meta_data) {
+          // البحث في كلا الاحتمالين: مع وبدون underscore
           const bostaSent = order.meta_data.find(m => m.key === '_bosta_sent' || m.key === 'bosta_sent')?.value;
           const bostaTrackingNumber = order.meta_data.find(m => m.key === '_bosta_tracking_number' || m.key === 'bosta_tracking_number')?.value;
           const bostaOrderId = order.meta_data.find(m => m.key === '_bosta_order_id' || m.key === 'bosta_order_id')?.value;
@@ -1011,6 +1004,7 @@ const usePOSStore = create(persist((set, get) => ({
           const bostaSentAt = order.meta_data.find(m => m.key === '_bosta_sent_at' || m.key === 'bosta_sent_at')?.value;
           const bostaLastUpdated = order.meta_data.find(m => m.key === '_bosta_last_updated' || m.key === 'bosta_last_updated')?.value;
           
+          // إنشاء bosta object لو فيه tracking number
           if (bostaTrackingNumber) {
             order.bosta = {
               sent: true,
@@ -1026,124 +1020,62 @@ const usePOSStore = create(persist((set, get) => ({
         return order;
       });
       
-      // ✅ عرض أول دفعة فوراً
-      set({ 
-        orders: processedOrders,
-        ordersLoading: false // 🔥 خلاص حمّلنا الأساسيات
-      });
-      
+      // 🔥🔥🔥 CRITICAL FIX: مقارنة orders قبل التحديث - منع unnecessary re-renders
       const state = get();
-      const newProcessingOrders = processedOrders
+      const currentOrderIds = new Set(state.orders.map(o => o.id));
+      const fetchedOrderIds = new Set(fetchedOrders.map(o => o.id));
+      
+      // تحقق من تغيير في orders العامة
+      const ordersChanged = 
+        state.orders.length !== fetchedOrders.length ||
+        [...fetchedOrderIds].some(id => !currentOrderIds.has(id)) ||
+        [...currentOrderIds].some(id => !fetchedOrderIds.has(id));
+      
+      // 🔥 فقط حدّث orders لو فيه تغيير فعلي
+      if (ordersChanged) {
+        set({ orders: fetchedOrders });
+      }
+      
+      // 🔥 استخراج processing orders بشكل آمن
+      const newProcessingOrders = fetchedOrders
         .filter(order => order.status === 'processing')
         .sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
       
-      set({
-        processingOrders: newProcessingOrders,
-        lastOrdersFetch: Date.now()
-      });
+      // 🔥 قارن بشكل دقيق باستخدام Set
+      const currentProcessing = state.processingOrders;
+      const currentProcessingIds = new Set(currentProcessing.map(o => o.id));
+      const newProcessingIds = new Set(newProcessingOrders.map(o => o.id));
       
-      console.log(`✅ تم عرض أول ${allOrders.length} طلب`);
+      // تحقق من تغيير فعلي في processing orders
+      const processingChanged = 
+        currentProcessing.length !== newProcessingOrders.length ||
+        [...newProcessingIds].some(id => !currentProcessingIds.has(id)) ||
+        [...currentProcessingIds].some(id => !newProcessingIds.has(id));
       
-      // 2️⃣ لو فيه صفحات تانية، حمّلها في الخلفية
-      if (firstOrders.length >= perPage) {
-        console.log('🔄 جاري تحميل باقي الطلبات في الخلفية...');
-        
-        // تحميل باقي الصفحات في الخلفية (بدون blocking)
-        (async () => {
-          currentPage = 2;
-          let hasMorePages = true;
-          
-          while (hasMorePages) {
-            const bgParams = new URLSearchParams();
-            if (filters.status) bgParams.append('status', filters.status);
-            bgParams.append('per_page', perPage.toString());
-            bgParams.append('page', currentPage.toString());
-            if (filters.after) bgParams.append('after', filters.after);
-            if (filters.search) bgParams.append('search', filters.search);
-            
-            try {
-              const bgRes = await fetch(`/api/orders?${bgParams}`, {
-                credentials: 'include',
-              });
-              
-              if (!bgRes.ok) break;
-              
-              const bgData = await bgRes.json();
-              const bgOrders = bgData.orders || bgData || [];
-              
-              if (bgOrders.length > 0) {
-                // معالجة الطلبات الجديدة
-                const processedBgOrders = bgOrders.map(order => {
-                  if (order.meta_data) {
-                    const bostaTrackingNumber = order.meta_data.find(m => m.key === '_bosta_tracking_number' || m.key === 'bosta_tracking_number')?.value;
-                    const bostaOrderId = order.meta_data.find(m => m.key === '_bosta_order_id' || m.key === 'bosta_order_id')?.value;
-                    const bostaStatus = order.meta_data.find(m => m.key === '_bosta_status' || m.key === 'bosta_status')?.value;
-                    const bostaStatusCode = order.meta_data.find(m => m.key === '_bosta_status_code' || m.key === 'bosta_status_code')?.value;
-                    const bostaSentAt = order.meta_data.find(m => m.key === '_bosta_sent_at' || m.key === 'bosta_sent_at')?.value;
-                    const bostaLastUpdated = order.meta_data.find(m => m.key === '_bosta_last_updated' || m.key === 'bosta_last_updated')?.value;
-                    
-                    if (bostaTrackingNumber) {
-                      order.bosta = {
-                        sent: true,
-                        trackingNumber: bostaTrackingNumber,
-                        orderId: bostaOrderId || '',
-                        status: bostaStatus || '',
-                        statusCode: bostaStatusCode ? parseInt(bostaStatusCode) : 0,
-                        sentAt: bostaSentAt || '',
-                        lastUpdated: bostaLastUpdated || ''
-                      };
-                    }
-                  }
-                  return order;
-                });
-                
-                allOrders = [...allOrders, ...processedBgOrders];
-                
-                // تحديث الـ state بالطلبات الجديدة
-                const currentState = get();
-                set({ 
-                  orders: allOrders
-                });
-                
-                // تحديث processing orders
-                const updatedProcessing = allOrders
-                  .filter(order => order.status === 'processing')
-                  .sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
-                
-                set({
-                  processingOrders: updatedProcessing
-                });
-                
-                console.log(`📥 تم إضافة ${bgOrders.length} طلب إضافي (المجموع: ${allOrders.length})`);
-              }
-              
-              // لو عدد الطلبات أقل من per_page، يبقى دي آخر صفحة
-              if (bgOrders.length < perPage) {
-                hasMorePages = false;
-                console.log(`✅ اكتمل تحميل جميع الطلبات (${allOrders.length} طلب)`);
-              } else {
-                currentPage++;
-              }
-            } catch (error) {
-              console.error('❌ خطأ في تحميل الطلبات الإضافية:', error);
-              break;
-            }
-          }
-        })();
+      if (processingChanged) {
+        set({ 
+          processingOrders: newProcessingOrders,
+          lastOrdersFetch: Date.now()
+        });
       }
       
-      __pos_ordersFetchInFlight = false;
-      return { success: true, count: allOrders.length };
+      __pos_ordersFetchInFlight = false; // 🔥 Release lock
       
+      // 🔥 فقط حدّث ordersLoading لو كان true
+      if (get().ordersLoading) {
+        set({ ordersLoading: false });
+      }
+      
+      return { success: true, orders: fetchedOrders };
     } catch (error) {
       console.error('Error fetching orders:', error);
-      set({ 
-        ordersLoading: false,
-        orders: [],
-        processingOrders: []
-      });
-      __pos_ordersFetchInFlight = false;
-      return { success: false, error: error.message };
+      __pos_ordersFetchInFlight = false; // 🔥 Release lock في حالة error
+      
+      if (get().ordersLoading) {
+        set({ ordersLoading: false });
+      }
+      
+      return { error: error.message };
     }
   },
 

@@ -9,7 +9,7 @@ import { getBostaSettings, validateInvoiceForBosta, formatBostaStatus, getBostaT
 import localforage from 'localforage';
 
 const STATUS_OPTIONS = [
-  { value: "pending", label: "معلق", color: "bg-yellow-500" },
+  { value: "on-hold", label: "معلق", color: "bg-yellow-500" },
   { value: "processing", label: "قيد التجهيز", color: "bg-blue-500" },
   { value: "completed", label: "مكتمل", color: "bg-green-500" },
   { value: "cancelled", label: "ملغى", color: "bg-gray-500" },
@@ -29,7 +29,7 @@ function OrdersContent() {
   
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("processing"); // 🔥 قيد التنفيذ أولاً
+  const [statusFilter, setStatusFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [toast, setToast] = useState(null);
@@ -585,16 +585,7 @@ function OrdersContent() {
       if (activeTab === 'website') {
         const fullName = `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.toLowerCase();
         const matchesSearch = fullName.includes(searchTerm.toLowerCase()) || order.id.toString().includes(searchTerm);
-        
-        // ✅ تصحيح الفلترة - التعامل مع wc- prefix
-        let matchesStatus = true;
-        if (statusFilter) {
-          const orderStatus = order.status || '';
-          // إزالة wc- من الاثنين للمقارنة
-          const cleanOrderStatus = orderStatus.replace('wc-', '');
-          const cleanFilterStatus = statusFilter.replace('wc-', '');
-          matchesStatus = cleanOrderStatus === cleanFilterStatus;
-        }
+        const matchesStatus = statusFilter ? order.status === statusFilter : true;
         
         // Date filtering
         let matchesDate = true;

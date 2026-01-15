@@ -237,6 +237,7 @@ class Spare2App_POS_Sync {
                 $product = array(
                     'id' => $product_id,
                     'name' => $product_obj->get_name(),
+                    'status' => $product_obj->get_status(),
                     'price' => $product_obj->get_price() ?: '0',
                     'regular_price' => $product_obj->get_regular_price() ?: '',
                     'sale_price' => $product_obj->get_sale_price() ?: '',
@@ -249,7 +250,6 @@ class Spare2App_POS_Sync {
                     'images' => $images,
                     'categories' => $this->get_product_categories($product_id),
                     'last_modified' => $product_obj->get_date_modified() ? $product_obj->get_date_modified()->date('Y-m-d H:i:s') : null,
-                    'test' => 'ahmed',
                 );
                 
                 // Get attributes & variations for variable products
@@ -307,6 +307,7 @@ class Spare2App_POS_Sync {
         $product_data = array(
             'id' => $product_obj->get_id(),
             'name' => $product_obj->get_name(),
+            'status' => $product_obj->get_status(),
             'price' => $product_obj->get_price(),
             'regular_price' => $product_obj->get_regular_price(),
             'sale_price' => $product_obj->get_sale_price(),
@@ -319,7 +320,6 @@ class Spare2App_POS_Sync {
             'images' => $images,
             'categories' => $this->get_product_categories($product_obj->get_id()),
             'last_modified' => $product_obj->get_date_modified() ? $product_obj->get_date_modified()->date('Y-m-d H:i:s') : null,
-            'test' => 'ahmed'
         );
         
         // 🔧 Get attributes & variations for variable products
@@ -546,6 +546,7 @@ class Spare2App_POS_Sync {
                 $product = array(
                     'id' => $product_id,
                     'name' => $product_obj->get_name(),
+                    'status' => $product_obj->get_status(),
                     'price' => $product_obj->get_price() ?: '0',
                     'regular_price' => $product_obj->get_regular_price() ?: '',
                     'sale_price' => $product_obj->get_sale_price() ?: '',
@@ -558,7 +559,6 @@ class Spare2App_POS_Sync {
                     'images' => $images,
                     'categories' => $this->get_product_categories($product_id),
                     'last_modified' => $product_obj->get_date_modified() ? $product_obj->get_date_modified()->date('Y-m-d H:i:s') : null,
-                    'test' => 'ahmed',
                 );
                 
                 // Get attributes & variations for variable products
