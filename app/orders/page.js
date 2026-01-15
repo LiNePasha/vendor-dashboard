@@ -41,8 +41,20 @@ function OrdersContent() {
   const perPage = 100;
   
   // 🆕 Tabs State - تقسيم الطلبات
-  const [activeTab, setActiveTab] = useState('website'); // 'website' | 'system'
+  const [activeTab, setActiveTab] = useState('website'); // 'website' | 'system' | 'notes'
   const [posInvoices, setPosInvoices] = useState([]);
+  
+  // 🆕 Standalone Notes State - ملاحظات مستقلة
+  const [standaloneNotes, setStandaloneNotes] = useState([]);
+  const [editingStandaloneNote, setEditingStandaloneNote] = useState(null);
+  const [newNoteForm, setNewNoteForm] = useState({
+    title: '',
+    content: '',
+    type: 'general', // general, return, exchange, modify, other
+    status: 'pending', // pending, resolved
+    priority: 'normal' // low, normal, high
+  });
+  const [showNoteForm, setShowNoteForm] = useState(false);
   
   // 🆕 Bosta State
   const [bostaEnabled, setBostaEnabled] = useState(false);
@@ -119,6 +131,13 @@ function OrdersContent() {
       loadAllNotes();
     }
   }, [orders, posInvoices]);
+  
+  // 🆕 تحميل الملاحظات المستقلة
+  useEffect(() => {
+    if (activeTab === 'notes') {
+      loadStandaloneNotes();
+    }
+  }, [activeTab]);
   
   // 🆕 جلب طلبات الكاشير (POS Invoices)
   useEffect(() => {
@@ -271,6 +290,111 @@ function OrdersContent() {
     const note = orderNotes[orderId] || await loadOrderNote(orderId);
     setNoteText(note);
     setEditingNote(orderId);
+  };
+  
+  // 🆕 تحميل الملاحظات المستقلة
+  const loadStandaloneNotes = async () => {
+    try {
+      const notesStore = localforage.createInstance({
+        name: 'vendor-orders',
+        storeName: 'standalone-notes'
+      });
+      
+      const notes = await notesStore.getItem('notes') || [];
+      setStandaloneNotes(notes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+    } catch (error) {
+      console.error('Error loading standalone notes:', error);
+    }
+  };
+  
+  // 🆕 حفظ ملاحظة مستقلة
+  const saveStandaloneNote = async () => {
+    try {
+      if (!newNoteForm.title.trim() || !newNoteForm.content.trim()) {
+        setToast({ message: '⚠️ يرجى إدخال العنوان والمحتوى', type: 'error' });
+        return;
+      }
+      
+      const notesStore = localforage.createInstance({
+        name: 'vendor-orders',
+        storeName: 'standalone-notes'
+      });
+      
+      const note = {
+        id: editingStandaloneNote?.id || Date.now().toString(),
+        ...newNoteForm,
+        createdAt: editingStandaloneNote?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      let notes = await notesStore.getItem('notes') || [];
+      
+      if (editingStandaloneNote) {
+        notes = notes.map(n => n.id === note.id ? note : n);
+      } else {
+        notes.unshift(note);
+      }
+      
+      await notesStore.setItem('notes', notes);
+      setStandaloneNotes(notes);
+      
+      setNewNoteForm({
+        title: '',
+        content: '',
+        type: 'general',
+        status: 'pending',
+        priority: 'normal'
+      });
+      setShowNoteForm(false);
+      setEditingStandaloneNote(null);
+      setToast({ message: '✅ تم حفظ الملاحظة بنجاح', type: 'success' });
+    } catch (error) {
+      console.error('Error saving standalone note:', error);
+      setToast({ message: '❌ فشل حفظ الملاحظة', type: 'error' });
+    }
+  };
+  
+  // 🆕 حذف ملاحظة مستقلة
+  const deleteStandaloneNote = async (noteId) => {
+    try {
+      const notesStore = localforage.createInstance({
+        name: 'vendor-orders',
+        storeName: 'standalone-notes'
+      });
+      
+      let notes = await notesStore.getItem('notes') || [];
+      notes = notes.filter(n => n.id !== noteId);
+      
+      await notesStore.setItem('notes', notes);
+      setStandaloneNotes(notes);
+      setToast({ message: '✅ تم حذف الملاحظة', type: 'success' });
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      setToast({ message: '❌ فشل حذف الملاحظة', type: 'error' });
+    }
+  };
+  
+  // 🆕 تغيير حالة الملاحظة
+  const toggleNoteStatus = async (noteId) => {
+    try {
+      const notesStore = localforage.createInstance({
+        name: 'vendor-orders',
+        storeName: 'standalone-notes'
+      });
+      
+      let notes = await notesStore.getItem('notes') || [];
+      notes = notes.map(n => {
+        if (n.id === noteId) {
+          return { ...n, status: n.status === 'pending' ? 'resolved' : 'pending', updatedAt: new Date().toISOString() };
+        }
+        return n;
+      });
+      
+      await notesStore.setItem('notes', notes);
+      setStandaloneNotes(notes);
+    } catch (error) {
+      console.error('Error toggling note status:', error);
+    }
   };
   
   // 🆕 إرسال طلب لبوسطة
@@ -798,12 +922,12 @@ function OrdersContent() {
         </p>
       </div>
       
-      {/* 🆕 Tabs - تقسيم طلبات الموقع والسيستم */}
+      {/* 🆕 Tabs - تقسيم طلبات الموقع والسيستم والملاحظات */}
       <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-100 p-2">
-        <div className="flex gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button
             onClick={() => setActiveTab('website')}
-            className={`flex-1 px-6 py-3 rounded-lg font-bold text-base transition-all ${
+            className={`px-6 py-3 rounded-lg font-bold text-base transition-all ${
               activeTab === 'website'
                 ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
                 : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
@@ -818,7 +942,7 @@ function OrdersContent() {
           </button>
           <button
             onClick={() => setActiveTab('system')}
-            className={`flex-1 px-6 py-3 rounded-lg font-bold text-base transition-all ${
+            className={`px-6 py-3 rounded-lg font-bold text-base transition-all ${
               activeTab === 'system'
                 ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg'
                 : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
@@ -831,10 +955,26 @@ function OrdersContent() {
               {posInvoices.length}
             </span>
           </button>
+          <button
+            onClick={() => setActiveTab('notes')}
+            className={`px-6 py-3 rounded-lg font-bold text-base transition-all ${
+              activeTab === 'notes'
+                ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg'
+                : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            📝 ملاحظات
+            <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+              activeTab === 'notes' ? 'bg-white text-purple-600' : 'bg-gray-200 text-gray-700'
+            }`}>
+              {standaloneNotes.filter(n => n.status === 'pending').length}
+            </span>
+          </button>
         </div>
       </div>
 
-      {/* Search & Filter */}
+      {/* Search & Filter - إخفاء في تاب الملاحظات */}
+      {activeTab !== 'notes' && (
       <div className="mb-6 bg-white rounded-xl shadow-sm p-4 border border-gray-100">
         <div className="flex flex-col gap-4">
           {/* Search and Status Filter Row */}
@@ -933,8 +1073,265 @@ function OrdersContent() {
           )}
         </div>
       </div>
+      )}
+
+      {/* 🆕 محتوى تاب الملاحظات */}
+      {activeTab === 'notes' && (
+        <div className="space-y-4">
+          {/* زر إضافة ملاحظة جديدة */}
+          <button
+            onClick={() => {
+              setShowNoteForm(!showNoteForm);
+              setEditingStandaloneNote(null);
+              setNewNoteForm({
+                title: '',
+                content: '',
+                type: 'general',
+                status: 'pending',
+                priority: 'normal'
+              });
+            }}
+            className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-6 py-4 rounded-xl font-bold text-lg transition-all shadow-lg hover:shadow-xl"
+          >
+            ➕ إضافة ملاحظة جديدة
+          </button>
+
+          {/* نموذج إضافة/تعديل ملاحظة */}
+          {showNoteForm && (
+            <div className="bg-white rounded-xl shadow-lg border-2 border-purple-200 p-6">
+              <h3 className="text-xl font-bold text-gray-800 mb-4">
+                {editingStandaloneNote ? '✏️ تعديل ملاحظة' : '📝 ملاحظة جديدة'}
+              </h3>
+              
+              <div className="space-y-4">
+                {/* العنوان */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">العنوان</label>
+                  <input
+                    type="text"
+                    value={newNoteForm.title}
+                    onChange={(e) => setNewNoteForm(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="عنوان الملاحظة..."
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+
+                {/* النوع والأولوية والحالة */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">النوع</label>
+                    <select
+                      value={newNoteForm.type}
+                      onChange={(e) => setNewNoteForm(prev => ({ ...prev, type: e.target.value }))}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      <option value="general">🗒️ عام</option>
+                      <option value="return">↩️ استرجاع</option>
+                      <option value="exchange">🔄 استبدال</option>
+                      <option value="modify">✏️ تعديل</option>
+                      <option value="complaint">⚠️ شكوى</option>
+                      <option value="followup">📞 متابعة</option>
+                      <option value="other">📎 أخرى</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">الأولوية</label>
+                    <select
+                      value={newNoteForm.priority}
+                      onChange={(e) => setNewNoteForm(prev => ({ ...prev, priority: e.target.value }))}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      <option value="low">🟢 منخفضة</option>
+                      <option value="normal">🟡 عادية</option>
+                      <option value="high">🔴 عالية</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">الحالة</label>
+                    <select
+                      value={newNoteForm.status}
+                      onChange={(e) => setNewNoteForm(prev => ({ ...prev, status: e.target.value }))}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    >
+                      <option value="pending">⏳ قيد المعالجة</option>
+                      <option value="resolved">✅ تم الحل</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* المحتوى */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">التفاصيل</label>
+                  <textarea
+                    value={newNoteForm.content}
+                    onChange={(e) => setNewNoteForm(prev => ({ ...prev, content: e.target.value }))}
+                    placeholder="اكتب تفاصيل الملاحظة هنا..."
+                    rows="6"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-y"
+                  />
+                </div>
+
+                {/* الأزرار */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={saveStandaloneNote}
+                    className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-3 rounded-lg font-bold transition-all shadow-md"
+                  >
+                    ✅ حفظ
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowNoteForm(false);
+                      setEditingStandaloneNote(null);
+                      setNewNoteForm({
+                        title: '',
+                        content: '',
+                        type: 'general',
+                        status: 'pending',
+                        priority: 'normal'
+                      });
+                    }}
+                    className="px-8 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* قائمة الملاحظات */}
+          <div className="space-y-4">
+            {standaloneNotes.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+                <div className="text-6xl mb-4">📝</div>
+                <p className="text-gray-500 text-lg">لا توجد ملاحظات</p>
+                <p className="text-gray-400 text-sm mt-2">اضغط على الزر أعلاه لإضافة ملاحظة جديدة</p>
+              </div>
+            ) : (
+              standaloneNotes.map((note) => {
+                const typeInfo = {
+                  general: { icon: '🗒️', label: 'عام', color: 'bg-gray-100 text-gray-700' },
+                  return: { icon: '↩️', label: 'استرجاع', color: 'bg-red-100 text-red-700' },
+                  exchange: { icon: '🔄', label: 'استبدال', color: 'bg-blue-100 text-blue-700' },
+                  modify: { icon: '✏️', label: 'تعديل', color: 'bg-yellow-100 text-yellow-700' },
+                  complaint: { icon: '⚠️', label: 'شكوى', color: 'bg-orange-100 text-orange-700' },
+                  followup: { icon: '📞', label: 'متابعة', color: 'bg-green-100 text-green-700' },
+                  other: { icon: '📎', label: 'أخرى', color: 'bg-purple-100 text-purple-700' }
+                };
+
+                const priorityInfo = {
+                  low: { icon: '🟢', label: 'منخفضة' },
+                  normal: { icon: '🟡', label: 'عادية' },
+                  high: { icon: '🔴', label: 'عالية' }
+                };
+
+                const type = typeInfo[note.type] || typeInfo.general;
+                const priority = priorityInfo[note.priority] || priorityInfo.normal;
+
+                return (
+                  <div
+                    key={note.id}
+                    className={`bg-white rounded-xl shadow-md border-2 transition-all ${
+                      note.status === 'resolved'
+                        ? 'border-green-200 opacity-75'
+                        : 'border-purple-200 hover:shadow-lg'
+                    }`}
+                  >
+                    <div className="p-6">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className={`text-lg font-bold ${note.status === 'resolved' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                              {note.title}
+                            </h3>
+                            {note.status === 'resolved' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
+                                ✅ تم الحل
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${type.color}`}>
+                              {type.icon} {type.label}
+                            </span>
+                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium">
+                              {priority.icon} {priority.label}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {new Date(note.createdAt).toLocaleDateString('ar-EG', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Content */}
+                      <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                        <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">
+                          {note.content}
+                        </p>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => toggleNoteStatus(note.id)}
+                          className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
+                            note.status === 'resolved'
+                              ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                              : 'bg-green-500 hover:bg-green-600 text-white'
+                          }`}
+                        >
+                          {note.status === 'resolved' ? '🔄 إعادة فتح' : '✅ تم الحل'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingStandaloneNote(note);
+                            setNewNoteForm({
+                              title: note.title,
+                              content: note.content,
+                              type: note.type,
+                              status: note.status,
+                              priority: note.priority
+                            });
+                            setShowNoteForm(true);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-all"
+                        >
+                          ✏️ تعديل
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm('هل أنت متأكد من حذف هذه الملاحظة؟')) {
+                              deleteStandaloneNote(note.id);
+                            }
+                          }}
+                          className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-all"
+                        >
+                          🗑️ حذف
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       {/* View Mode Toggle - لكل الطلبات */}
+      {activeTab !== 'notes' && (
       <div className="mb-4 flex justify-end gap-2">
         <button
           onClick={() => setViewMode('grid')}
@@ -957,9 +1354,10 @@ function OrdersContent() {
           📊 جدول
         </button>
       </div>
+      )}
 
       {/* Table View - لكل الطلبات */}
-      {viewMode === 'table' && (
+      {activeTab !== 'notes' && viewMode === 'table' && (
         <div key={refreshKey} className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -1418,6 +1816,7 @@ function OrdersContent() {
       )}
 
       {/* Orders Grid */}
+      {activeTab !== 'notes' && (
       <div className={`${viewMode === 'table' ? 'hidden' : 'grid gap-6 md:grid-cols-2 lg:grid-cols-3'}`}>
         {(activeTab === 'website' && ordersLoading) ? (
           // Loading Skeletons
@@ -2256,6 +2655,7 @@ function OrdersContent() {
           })
         )}
       </div>
+      )}
 
       {/* Order Details Modal */}
       {selectedOrder && activeTab === 'website' && (
