@@ -980,7 +980,9 @@ const usePOSStore = create(persist((set, get) => ({
       const params = new URLSearchParams();
       if (filters.status) params.append('status', filters.status);
       if (filters.per_page) params.append('per_page', filters.per_page);
+      if (filters.page) params.append('page', filters.page);
       if (filters.after) params.append('after', filters.after);
+      if (filters.before) params.append('before', filters.before);
       if (filters.search) params.append('search', filters.search); // 🆕 دعم البحث
       
       const res = await fetch(`/api/orders?${params}`, {
@@ -1066,7 +1068,13 @@ const usePOSStore = create(persist((set, get) => ({
         set({ ordersLoading: false });
       }
       
-      return { success: true, orders: fetchedOrders };
+      return { 
+        success: true, 
+        orders: fetchedOrders,
+        total: data.total || fetchedOrders.length,
+        page: data.page || 1,
+        per_page: data.per_page || fetchedOrders.length
+      };
     } catch (error) {
       console.error('Error fetching orders:', error);
       __pos_ordersFetchInFlight = false; // 🔥 Release lock في حالة error

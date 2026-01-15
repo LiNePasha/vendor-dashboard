@@ -8,7 +8,15 @@ export default function OrderDetailsModal({
   isOpen, 
   onClose, 
   onStatusChange,
-  showToast 
+  showToast,
+  orderNote,
+  onEditNote,
+  editingNote,
+  noteText,
+  onNoteTextChange,
+  onSaveNote,
+  savingNote,
+  onCancelNote
 }) {
   const modalRef = useRef(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -554,6 +562,56 @@ export default function OrderDetailsModal({
               </div> */}
             </div>
           </section>
+        </div>
+
+        {/* 🆕 قسم الملاحظات */}
+        <div className="px-6 pb-6">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-gray-800">📝 ملاحظات الطلب</h3>
+              {!editingNote && (
+                <button
+                  onClick={() => onEditNote(order.id)}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  {orderNote ? '✏️ تعديل' : '➕ إضافة ملاحظة'}
+                </button>
+              )}
+            </div>
+            
+            {editingNote ? (
+              <div className="space-y-3">
+                <textarea
+                  value={noteText}
+                  onChange={(e) => onNoteTextChange(e.target.value)}
+                  placeholder="اكتب ملاحظات عن الطلب (استرجاع، تبديل، إلخ...)"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] resize-y"
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => onSaveNote(order.id, noteText)}
+                    disabled={savingNote}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium transition-all disabled:opacity-50"
+                  >
+                    {savingNote ? '⏳ جاري الحفظ...' : '✅ حفظ'}
+                  </button>
+                  <button
+                    onClick={onCancelNote}
+                    className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            ) : orderNote ? (
+              <div className="bg-white border border-yellow-300 rounded-lg p-4">
+                <p className="text-gray-800 whitespace-pre-wrap">{orderNote}</p>
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm">لا توجد ملاحظات لهذا الطلب</p>
+            )}
+          </div>
         </div>
 
         {/* Modal Footer */}

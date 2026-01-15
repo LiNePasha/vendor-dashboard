@@ -34,6 +34,12 @@ function OrdersContent() {
   const [dateTo, setDateTo] = useState("");
   const [toast, setToast] = useState(null);
   
+  // 🆕 Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const perPage = 100;
+  
   // 🆕 Tabs State - تقسيم الطلبات
   const [activeTab, setActiveTab] = useState('website'); // 'website' | 'system'
   const [posInvoices, setPosInvoices] = useState([]);
@@ -47,6 +53,12 @@ function OrdersContent() {
   
   // 🆕 Editing State for POS Orders
   const [editingInvoice, setEditingInvoice] = useState(null); // { orderStatus, paymentStatus }
+  
+  // 🆕 Notes State - ملاحظات الطلبات
+  const [orderNotes, setOrderNotes] = useState({}); // { orderId: note }
+  const [editingNote, setEditingNote] = useState(null); // orderId being edited
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
   
   // 🆕 View Mode State (Table or Grid) - Grid is default, saved in localStorage
   const [viewMode, setViewMode] = useState(() => {
@@ -85,6 +97,29 @@ function OrdersContent() {
     }
   }, [searchParams]);
 
+  // 🆕 useEffect لتحميل الملاحظات عند فتح الطلب
+  useEffect(() => {
+    if (selectedOrder && !orderNotes[selectedOrder.id]) {
+      loadOrderNote(selectedOrder.id);
+    }
+  }, [selectedOrder]);
+  
+  // 🆕 تحميل ملاحظات الطلبات المعروضة
+  useEffect(() => {
+    const loadAllNotes = async () => {
+      const orderIds = [...orders.map(o => o.id), ...posInvoices.map(o => o.id)];
+      for (const orderId of orderIds) {
+        if (!orderNotes[orderId]) {
+          await loadOrderNote(orderId);
+        }
+      }
+    };
+    
+    if (orders.length > 0 || posInvoices.length > 0) {
+      loadAllNotes();
+    }
+  }, [orders, posInvoices]);
+  
   // 🆕 جلب طلبات الكاشير (POS Invoices)
   useEffect(() => {
     const loadPOSInvoices = async () => {
@@ -115,23 +150,23 @@ function OrdersContent() {
   // 🔥 Auto-refresh orders كل 30 ثانية (بس لو الصفحة مفتوحة)
   useEffect(() => {
     // جلب الطلبات أول مرة
-    fetchOrders();
+    loadOrders();
     
     // تحميل إعدادات Bosta
     loadBostaSettings();
 
-    // تحديث تلقائي كل 30 ثانية
+    // تحديث تلقائي كل دقيقة
+    // 🆕 تحقق لو الصفحة مفتوحة (visible) قبل ما نعمل fetch
     const interval = setInterval(() => {
-      // 🆕 تحقق لو الصفحة مفتوحة (visible) قبل ما نعمل fetch
       if (document.visibilityState === 'visible') {
-        fetchOrders();
+        loadOrders();
       }
-    }, 30000);
+    }, 60000);
 
     // 🆕 لو المستخدم رجع للصفحة، حدث فوراً
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        fetchOrders();
+        loadOrders();
       }
     };
     
@@ -143,10 +178,99 @@ function OrdersContent() {
     };
   }, [fetchOrders]);
   
+  // 🆕 دالة جلب الطلبات مع Pagination والفلاتر
+  const loadOrders = async (page = currentPage) => {
+    const filters = {
+      per_page: perPage,
+      page: page,
+    };
+    
+    // إضافة الفلاتر إذا كانت موجودة
+    if (statusFilter) filters.status = statusFilter;
+    if (searchTerm) filters.search = searchTerm;
+    if (dateFrom) filters.after = dateFrom;
+    if (dateTo) filters.before = dateTo;
+    
+    const result = await fetchOrders(filters);
+    
+    // تحديث معلومات الـ pagination من الـ response
+    if (result && result.total !== undefined) {
+      setTotalOrders(result.total);
+      setTotalPages(Math.ceil(result.total / perPage));
+    }
+  };
+  
+  // 🆕 useEffect لتحميل الطلبات عند تغيير الفلاتر
+  useEffect(() => {
+    // عند تغيير أي فلتر، ارجع للصفحة الأولى
+    setCurrentPage(1);
+    loadOrders(1);
+  }, [statusFilter, searchTerm, dateFrom, dateTo]);
+  
+  // 🆕 useEffect لتحميل الطلبات عند تغيير رقم الصفحة
+  useEffect(() => {
+    if (currentPage > 1) {
+      loadOrders(currentPage);
+    }
+  }, [currentPage]);
+  
   // 🆕 تحميل إعدادات Bosta
   const loadBostaSettings = async () => {
     const settings = await getBostaSettings();
     setBostaEnabled(settings.enabled && settings.apiKey);
+  };
+  
+  // 🆕 حفظ ملاحظة طلب في IndexedDB
+  const saveOrderNote = async (orderId, note) => {
+    try {
+      setSavingNote(true);
+      const notesStore = localforage.createInstance({
+        name: 'vendor-orders',
+        storeName: 'notes'
+      });
+      
+      await notesStore.setItem(`note-${orderId}`, {
+        orderId,
+        note,
+        updatedAt: new Date().toISOString()
+      });
+      
+      setOrderNotes(prev => ({ ...prev, [orderId]: note }));
+      setToast({ message: '✅ تم حفظ الملاحظة بنجاح', type: 'success' });
+      setEditingNote(null);
+    } catch (error) {
+      console.error('Error saving note:', error);
+      setToast({ message: '❌ فشل حفظ الملاحظة', type: 'error' });
+    } finally {
+      setSavingNote(false);
+    }
+  };
+  
+  // 🆕 تحميل ملاحظة طلب من IndexedDB
+  const loadOrderNote = async (orderId) => {
+    try {
+      const notesStore = localforage.createInstance({
+        name: 'vendor-orders',
+        storeName: 'notes'
+      });
+      
+      const noteData = await notesStore.getItem(`note-${orderId}`);
+      if (noteData && noteData.note) {
+        setOrderNotes(prev => ({ ...prev, [orderId]: noteData.note }));
+        return noteData.note;
+      }
+      return '';
+    } catch (error) {
+      console.error('Error loading note:', error);
+      return '';
+    }
+  };
+  
+  // 🆕 فتح نافذة تعديل الملاحظة
+  const openNoteEditor = async (orderId) => {
+    const note = orderNotes[orderId] || await loadOrderNote(orderId);
+    setNoteText(note);
+    setEditingNote(orderId);
   };
   
   // 🆕 إرسال طلب لبوسطة
@@ -514,7 +638,7 @@ function OrdersContent() {
       });
 
       // Refresh orders to get updated meta_data
-      setTimeout(() => fetchOrders(), 1000);
+      setTimeout(() => loadOrders(), 1000);
 
     } catch (error) {
       console.error('Bosta Send Error:', error);
@@ -653,9 +777,21 @@ function OrdersContent() {
         <p className="text-gray-500 mt-1">
           {(activeTab === 'website' ? ordersLoading : false) ? 'جاري التحميل...' : (
             <>
-              {filteredOrders.length} {filteredOrders.length !== currentOrders.length && `من ${currentOrders.length}`} طلب
-              {(searchTerm || statusFilter || dateFrom || dateTo) && filteredOrders.length !== currentOrders.length && (
-                <span className="text-blue-600 font-medium"> (مفلتر)</span>
+              {activeTab === 'website' ? (
+                <>
+                  {filteredOrders.length} طلب في الصفحة
+                  {totalOrders > 0 && ` (${totalOrders} إجمالي)`}
+                  {(searchTerm || statusFilter || dateFrom || dateTo) && (
+                    <span className="text-blue-600 font-medium"> (مفلتر)</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  {filteredOrders.length} {filteredOrders.length !== currentOrders.length && `من ${currentOrders.length}`} طلب
+                  {(searchTerm || dateFrom || dateTo) && filteredOrders.length !== currentOrders.length && (
+                    <span className="text-blue-600 font-medium"> (مفلتر)</span>
+                  )}
+                </>
               )}
             </>
           )}
@@ -755,7 +891,8 @@ function OrdersContent() {
                   setDateFrom("");
                   setDateTo("");
                   router.push('/orders');
-                  fetchOrders(); // جلب جميع الطلبات من جديد
+                  setCurrentPage(1);
+                  loadOrders(1); // جلب جميع الطلبات من جديد
                 }}
                 className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium whitespace-nowrap"
               >
@@ -1319,7 +1456,8 @@ function OrdersContent() {
                   setDateTo('');
                   router.push('/orders');
                   if (activeTab === 'website') {
-                    fetchOrders();
+                    setCurrentPage(1);
+                    loadOrders(1);
                   }
                 }}
                 className="text-blue-500 hover:underline text-sm mt-2"
@@ -1355,6 +1493,12 @@ function OrdersContent() {
                         <span className="inline-flex items-center gap-1 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
                           🚚 توصيل
                         </span>
+                        {/* 🆕 بادج للملاحظات */}
+                        {orderNotes[order.id] && (
+                          <span className="inline-flex items-center gap-1 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full" title="يوجد ملاحظات">
+                            📝
+                          </span>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-gray-400">
@@ -1393,6 +1537,24 @@ function OrdersContent() {
                         </div>
                       )}
                     </div>
+
+                    {/* 🆕 ملاحظاتنا على الطلب */}
+                    {orderNotes[order.id] && (
+                      <div className="mb-2 bg-gradient-to-br from-pink-50 to-rose-50 border-2 border-pink-300 rounded-lg p-2.5 shadow-sm">
+                        <div className="flex items-start gap-2">
+                          <span className="text-pink-600 text-sm flex-shrink-0">📌</span>
+                          <div className="flex-1">
+                            <div className="text-xs font-bold text-pink-800 mb-1 flex items-center gap-1">
+                              <span>ملاحظاتنا</span>
+                              <span className="text-[10px] bg-pink-200 text-pink-700 px-1.5 py-0.5 rounded-full">داخلية</span>
+                            </div>
+                            <p className="text-xs text-gray-800 leading-relaxed whitespace-pre-wrap bg-white/60 rounded px-2 py-1.5 border border-pink-200">
+                              {orderNotes[order.id]}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Products Summary */}
                     <div className="mb-3 bg-purple-50 border-2 border-purple-200 rounded-lg p-3">
@@ -1718,6 +1880,12 @@ function OrdersContent() {
                           <span className="relative">🔔 جديد</span>
                         </span>
                       )}
+                      {/* 🆕 بادج للملاحظات */}
+                      {orderNotes[order.id] && (
+                        <span className="inline-flex items-center gap-1 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full" title="يوجد ملاحظات">
+                          📝
+                        </span>
+                      )}
                       {/* 🆕 بادج نوع التوصيل */}
                       {order.meta_data?.some(m => 
                         (m.key === '_is_store_pickup' && m.value === 'yes') || 
@@ -1956,6 +2124,24 @@ function OrdersContent() {
                       </div>
                     )}
                     
+                    {/* 🆕 ملاحظاتنا على الطلب */}
+                    {orderNotes[order.id] && (
+                      <div className="bg-gradient-to-br from-pink-50 to-rose-50 border-2 border-pink-300 rounded-lg p-2.5 shadow-sm">
+                        <div className="flex items-start gap-2">
+                          <span className="text-pink-600 text-base flex-shrink-0">📌</span>
+                          <div className="flex-1">
+                            <div className="text-xs font-bold text-pink-800 mb-1 flex items-center gap-1">
+                              <span>ملاحظاتنا</span>
+                              <span className="text-[10px] bg-pink-200 text-pink-700 px-1.5 py-0.5 rounded-full">داخلية</span>
+                            </div>
+                            <p className="text-xs text-gray-800 leading-relaxed whitespace-pre-wrap bg-white/60 rounded px-2 py-1.5 border border-pink-200">
+                              {orderNotes[order.id]}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* 💰 المجموع بدون الشحن */}
                     <p className="text-gray-900 font-bold text-xl flex items-center gap-2">
                       <span className="text-gray-400 text-base">💰</span>
@@ -2079,6 +2265,17 @@ function OrdersContent() {
           onClose={() => setSelectedOrder(null)}
           onStatusChange={handleStatusChange}
           showToast={showToast}
+          orderNote={orderNotes[selectedOrder.id]}
+          onEditNote={openNoteEditor}
+          editingNote={editingNote === selectedOrder.id}
+          noteText={noteText}
+          onNoteTextChange={setNoteText}
+          onSaveNote={saveOrderNote}
+          savingNote={savingNote}
+          onCancelNote={() => {
+            setEditingNote(null);
+            setNoteText('');
+          }}
         />
       )}
       
@@ -2354,6 +2551,57 @@ function OrdersContent() {
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* 🆕 قسم الملاحظات */}
+            <div className="p-6 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-bold text-gray-800">📝 ملاحظات الطلب</h3>
+                {editingNote !== selectedOrder.id && (
+                  <button
+                    onClick={() => openNoteEditor(selectedOrder.id)}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    {orderNotes[selectedOrder.id] ? '✏️ تعديل' : '➕ إضافة ملاحظة'}
+                  </button>
+                )}
+              </div>
+              
+              {editingNote === selectedOrder.id ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    placeholder="اكتب ملاحظات عن الطلب (استرجاع، تبديل، إلخ...)"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 min-h-[120px] resize-y"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => saveOrderNote(selectedOrder.id, noteText)}
+                      disabled={savingNote}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-medium transition-all disabled:opacity-50"
+                    >
+                      {savingNote ? '⏳ جاري الحفظ...' : '✅ حفظ'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingNote(null);
+                        setNoteText('');
+                      }}
+                      className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </div>
+              ) : orderNotes[selectedOrder.id] ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <p className="text-gray-800 whitespace-pre-wrap">{orderNotes[selectedOrder.id]}</p>
+                </div>
+              ) : (
+                <p className="text-gray-400 text-sm">لا توجد ملاحظات لهذا الطلب</p>
+              )}
             </div>
 
             {/* Footer Actions */}
@@ -2647,6 +2895,68 @@ function OrdersContent() {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 Pagination Controls - فقط لطلبات الموقع */}
+      {activeTab === 'website' && totalPages > 1 && (
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <div className="flex items-center justify-between">
+            {/* Previous Button */}
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className={`px-6 py-2.5 rounded-lg font-medium transition-all ${
+                currentPage === 1
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg'
+              }`}
+            >
+              ← السابق
+            </button>
+
+            {/* Page Info */}
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-600">
+                صفحة <span className="font-bold text-gray-900">{currentPage}</span> من{' '}
+                <span className="font-bold text-gray-900">{totalPages}</span>
+              </div>
+              <div className="text-xs text-gray-500">
+                ({totalOrders} طلب إجمالي)
+              </div>
+              
+              {/* Page Number Input */}
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600">الذهاب إلى:</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={totalPages}
+                  value={currentPage}
+                  onChange={(e) => {
+                    const page = parseInt(e.target.value);
+                    if (page >= 1 && page <= totalPages) {
+                      setCurrentPage(page);
+                    }
+                  }}
+                  className="w-16 px-2 py-1 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Next Button */}
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className={`px-6 py-2.5 rounded-lg font-medium transition-all ${
+                currentPage === totalPages
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg'
+              }`}
+            >
+              التالي →
+            </button>
           </div>
         </div>
       )}
