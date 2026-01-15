@@ -1,0 +1,10 @@
+/**
+ * Add these lines to spare2app-enhanced-store-api.php
+ * Place them at the end of the file, before the closing PHP tag
+ */
+
+// Load API Filters - Hides products without vendors and adds smart sorting
+require_once plugin_dir_path(__FILE__) . 'includes/class-api-filters.php';
+
+// Load Diverse Products Endpoint - Fair distribution across vendors
+require_once plugin_dir_path(__FILE__) . 'includes/class-diverse-products-endpoint.php';

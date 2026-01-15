@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>توليد بيانات تجريبية - نظام الموظفين</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+    }
+    
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+    
+    .info-box {
+      background: #f0f7ff;
+      border-right: 4px solid #3b82f6;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 30px;
+    }
+    
+    .info-box h3 {
+      color: #1e40af;
+      margin-bottom: 15px;
+      font-size: 18px;
+    }
+    
+    .info-box ul {
+      list-style: none;
+      padding: 0;
+    }
+    
+    .info-box li {
+      padding: 8px 0;
+      color: #374151;
+      font-size: 14px;
+    }
+    
+    .info-box li::before {
+      content: "✓ ";
+      color: #10b981;
+      font-weight: bold;
+      margin-left: 8px;
+    }
+    
+    button {
+      width: 100%;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 15px;
+      border-radius: 10px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      margin-bottom: 15px;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .warning-btn {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    }
+    
+    .warning-btn:hover {
+      box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4);
+    }
+    
+    #log {
+      background: #1f2937;
+      color: #10b981;
+      padding: 20px;
+      border-radius: 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 20px;
+      display: none;
+      line-height: 1.6;
+    }
+    
+    #log.show {
+      display: block;
+    }
+    
+    .log-line {
+      margin: 4px 0;
+    }
+    
+    .log-success { color: #10b981; }
+    .log-error { color: #ef4444; }
+    .log-info { color: #3b82f6; }
+    .log-warning { color: #f59e0b; }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+      margin-top: 20px;
+    }
+    
+    .stat-card {
+      background: #f9fafb;
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+    }
+    
+    .stat-number {
+      font-size: 32px;
+      font-weight: bold;
+      color: #667eea;
+    }
+    
+    .stat-label {
+      color: #6b7280;
+      font-size: 14px;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎭 توليد بيانات تجريبية</h1>
+    <p class="subtitle">نظام إدارة الموظفين - Spare2App</p>
+    
+    <div class="info-box">
+      <h3>📋 ماذا سيتم إنشاؤه؟</h3>
+      <ul>
+        <li>4 موظفين بمسميات وأقسام مختلفة</li>
+        <li>سجلات حضور كاملة لآخر 30 يوم</li>
+        <li>تنوع في الحضور: (ظبط، تأخير، تبكير، إضافي)</li>
+        <li>نسبة غياب واقعية ~5%</li>
+        <li>أوقات عمل مختلفة لكل موظف</li>
+      </ul>
+    </div>
+    
+    <button id="generateBtn" onclick="generateData()">
+      🚀 إنشاء البيانات التجريبية
+    </button>
+    
+    <button class="warning-btn" id="clearBtn" onclick="clearData()" style="display: none;">
+      🗑️ مسح كل البيانات
+    </button>
+    
+    <div id="log"></div>
+    
+    <div class="stats" id="stats" style="display: none;">
+      <div class="stat-card">
+        <div class="stat-number" id="employeeCount">0</div>
+        <div class="stat-label">موظف</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="recordCount">0</div>
+        <div class="stat-label">سجل حضور</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/date-fns@3.0.0/index.min.js"></script>
+  
+  <script>
+    const employeesDB = localforage.createInstance({ name: 'spare2app', storeName: 'employees' });
+    const attendanceDB = localforage.createInstance({ name: 'spare2app', storeName: 'attendance' });
+    
+    const log = document.getElementById('log');
+    const generateBtn = document.getElementById('generateBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const stats = document.getElementById('stats');
+    
+    function addLog(message, type = 'info') {
+      log.classList.add('show');
+      const line = document.createElement('div');
+      line.className = `log-line log-${type}`;
+      line.textContent = message;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+    
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+    
+    function createEgyptTime(date, hours, minutes, seconds = 0) {
+      const d = new Date(date);
+      d.setHours(hours, minutes, seconds, 0);
+      return d.toISOString();
+    }
+    
+    function formatTime(date) {
+      const d = new Date(date);
+      return d.toTimeString().split(' ')[0];
+    }
+    
+    function formatDate(date) {
+      const d = new Date(date);
+      return d.toISOString().split('T')[0];
+    }
+    
+    function getDayName(date) {
+      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      return days[new Date(date).getDay()];
+    }
+    
+    const employees = [
+      {
+        id: 'EMP-001234',
+        name: 'أحمد محمد علي',
+        nationalId: '29012011234567',
+        phone: '01012345678',
+        email: 'ahmed.mohamed@example.com',
+        address: '15 شارع النصر، المنصورة، الدقهلية',
+        jobTitle: 'موظف مبيعات',
+        department: 'المبيعات',
+        hireDate: '2024-01-15',
+        basicSalary: 5000,
+        allowances: 500,
+        workSchedule: {
+          startTime: '09:00',
+          endTime: '17:00',
+          workDays: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday'],
+          gracePeriod: 15
+        },
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'EMP-001235',
+        name: 'فاطمة حسن إبراهيم',
+        nationalId: '29503011234568',
+        phone: '01112345678',
+        email: 'fatma.hassan@example.com',
+        address: '22 شارع الجلاء، القاهرة',
+        jobTitle: 'محاسبة',
+        department: 'الحسابات',
+        hireDate: '2024-02-01',
+        basicSalary: 6000,
+        allowances: 800,
+        workSchedule: {
+          startTime: '09:00',
+          endTime: '17:00',
+          workDays: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday'],
+          gracePeriod: 15
+        },
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'EMP-001236',
+        name: 'محمود خالد السيد',
+        nationalId: '28805011234569',
+        phone: '01212345678',
+        email: 'mahmoud.khaled@example.com',
+        address: '8 شارع الهرم، الجيزة',
+        jobTitle: 'مندوب مبيعات',
+        department: 'المبيعات',
+        hireDate: '2024-03-10',
+        basicSalary: 4500,
+        allowances: 600,
+        workSchedule: {
+          startTime: '10:00',
+          endTime: '18:00',
+          workDays: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday'],
+          gracePeriod: 10
+        },
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      },
+      {
+        id: 'EMP-001237',
+        name: 'نورا عبدالرحمن أحمد',
+        nationalId: '29107011234570',
+        phone: '01512345678',
+        email: 'nora.abdulrahman@example.com',
+        address: '33 شارع الثورة، الإسكندرية',
+        jobTitle: 'موظفة خدمة عملاء',
+        department: 'خدمة العملاء',
+        hireDate: '2024-04-01',
+        basicSalary: 4000,
+        allowances: 400,
+        workSchedule: {
+          startTime: '08:00',
+          endTime: '16:00',
+          workDays: ['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday'],
+          gracePeriod: 20
+        },
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ];
+    
+    async function generateData() {
+      generateBtn.disabled = true;
+      log.innerHTML = '';
+      log.classList.add('show');
+      
+      try {
+        addLog('🎭 بدء توليد البيانات التجريبية...', 'info');
+        addLog('', 'info');
+        
+        // Clear existing data
+        addLog('🗑️  مسح البيانات القديمة...', 'warning');
+        await employeesDB.clear();
+        await attendanceDB.clear();
+        addLog('✓ تم المسح بنجاح', 'success');
+        addLog('', 'info');
+        
+        // Add employees
+        addLog('👥 إضافة الموظفين...', 'info');
+        for (const employee of employees) {
+          await employeesDB.setItem(employee.id, employee);
+          addLog(`  ✓ ${employee.name} (${employee.jobTitle})`, 'success');
+        }
+        addLog('', 'info');
+        
+        // Generate attendance
+        addLog('📊 توليد سجلات الحضور...', 'info');
+        const records = [];
+        const today = new Date();
+        
+        for (let empIndex = 0; empIndex < employees.length; empIndex++) {
+          const employee = employees[empIndex];
+          const workDays = employee.workSchedule.workDays;
+          const [startHour, startMin] = employee.workSchedule.startTime.split(':').map(Number);
+          const [endHour, endMin] = employee.workSchedule.endTime.split(':').map(Number);
+          const gracePeriod = employee.workSchedule.gracePeriod;
+          
+          for (let i = 1; i <= 30; i++) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            const dayName = getDayName(date);
+            
+            if (!workDays.includes(dayName)) continue;
+            
+            const pattern = randomInt(1, 100);
+            if (pattern <= 5) continue; // 5% absent
+            
+            let checkInTime, checkOutTime, late = false, lateMinutes = 0, gracePeriodUsed = 0;
+            let early = false, earlyMinutes = 0, overtime = false, overtimeMinutes = 0;
+            
+            if (pattern <= 25) {
+              const delayMinutes = randomInt(gracePeriod + 1, 60);
+              checkInTime = createEgyptTime(date, startHour, startMin + delayMinutes);
+              late = true;
+              lateMinutes = delayMinutes;
+              gracePeriodUsed = gracePeriod;
+            } else if (pattern <= 45) {
+              const delayMinutes = randomInt(1, gracePeriod);
+              checkInTime = createEgyptTime(date, startHour, startMin + delayMinutes);
+              gracePeriodUsed = delayMinutes;
+            } else {
+              const earlyMinutes = randomInt(0, 30);
+              checkInTime = createEgyptTime(date, startHour, startMin - earlyMinutes);
+            }
+            
+            const checkOutPattern = randomInt(1, 100);
+            if (checkOutPattern <= 10) {
+              const earlyLeaveMinutes = randomInt(10, 60);
+              checkOutTime = createEgyptTime(date, endHour, endMin - earlyLeaveMinutes);
+              early = true;
+              earlyMinutes = earlyLeaveMinutes;
+            } else if (checkOutPattern <= 40) {
+              const variance = randomInt(-5, 5);
+              checkOutTime = createEgyptTime(date, endHour, endMin + variance);
+            } else {
+              const overtimeMin = randomInt(15, 180);
+              checkOutTime = createEgyptTime(date, endHour, endMin + overtimeMin);
+              overtime = true;
+              overtimeMinutes = overtimeMin;
+            }
+            
+            const checkInDate = new Date(checkInTime);
+            const checkOutDate = new Date(checkOutTime);
+            const totalMinutes = Math.floor((checkOutDate - checkInDate) / (1000 * 60));
+            const totalHours = (totalMinutes / 60).toFixed(2);
+            const regularHours = Math.min(totalHours, 8);
+            const overtimeHours = Math.max(0, totalHours - 8).toFixed(2);
+            
+            const record = {
+              id: `ATT-${formatDate(date).replace(/-/g, '')}-${(empIndex + 1).toString().padStart(3, '0')}`,
+              employeeId: employee.id,
+              date: formatDate(date),
+              dayName: dayName,
+              checkIn: {
+                time: formatTime(checkInTime),
+                timestamp: checkInTime,
+                late,
+                lateMinutes,
+                gracePeriodUsed,
+                localTime: formatTime(checkInTime),
+                note: late ? `متأخر ${lateMinutes} دقيقة` : gracePeriodUsed > 0 ? `ضمن فترة السماح` : 'في الموعد'
+              },
+              checkOut: {
+                time: formatTime(checkOutTime),
+                timestamp: checkOutTime,
+                early,
+                earlyMinutes,
+                overtime,
+                overtimeMinutes,
+                localTime: formatTime(checkOutTime),
+                note: early ? `انصراف مبكر` : overtime ? `إضافي ${overtimeMinutes} دقيقة` : 'في الموعد'
+              },
+              calculations: {
+                totalMinutes,
+                totalHours: parseFloat(totalHours),
+                regularHours: parseFloat(regularHours),
+                overtimeHours: parseFloat(overtimeHours)
+              },
+              status: 'completed',
+              createdAt: checkInTime,
+              updatedAt: checkOutTime
+            };
+            
+            records.push(record);
+            await attendanceDB.setItem(record.id, record);
+          }
+        }
+        
+        addLog(`✓ تم إنشاء ${records.length} سجل حضور`, 'success');
+        addLog('', 'info');
+        
+        // Summary
+        addLog('━━━━━━━━━━━━━━━━━━━━', 'info');
+        addLog('✅ اكتمل توليد البيانات!', 'success');
+        addLog(`👥 الموظفين: ${employees.length}`, 'info');
+        addLog(`📊 سجلات الحضور: ${records.length}`, 'info');
+        addLog(`📅 الفترة: آخر 30 يوم`, 'info');
+        addLog('━━━━━━━━━━━━━━━━━━━━', 'info');
+        addLog('', 'info');
+        addLog('💡 يمكنك الآن:', 'info');
+        addLog('  • الذهاب لقائمة الموظفين', 'info');
+        addLog('  • مشاهدة تفاصيل كل موظف', 'info');
+        addLog('  • تسجيل حضور/انصراف جديد', 'info');
+        
+        // Show stats
+        document.getElementById('employeeCount').textContent = employees.length;
+        document.getElementById('recordCount').textContent = records.length;
+        stats.style.display = 'grid';
+        clearBtn.style.display = 'block';
+        
+      } catch (error) {
+        addLog(`❌ خطأ: ${error.message}`, 'error');
+      } finally {
+        generateBtn.disabled = false;
+      }
+    }
+    
+    async function clearData() {
+      if (!confirm('هل أنت متأكد من مسح كل البيانات؟')) return;
+      
+      clearBtn.disabled = true;
+      log.innerHTML = '';
+      
+      try {
+        addLog('🗑️  جاري المسح...', 'warning');
+        await employeesDB.clear();
+        await attendanceDB.clear();
+        addLog('✓ تم مسح جميع البيانات', 'success');
+        
+        stats.style.display = 'none';
+        clearBtn.style.display = 'none';
+      } catch (error) {
+        addLog(`❌ خطأ: ${error.message}`, 'error');
+      } finally {
+        clearBtn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

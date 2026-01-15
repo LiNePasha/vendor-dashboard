@@ -1,0 +1,3312 @@
+{
+    "products": [
+        {
+            "id": 41969,
+            "name": "هاند جرد كاربون",
+            "price": "250",
+            "regular_price": "",
+            "sale_price": "",
+            "stock_quantity": 0,
+            "manage_stock": false,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-03 01:37:55",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 42063,
+            "name": "جوانتي تاتش",
+            "price": "190",
+            "regular_price": "",
+            "sale_price": "",
+            "stock_quantity": 9,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-03 01:30:29",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/14.png",
+            "categories": [
+                {
+                    "id": 422,
+                    "name": "جونتي",
+                    "slug": "motorcycle-gloves"
+                },
+                {
+                    "id": 420,
+                    "name": "سيفتي",
+                    "slug": "motorcycle-safety-gear"
+                }
+            ]
+        },
+        {
+            "id": 41963,
+            "name": "جوانتي سيفتي فوكس",
+            "price": "350",
+            "regular_price": "",
+            "sale_price": "",
+            "stock_quantity": 0,
+            "manage_stock": false,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-03 01:23:39",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/8-1.png",
+            "categories": [
+                {
+                    "id": 422,
+                    "name": "جونتي",
+                    "slug": "motorcycle-gloves"
+                },
+                {
+                    "id": 420,
+                    "name": "سيفتي",
+                    "slug": "motorcycle-safety-gear"
+                }
+            ]
+        },
+        {
+            "id": 42060,
+            "name": "علبه شكمان sc كنزايه",
+            "price": "1450",
+            "regular_price": "1450",
+            "sale_price": "",
+            "stock_quantity": 9,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-03 01:20:13",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/3.png",
+            "categories": [
+                {
+                    "id": 454,
+                    "name": "اكزوست",
+                    "slug": "exhaust"
+                },
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 42061,
+            "name": "عداد مكنه VLR SPORT",
+            "price": "1650",
+            "regular_price": "1650",
+            "sale_price": "",
+            "stock_quantity": 1,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-03 01:16:50",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/5.png",
+            "categories": [
+                {
+                    "id": 382,
+                    "name": "VLR",
+                    "slug": "vlr"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 1115,
+                    "name": "بينيلي",
+                    "slug": "benelli"
+                },
+                {
+                    "id": 498,
+                    "name": "عدادات",
+                    "slug": "motorcycle-meters"
+                },
+                {
+                    "id": 365,
+                    "name": "قطع غيار براند",
+                    "slug": "sp-brand"
+                }
+            ]
+        },
+        {
+            "id": 42062,
+            "name": "قفل وير",
+            "price": "290",
+            "regular_price": "290",
+            "sale_price": "",
+            "stock_quantity": 30,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-03 01:15:02",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/7.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 1278,
+                    "name": "قفل",
+                    "slug": "lock"
+                }
+            ]
+        },
+        {
+            "id": 42067,
+            "name": "فوج بومه اللوان",
+            "price": "165",
+            "regular_price": "165",
+            "sale_price": "",
+            "stock_quantity": 8,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-03 01:11:32",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/9.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 584,
+                    "name": "فوجات",
+                    "slug": "fog-lights"
+                }
+            ]
+        },
+        {
+            "id": 42068,
+            "name": "حساس إضاءة",
+            "price": "35",
+            "regular_price": "35",
+            "sale_price": "",
+            "stock_quantity": 199,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-03 01:08:37",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/10.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 604,
+                    "name": "لمبه ليد",
+                    "slug": "led-lamp"
+                }
+            ]
+        },
+        {
+            "id": 42070,
+            "name": "حامل موبيل عكبوت",
+            "price": "290",
+            "regular_price": "290",
+            "sale_price": "",
+            "stock_quantity": 14,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-03 01:04:45",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/16.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 151,
+                    "name": "هولدر",
+                    "slug": "mobile-holder-bike"
+                }
+            ]
+        },
+        {
+            "id": 36580,
+            "name": "طقم هاند جارد بنور اشاره",
+            "price": "350",
+            "regular_price": "350",
+            "sale_price": "",
+            "stock_quantity": 39,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 20:40:24",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/5cb18b40-00a5-4bb9-916c-99c21ce6470f.jpeg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 598,
+                    "name": "هاند جارد",
+                    "slug": "hand-guard"
+                }
+            ]
+        },
+        {
+            "id": 41549,
+            "name": "تيل f/l/v امامي / vlr",
+            "price": "150",
+            "regular_price": "150",
+            "sale_price": "",
+            "stock_quantity": 80,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 18:28:35",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/apo-shaban-1.png",
+            "categories": [
+                {
+                    "id": 412,
+                    "name": "F250",
+                    "slug": "f250"
+                },
+                {
+                    "id": 416,
+                    "name": "L250",
+                    "slug": "l250"
+                },
+                {
+                    "id": 418,
+                    "name": "V250",
+                    "slug": "v-250"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 495,
+                    "name": "فرامل",
+                    "slug": "motorcycle-brakes"
+                },
+                {
+                    "id": 365,
+                    "name": "قطع غيار براند",
+                    "slug": "sp-brand"
+                },
+                {
+                    "id": 411,
+                    "name": "هوجان",
+                    "slug": "haojiang"
+                }
+            ]
+        },
+        {
+            "id": 36528,
+            "name": "انجن جارد هوجان ٢٥٠",
+            "price": "390",
+            "regular_price": "800",
+            "sale_price": "390",
+            "stock_quantity": 76,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 18:23:31",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/489607486_1123433136466183_418431808372432767_n-1-1-1.jpg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 626,
+                    "name": "انجن جارد",
+                    "slug": "engine-guard"
+                }
+            ]
+        },
+        {
+            "id": 41967,
+            "name": "اسليدر جرد خلفي",
+            "price": "100",
+            "regular_price": "150",
+            "sale_price": "100",
+            "stock_quantity": 1985,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 18:23:31",
+            "image": null,
+            "categories": [
+                {
+                    "id": 458,
+                    "name": "سلايدرز",
+                    "slug": "sliders"
+                }
+            ]
+        },
+        {
+            "id": 38225,
+            "name": "زيت موتول 5100 موتوسيكل 10w40",
+            "price": "400",
+            "regular_price": "400",
+            "sale_price": "",
+            "stock_quantity": 107,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 18:10:10",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-3.png",
+            "categories": [
+                {
+                    "id": 438,
+                    "name": "الزيوت",
+                    "slug": "oil"
+                }
+            ]
+        },
+        {
+            "id": 40871,
+            "name": "ماسك وجه",
+            "price": "120",
+            "regular_price": "120",
+            "sale_price": "",
+            "stock_quantity": 5,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "ماسك",
+            "type": "simple",
+            "last_modified": "2026-01-02 18:10:10",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-28T170850.957.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 420,
+                    "name": "سيفتي",
+                    "slug": "motorcycle-safety-gear"
+                },
+                {
+                    "id": 618,
+                    "name": "ماسك",
+                    "slug": "mask"
+                }
+            ]
+        },
+        {
+            "id": 42052,
+            "name": "جدون مسطره اللوان",
+            "price": "390",
+            "regular_price": "390",
+            "sale_price": "",
+            "stock_quantity": 8,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 18:01:24",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 40925,
+            "name": "تيل F250 خلفي",
+            "price": "120",
+            "regular_price": "120",
+            "sale_price": "",
+            "stock_quantity": 25,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 17:47:56",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-73.png",
+            "categories": [
+                {
+                    "id": 412,
+                    "name": "F250",
+                    "slug": "f250"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 495,
+                    "name": "فرامل",
+                    "slug": "motorcycle-brakes"
+                },
+                {
+                    "id": 411,
+                    "name": "هوجان",
+                    "slug": "haojiang"
+                }
+            ]
+        },
+        {
+            "id": 40986,
+            "name": "مرايا روزيما احمر",
+            "price": "175",
+            "regular_price": "175",
+            "sale_price": "",
+            "stock_quantity": 15,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 17:39:53",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-28T042153.120.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 428,
+                    "name": "مرايات",
+                    "slug": "mirrors"
+                }
+            ]
+        },
+        {
+            "id": 38221,
+            "name": "مقابض دبرياچ وفرامل بالخزنه",
+            "price": "490",
+            "regular_price": "490",
+            "sale_price": "",
+            "stock_quantity": 8,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 17:39:53",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-93-1.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 425,
+                    "name": "مقابض",
+                    "slug": "grips"
+                }
+            ]
+        },
+        {
+            "id": 41588,
+            "name": "اسطوانه vlr اسبورت",
+            "price": "390",
+            "regular_price": "390",
+            "sale_price": "",
+            "stock_quantity": 15,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 17:39:53",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/6.png",
+            "categories": [
+                {
+                    "id": 382,
+                    "name": "VLR",
+                    "slug": "vlr"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 1115,
+                    "name": "بينيلي",
+                    "slug": "benelli"
+                },
+                {
+                    "id": 495,
+                    "name": "فرامل",
+                    "slug": "motorcycle-brakes"
+                },
+                {
+                    "id": 365,
+                    "name": "قطع غيار براند",
+                    "slug": "sp-brand"
+                }
+            ]
+        },
+        {
+            "id": 42036,
+            "name": "زيت ولف تخليقي كامل",
+            "price": "480",
+            "regular_price": "480",
+            "sale_price": "",
+            "stock_quantity": 11,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 17:27:02",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 40960,
+            "name": "شاحن موبيل 1 مخرج",
+            "price": "85",
+            "regular_price": "100",
+            "sale_price": "85",
+            "stock_quantity": 98,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 17:26:18",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/Abo-Shaaban-ELasly-99.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 1279,
+                    "name": "شاحن",
+                    "slug": "charger"
+                },
+                {
+                    "id": 586,
+                    "name": "كهرباء",
+                    "slug": "electrical"
+                }
+            ]
+        },
+        {
+            "id": 39225,
+            "name": "ليد اكليرك ابليكيشن مع التحكم بلرموت",
+            "price": "190",
+            "regular_price": "245",
+            "sale_price": "190",
+            "stock_quantity": 95,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 17:26:18",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/Abo-Shaaban-ELasly-73-1.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 584,
+                    "name": "فوجات",
+                    "slug": "fog-lights"
+                },
+                {
+                    "id": 604,
+                    "name": "لمبه ليد",
+                    "slug": "led-lamp"
+                }
+            ]
+        },
+        {
+            "id": 40924,
+            "name": "اليكتروني تعديل برموت",
+            "price": "450",
+            "regular_price": "450",
+            "sale_price": "",
+            "stock_quantity": 25,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 17:09:13",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-56.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 586,
+                    "name": "كهرباء",
+                    "slug": "electrical"
+                }
+            ]
+        },
+        {
+            "id": 36460,
+            "name": "رفرف ترابه ذراع حديد",
+            "price": "120",
+            "regular_price": "120",
+            "sale_price": "",
+            "stock_quantity": 84,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 17:05:51",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/490263903_1130402062435957_3568775154830665790_n.jpg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 614,
+                    "name": "ترابه",
+                    "slug": "mudguard"
+                }
+            ]
+        },
+        {
+            "id": 42064,
+            "name": "فوج 1 لينس",
+            "price": "290",
+            "regular_price": "290",
+            "sale_price": "",
+            "stock_quantity": 2,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 17:02:04",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 36366,
+            "name": "بوجيه ٣ شمعه",
+            "price": "50",
+            "regular_price": "50",
+            "sale_price": "",
+            "stock_quantity": 99,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 16:53:34",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/464990142_18024645290605677_8104007598412939223_n.jpg",
+            "categories": [
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 586,
+                    "name": "كهرباء",
+                    "slug": "electrical"
+                }
+            ]
+        },
+        {
+            "id": 40884,
+            "name": "تيل خلفي f/l/v",
+            "price": "120",
+            "regular_price": "120",
+            "sale_price": "",
+            "stock_quantity": 96,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 16:53:34",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-28T050105.198-3.png",
+            "categories": [
+                {
+                    "id": 412,
+                    "name": "F250",
+                    "slug": "f250"
+                },
+                {
+                    "id": 416,
+                    "name": "L250",
+                    "slug": "l250"
+                },
+                {
+                    "id": 418,
+                    "name": "V250",
+                    "slug": "v-250"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 495,
+                    "name": "فرامل",
+                    "slug": "motorcycle-brakes"
+                },
+                {
+                    "id": 411,
+                    "name": "هوجان",
+                    "slug": "haojiang"
+                }
+            ]
+        },
+        {
+            "id": 40920,
+            "name": "لمبه تعديل 8 ليد رعاش",
+            "price": "225",
+            "regular_price": "225",
+            "sale_price": "",
+            "stock_quantity": 52,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 16:53:34",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-54.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 604,
+                    "name": "لمبه ليد",
+                    "slug": "led-lamp"
+                }
+            ]
+        },
+        {
+            "id": 40885,
+            "name": "جونتي قطن برتقالي",
+            "price": "150",
+            "regular_price": "150",
+            "sale_price": "",
+            "stock_quantity": 2,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 16:35:47",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/rvn7zxi30n1zuo7ltulv-e1766801326592.webp",
+            "categories": [
+                {
+                    "id": 422,
+                    "name": "جونتي",
+                    "slug": "motorcycle-gloves"
+                },
+                {
+                    "id": 420,
+                    "name": "سيفتي",
+                    "slug": "motorcycle-safety-gear"
+                }
+            ]
+        },
+        {
+            "id": 40039,
+            "name": "حدافه مكنة V250",
+            "price": "1750",
+            "regular_price": "1750",
+            "sale_price": "",
+            "stock_quantity": 2,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 16:29:51",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-31T050200.740.png",
+            "categories": [
+                {
+                    "id": 418,
+                    "name": "V250",
+                    "slug": "v-250"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 585,
+                    "name": "موتور",
+                    "slug": "engine"
+                },
+                {
+                    "id": 411,
+                    "name": "هوجان",
+                    "slug": "haojiang"
+                }
+            ]
+        },
+        {
+            "id": 38327,
+            "name": "هولدر معدني جادون اسود",
+            "price": "130",
+            "regular_price": "150",
+            "sale_price": "130",
+            "stock_quantity": 7,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 16:26:18",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/Abo-Shaaban-ELasly-46.jpg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 151,
+                    "name": "هولدر",
+                    "slug": "mobile-holder-bike"
+                }
+            ]
+        },
+        {
+            "id": 38328,
+            "name": "هولدر معدني جادون ذهبي",
+            "price": "130",
+            "regular_price": "130",
+            "sale_price": "",
+            "stock_quantity": 10,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 16:22:04",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/Abo-Shaaban-ELasly-52.jpg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 151,
+                    "name": "هولدر",
+                    "slug": "mobile-holder-bike"
+                }
+            ]
+        },
+        {
+            "id": 41583,
+            "name": "ورق دبرياچ",
+            "price": "180",
+            "regular_price": "200",
+            "sale_price": "180",
+            "stock_quantity": 54,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 16:19:09",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/2-2-1-1-1-1.png",
+            "categories": [
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 585,
+                    "name": "موتور",
+                    "slug": "engine"
+                }
+            ]
+        },
+        {
+            "id": 41989,
+            "name": "كسوه موتوسيكل",
+            "price": "225",
+            "regular_price": "",
+            "sale_price": "",
+            "stock_quantity": 0,
+            "manage_stock": false,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 16:11:03",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 41989,
+            "name": "كسوه موتوسيكل",
+            "price": "350",
+            "regular_price": "",
+            "sale_price": "",
+            "stock_quantity": 0,
+            "manage_stock": false,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 16:11:03",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 36578,
+            "name": "رفرف ترابه كاربون",
+            "price": "200",
+            "regular_price": "200",
+            "sale_price": "",
+            "stock_quantity": 8,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 16:05:24",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/e271e394-58ec-41b0-a1b6-73e069ff20f4.jpeg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 614,
+                    "name": "ترابه",
+                    "slug": "mudguard"
+                }
+            ]
+        },
+        {
+            "id": 39476,
+            "name": "بوابة شكمان لمنع الصوت العالي للشكمان التعديل اثناء المشي",
+            "price": "1650",
+            "regular_price": "1650",
+            "sale_price": "",
+            "stock_quantity": 29,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 15:59:24",
+            "image": null,
+            "categories": [
+                {
+                    "id": 454,
+                    "name": "اكزوست",
+                    "slug": "exhaust"
+                },
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 38223,
+            "name": "مقابض دبرياچ وفرامل بالخزنه",
+            "price": "490",
+            "regular_price": "490",
+            "sale_price": "",
+            "stock_quantity": 7,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 15:44:58",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-94-1.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 425,
+                    "name": "مقابض",
+                    "slug": "grips"
+                }
+            ]
+        },
+        {
+            "id": 40836,
+            "name": "جوانتي سيفتي madbike",
+            "price": "550",
+            "regular_price": "550",
+            "sale_price": "",
+            "stock_quantity": 30,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 15:33:00",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-28T184833.045.png",
+            "categories": [
+                {
+                    "id": 422,
+                    "name": "جونتي",
+                    "slug": "motorcycle-gloves"
+                },
+                {
+                    "id": 420,
+                    "name": "سيفتي",
+                    "slug": "motorcycle-safety-gear"
+                }
+            ]
+        },
+        {
+            "id": 38336,
+            "name": "هولدر متين",
+            "price": "65",
+            "regular_price": "100",
+            "sale_price": "65",
+            "stock_quantity": 99,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 15:33:00",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/Abo-Shaaban-ELasly-50.jpg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 151,
+                    "name": "هولدر",
+                    "slug": "mobile-holder-bike"
+                }
+            ]
+        },
+        {
+            "id": 40994,
+            "name": "طقم كلاكس دينسون اصلي",
+            "price": "375",
+            "regular_price": "375",
+            "sale_price": "",
+            "stock_quantity": 4,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 15:25:59",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-86.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 586,
+                    "name": "كهرباء",
+                    "slug": "electrical"
+                }
+            ]
+        },
+        {
+            "id": 38330,
+            "name": "هولدر عنكبوت",
+            "price": "475",
+            "regular_price": "475",
+            "sale_price": "",
+            "stock_quantity": 39,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 15:18:14",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/Abo-Shaaban-ELasly-66.jpg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 151,
+                    "name": "هولدر",
+                    "slug": "mobile-holder-bike"
+                }
+            ]
+        },
+        {
+            "id": 38854,
+            "name": "مرايات H2 كاربون",
+            "price": "475",
+            "regular_price": "475",
+            "sale_price": "",
+            "stock_quantity": 23,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 15:06:15",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-85-1.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 599,
+                    "name": "جادون",
+                    "slug": "handlebar"
+                },
+                {
+                    "id": 428,
+                    "name": "مرايات",
+                    "slug": "mirrors"
+                }
+            ]
+        },
+        {
+            "id": 36414,
+            "name": "طقم مرايات h2",
+            "price": "290",
+            "regular_price": "290",
+            "sale_price": "",
+            "stock_quantity": 20,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 15:01:58",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/471102919_18030528995605677_2074640766190290675_n.jpg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 428,
+                    "name": "مرايات",
+                    "slug": "mirrors"
+                }
+            ]
+        },
+        {
+            "id": 36788,
+            "name": "شكمان sc",
+            "price": "1250",
+            "regular_price": "1450",
+            "sale_price": "1250",
+            "stock_quantity": 7,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 14:40:21",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/53c476e0-6d3d-4509-9800-e083666b2441-1.jpeg",
+            "categories": [
+                {
+                    "id": 454,
+                    "name": "اكزوست",
+                    "slug": "exhaust"
+                },
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 39421,
+            "name": "شريط عازل حراري للشكمان",
+            "price": "0175",
+            "regular_price": "",
+            "sale_price": "",
+            "stock_quantity": 0,
+            "manage_stock": false,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 14:40:21",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-61-1.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 41998,
+            "name": "مدليه",
+            "price": "50",
+            "regular_price": "50",
+            "sale_price": "",
+            "stock_quantity": 99,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 14:37:18",
+            "image": null,
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 40176,
+            "name": "مستر فرامل لجميع الموتسيكلات",
+            "price": "350",
+            "regular_price": "350",
+            "sale_price": "",
+            "stock_quantity": 19,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 14:24:22",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-31T031903.133.png",
+            "categories": [
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 495,
+                    "name": "فرامل",
+                    "slug": "motorcycle-brakes"
+                }
+            ]
+        },
+        {
+            "id": 40844,
+            "name": "جوانتي سيفتي madmotor",
+            "price": "850",
+            "regular_price": "850",
+            "sale_price": "",
+            "stock_quantity": 7,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 14:19:20",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-28T183230.749.png",
+            "categories": [
+                {
+                    "id": 422,
+                    "name": "جونتي",
+                    "slug": "motorcycle-gloves"
+                },
+                {
+                    "id": 420,
+                    "name": "سيفتي",
+                    "slug": "motorcycle-safety-gear"
+                }
+            ]
+        },
+        {
+            "id": 40842,
+            "name": "جوانتي سيفتي madmotor",
+            "price": "850",
+            "regular_price": "850",
+            "sale_price": "",
+            "stock_quantity": 7,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 14:19:05",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-28T173853.890.png",
+            "categories": [
+                {
+                    "id": 422,
+                    "name": "جونتي",
+                    "slug": "motorcycle-gloves"
+                },
+                {
+                    "id": 420,
+                    "name": "سيفتي",
+                    "slug": "motorcycle-safety-gear"
+                }
+            ]
+        },
+        {
+            "id": 40839,
+            "name": "جوانتي سيفتي madmotor لون ازرق",
+            "price": "850",
+            "regular_price": "850",
+            "sale_price": "",
+            "stock_quantity": 7,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 14:18:38",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-28T172043.354.png",
+            "categories": [
+                {
+                    "id": 422,
+                    "name": "جونتي",
+                    "slug": "motorcycle-gloves"
+                },
+                {
+                    "id": 420,
+                    "name": "سيفتي",
+                    "slug": "motorcycle-safety-gear"
+                }
+            ]
+        },
+        {
+            "id": 38213,
+            "name": "زيت ولف نصف تخليقي",
+            "price": "330",
+            "regular_price": "330",
+            "sale_price": "",
+            "stock_quantity": 80,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "10/40",
+            "type": "simple",
+            "last_modified": "2026-01-02 14:16:41",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-90-1.png",
+            "categories": [
+                {
+                    "id": 438,
+                    "name": "الزيوت",
+                    "slug": "oil"
+                }
+            ]
+        },
+        {
+            "id": 40151,
+            "name": "مستر فرامل خلفي مكنه /F250 اصلي",
+            "price": "650",
+            "regular_price": "650",
+            "sale_price": "",
+            "stock_quantity": 0,
+            "manage_stock": true,
+            "stock_status": "outofstock",
+            "in_stock": false,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 14:12:58",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-31T040953.436.png",
+            "categories": [
+                {
+                    "id": 412,
+                    "name": "F250",
+                    "slug": "f250"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 495,
+                    "name": "فرامل",
+                    "slug": "motorcycle-brakes"
+                },
+                {
+                    "id": 411,
+                    "name": "هوجان",
+                    "slug": "haojiang"
+                }
+            ]
+        },
+        {
+            "id": 40150,
+            "name": "مستر فرامل خلفي مكنه / F250 الندا",
+            "price": "350",
+            "regular_price": "350",
+            "sale_price": "",
+            "stock_quantity": 1,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 14:08:20",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-31T040653.071.png",
+            "categories": [
+                {
+                    "id": 412,
+                    "name": "F250",
+                    "slug": "f250"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 495,
+                    "name": "فرامل",
+                    "slug": "motorcycle-brakes"
+                },
+                {
+                    "id": 411,
+                    "name": "هوجان",
+                    "slug": "haojiang"
+                }
+            ]
+        },
+        {
+            "id": 39534,
+            "name": "مريات مكنه بنيلي / وتركب علي جميع المكن الهوجن",
+            "price": "285",
+            "regular_price": "350",
+            "sale_price": "285",
+            "stock_quantity": 12,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:54:26",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-31T192237.334.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 428,
+                    "name": "مرايات",
+                    "slug": "mirrors"
+                }
+            ]
+        },
+        {
+            "id": 42050,
+            "name": "فوج بريميوم",
+            "price": "2850",
+            "regular_price": "2850",
+            "sale_price": "",
+            "stock_quantity": 1,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:52:00",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/Abo-Shaaban-ELasly-21.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 584,
+                    "name": "فوجات",
+                    "slug": "fog-lights"
+                }
+            ]
+        },
+        {
+            "id": 41961,
+            "name": "زيت اسكوتر موتل800 مم",
+            "price": "285",
+            "regular_price": "285",
+            "sale_price": "",
+            "stock_quantity": 60,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:51:01",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/Abo-Shaaban-ELasly-22.png",
+            "categories": [
+                {
+                    "id": 438,
+                    "name": "الزيوت",
+                    "slug": "oil"
+                }
+            ]
+        },
+        {
+            "id": 42057,
+            "name": "جدون بنلي سوبر سورت",
+            "price": "400",
+            "regular_price": "400",
+            "sale_price": "",
+            "stock_quantity": 4,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:42:49",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 36754,
+            "name": "شكمان اكرابوفيك بكاتم",
+            "price": "1250",
+            "regular_price": "1250",
+            "sale_price": "",
+            "stock_quantity": 28,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:37:28",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/61eb20e8-b887-43b1-80a6-36d276f3ce76.jpeg",
+            "categories": [
+                {
+                    "id": 454,
+                    "name": "اكزوست",
+                    "slug": "exhaust"
+                },
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 36744,
+            "name": "شكمان اكرابوفيك شورت بكاتم",
+            "price": "1250",
+            "regular_price": "1250",
+            "sale_price": "",
+            "stock_quantity": 10,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:36:58",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/f77b1f0d-f8fa-42ed-8c08-2803d2277e1a.jpeg",
+            "categories": [
+                {
+                    "id": 454,
+                    "name": "اكزوست",
+                    "slug": "exhaust"
+                },
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 36572,
+            "name": "حامل موبايل",
+            "price": "65",
+            "regular_price": "65",
+            "sale_price": "",
+            "stock_quantity": 49,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:34:24",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/8f76c583-fb22-4e5a-b809-bf3ac587ab26.jpeg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 151,
+                    "name": "هولدر",
+                    "slug": "mobile-holder-bike"
+                }
+            ]
+        },
+        {
+            "id": 42053,
+            "name": "علبه sc اللوان طيف",
+            "price": "1350",
+            "regular_price": "1350",
+            "sale_price": "",
+            "stock_quantity": 9,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:30:53",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/gkrflxuo7wwacwblvege.jpg",
+            "categories": []
+        },
+        {
+            "id": 40776,
+            "name": "اكس امامي v/f 200",
+            "price": "250",
+            "regular_price": "250",
+            "sale_price": "",
+            "stock_quantity": 13,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:24:14",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-29T023102.680.png",
+            "categories": [
+                {
+                    "id": 412,
+                    "name": "F250",
+                    "slug": "f250"
+                },
+                {
+                    "id": 418,
+                    "name": "V250",
+                    "slug": "v-250"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 365,
+                    "name": "قطع غيار براند",
+                    "slug": "sp-brand"
+                },
+                {
+                    "id": 585,
+                    "name": "موتور",
+                    "slug": "engine"
+                },
+                {
+                    "id": 411,
+                    "name": "هوجان",
+                    "slug": "haojiang"
+                }
+            ]
+        },
+        {
+            "id": 41968,
+            "name": "علايات جدون",
+            "price": "100",
+            "regular_price": "",
+            "sale_price": "",
+            "stock_quantity": 98,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:12:49",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 38229,
+            "name": "شريط عازل حراري لون احمر",
+            "price": "175",
+            "regular_price": "175",
+            "sale_price": "",
+            "stock_quantity": 4,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:06:23",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-96-2.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 42051,
+            "name": "مسوره شكمان تريلا",
+            "price": "350",
+            "regular_price": "350",
+            "sale_price": "",
+            "stock_quantity": 49,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:06:22",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 36683,
+            "name": "علاية مساعد ktx سم(3/4/5)",
+            "price": "350",
+            "regular_price": "350",
+            "sale_price": "",
+            "stock_quantity": 14,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:06:22",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/842aeff8-b588-4263-8dff-771e4e30f782.jpeg",
+            "categories": [
+                {
+                    "id": 789,
+                    "name": "KTX250",
+                    "slug": "ktx250"
+                },
+                {
+                    "id": 398,
+                    "name": "فيجوري",
+                    "slug": "vigorey"
+                },
+                {
+                    "id": 365,
+                    "name": "قطع غيار براند",
+                    "slug": "sp-brand"
+                }
+            ]
+        },
+        {
+            "id": 36500,
+            "name": "انجن جارد مسطره",
+            "price": "100",
+            "regular_price": "100",
+            "sale_price": "",
+            "stock_quantity": 98,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 13:06:22",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/470682035_18030518861605677_8822449666915901021_n.jpg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 626,
+                    "name": "انجن جارد",
+                    "slug": "engine-guard"
+                }
+            ]
+        },
+        {
+            "id": 36756,
+            "name": "شكمان m4 نيكل",
+            "price": "1150",
+            "regular_price": "1150",
+            "sale_price": "",
+            "stock_quantity": 2,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 12:41:09",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/24f4bf26-5cc7-487a-b298-8cca387ba6f6.jpeg",
+            "categories": [
+                {
+                    "id": 454,
+                    "name": "اكزوست",
+                    "slug": "exhaust"
+                },
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 36770,
+            "name": "شكمان m4 نيكل الوان طيف",
+            "price": "1150",
+            "regular_price": "1150",
+            "sale_price": "",
+            "stock_quantity": 4,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 12:38:16",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/b35dfeb1-e4eb-4016-b36d-6f0058206601.jpeg",
+            "categories": [
+                {
+                    "id": 454,
+                    "name": "اكزوست",
+                    "slug": "exhaust"
+                },
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 42044,
+            "name": "ديسك لوك معدن",
+            "price": "600",
+            "regular_price": "600",
+            "sale_price": "",
+            "stock_quantity": 9,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 12:37:05",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 40961,
+            "name": "لمبه K6 بعدسه",
+            "price": "750",
+            "regular_price": "750",
+            "sale_price": "",
+            "stock_quantity": 7,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 12:23:42",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-50.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 604,
+                    "name": "لمبه ليد",
+                    "slug": "led-lamp"
+                }
+            ]
+        },
+        {
+            "id": 38251,
+            "name": "ديسك لوك بدون انذار",
+            "price": "130",
+            "regular_price": "130",
+            "sale_price": "",
+            "stock_quantity": 12,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 12:23:42",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/Abo-Shaaban-ELasly-6-1-1.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 1278,
+                    "name": "قفل",
+                    "slug": "lock"
+                }
+            ]
+        },
+        {
+            "id": 39542,
+            "name": "سفنجة جادون",
+            "price": "175",
+            "regular_price": "",
+            "sale_price": "",
+            "stock_quantity": 18,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "1111111111111",
+            "type": "simple",
+            "last_modified": "2026-01-02 11:57:54",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-40.png",
+            "categories": [
+                {
+                    "id": 789,
+                    "name": "KTX250",
+                    "slug": "ktx250"
+                },
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 40875,
+            "name": "جوانتي سيفتي سومي",
+            "price": "550",
+            "regular_price": "550",
+            "sale_price": "",
+            "stock_quantity": 14,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 11:36:59",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-28T170647.097.png",
+            "categories": [
+                {
+                    "id": 422,
+                    "name": "جونتي",
+                    "slug": "motorcycle-gloves"
+                },
+                {
+                    "id": 420,
+                    "name": "سيفتي",
+                    "slug": "motorcycle-safety-gear"
+                }
+            ]
+        },
+        {
+            "id": 42043,
+            "name": "علبه شكمان اكرابوفيك كاربون",
+            "price": "1450",
+            "regular_price": "1450",
+            "sale_price": "",
+            "stock_quantity": 9,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 11:18:49",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 42042,
+            "name": "حامل تليفون عنكبوت بشاحن",
+            "price": "750",
+            "regular_price": "750",
+            "sale_price": "",
+            "stock_quantity": 9,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 11:06:07",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 38329,
+            "name": "هولدر معدني جادون فضي",
+            "price": "100",
+            "regular_price": "150",
+            "sale_price": "100",
+            "stock_quantity": 0,
+            "manage_stock": true,
+            "stock_status": "outofstock",
+            "in_stock": false,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 10:13:57",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/Abo-Shaaban-ELasly-49.jpg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 151,
+                    "name": "هولدر",
+                    "slug": "mobile-holder-bike"
+                }
+            ]
+        },
+        {
+            "id": 42038,
+            "name": "حماله نص هوجن 3",
+            "price": "275",
+            "regular_price": "275",
+            "sale_price": "",
+            "stock_quantity": 5,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 10:05:52",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 42037,
+            "name": "افيز نمره امامي ( مساعد )",
+            "price": "50",
+            "regular_price": "50",
+            "sale_price": "",
+            "stock_quantity": 45,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 10:04:02",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 40963,
+            "name": "سماعه جدون",
+            "price": "1450",
+            "regular_price": "1450",
+            "sale_price": "",
+            "stock_quantity": 4,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 09:58:10",
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/Abo-Shaaban-ELasly-10.png",
+            "categories": []
+        },
+        {
+            "id": 40883,
+            "name": "فوج خوذه كاربون",
+            "price": "275",
+            "regular_price": "275",
+            "sale_price": "",
+            "stock_quantity": 25,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 09:55:25",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-67.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 584,
+                    "name": "فوجات",
+                    "slug": "fog-lights"
+                }
+            ]
+        },
+        {
+            "id": 39186,
+            "name": "قفل وير حمايه صغر",
+            "price": "175",
+            "regular_price": "175",
+            "sale_price": "",
+            "stock_quantity": 180,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 09:54:33",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-89-1.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 1278,
+                    "name": "قفل",
+                    "slug": "lock"
+                }
+            ]
+        },
+        {
+            "id": 40988,
+            "name": "جهاز انزار هوندا",
+            "price": "300",
+            "regular_price": "350",
+            "sale_price": "300",
+            "stock_quantity": 49,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 09:42:07",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-97.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 1276,
+                    "name": "انذار",
+                    "slug": "alarm"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                }
+            ]
+        },
+        {
+            "id": 38231,
+            "name": "شريط عازل حراري لون اسود",
+            "price": "175",
+            "regular_price": "175",
+            "sale_price": "",
+            "stock_quantity": 9,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 09:28:24",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-97-1.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 41997,
+            "name": "اسليدرات خلفي تيفلون مخطط",
+            "price": "350",
+            "regular_price": "350",
+            "sale_price": "",
+            "stock_quantity": 10,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-02 04:42:09",
+            "image": null,
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 458,
+                    "name": "سلايدرز",
+                    "slug": "sliders"
+                }
+            ]
+        },
+        {
+            "id": 41996,
+            "name": "كونتك مكنه F/L/V",
+            "price": "200",
+            "regular_price": "200",
+            "sale_price": "",
+            "stock_quantity": 0,
+            "manage_stock": true,
+            "stock_status": "outofstock",
+            "in_stock": false,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 21:42:53",
+            "image": null,
+            "categories": []
+        },
+        {
+            "id": 39221,
+            "name": "فانوس اصلي v250/v250 max",
+            "price": "490",
+            "regular_price": "490",
+            "sale_price": "",
+            "stock_quantity": 12,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 21:42:53",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-69.png",
+            "categories": [
+                {
+                    "id": 418,
+                    "name": "V250",
+                    "slug": "v-250"
+                },
+                {
+                    "id": 550,
+                    "name": "اهم قطع الغيار",
+                    "slug": "sp"
+                },
+                {
+                    "id": 365,
+                    "name": "قطع غيار براند",
+                    "slug": "sp-brand"
+                },
+                {
+                    "id": 586,
+                    "name": "كهرباء",
+                    "slug": "electrical"
+                },
+                {
+                    "id": 411,
+                    "name": "هوجان",
+                    "slug": "haojiang"
+                }
+            ]
+        },
+        {
+            "id": 36576,
+            "name": "طقم مرايات تعديل",
+            "price": "175",
+            "regular_price": "175",
+            "sale_price": "",
+            "stock_quantity": 0,
+            "manage_stock": true,
+            "stock_status": "outofstock",
+            "in_stock": false,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 21:42:53",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/c01bcc6e-f60a-4c2d-8d5f-fc59bbb8a1af.jpeg",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 428,
+                    "name": "مرايات",
+                    "slug": "mirrors"
+                }
+            ]
+        },
+        {
+            "id": 40915,
+            "name": "مرايات شعله تعديل",
+            "price": "175",
+            "regular_price": "175",
+            "sale_price": "",
+            "stock_quantity": 5,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 21:40:39",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-28T032313.041.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                },
+                {
+                    "id": 428,
+                    "name": "مرايات",
+                    "slug": "mirrors"
+                }
+            ]
+        },
+        {
+            "id": 39536,
+            "name": "كسوه وتر بروف لشلتة الكورسي",
+            "price": "85",
+            "regular_price": "",
+            "sale_price": "",
+            "stock_quantity": 21,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 21:01:00",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-45.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 39536,
+            "name": "كسوه وتر بروف لشلتة الكورسي",
+            "price": "120",
+            "regular_price": "",
+            "sale_price": "",
+            "stock_quantity": 21,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 21:01:00",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-45.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 36625,
+            "name": "مثلث حامل دواسات شمال هوجان ٢٥٠",
+            "price": "475",
+            "regular_price": "475",
+            "sale_price": "",
+            "stock_quantity": 0,
+            "manage_stock": true,
+            "stock_status": "outofstock",
+            "in_stock": false,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 20:40:08",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/acf2d82d-7773-42e0-aa16-0496c39fc561.jpeg",
+            "categories": [
+                {
+                    "id": 412,
+                    "name": "F250",
+                    "slug": "f250"
+                },
+                {
+                    "id": 413,
+                    "name": "H250",
+                    "slug": "h250"
+                },
+                {
+                    "id": 416,
+                    "name": "L250",
+                    "slug": "l250"
+                },
+                {
+                    "id": 418,
+                    "name": "V250",
+                    "slug": "v-250"
+                },
+                {
+                    "id": 419,
+                    "name": "Z250",
+                    "slug": "z250"
+                },
+                {
+                    "id": 365,
+                    "name": "قطع غيار براند",
+                    "slug": "sp-brand"
+                },
+                {
+                    "id": 411,
+                    "name": "هوجان",
+                    "slug": "haojiang"
+                }
+            ]
+        },
+        {
+            "id": 36653,
+            "name": "فانوس خلفي هوجان v250",
+            "price": "385",
+            "regular_price": "385",
+            "sale_price": "",
+            "stock_quantity": 0,
+            "manage_stock": true,
+            "stock_status": "outofstock",
+            "in_stock": false,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 20:40:08",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/75beb79c-9c0e-4212-8278-fc72f23beb96.jpeg",
+            "categories": [
+                {
+                    "id": 418,
+                    "name": "V250",
+                    "slug": "v-250"
+                },
+                {
+                    "id": 365,
+                    "name": "قطع غيار براند",
+                    "slug": "sp-brand"
+                },
+                {
+                    "id": 411,
+                    "name": "هوجان",
+                    "slug": "haojiang"
+                }
+            ]
+        },
+        {
+            "id": 36655,
+            "name": "فانوس امامي هوجان v250",
+            "price": "490",
+            "regular_price": "490",
+            "sale_price": "",
+            "stock_quantity": 9,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 20:40:08",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/0ba1fc92-b08e-4710-8441-e6ebaaa48625.jpeg",
+            "categories": [
+                {
+                    "id": 412,
+                    "name": "F250",
+                    "slug": "f250"
+                },
+                {
+                    "id": 365,
+                    "name": "قطع غيار براند",
+                    "slug": "sp-brand"
+                },
+                {
+                    "id": 411,
+                    "name": "هوجان",
+                    "slug": "haojiang"
+                }
+            ]
+        },
+        {
+            "id": 39524,
+            "name": "شلته طبيه سلكون نص",
+            "price": "325",
+            "regular_price": "325",
+            "sale_price": "",
+            "stock_quantity": 4,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 20:37:01",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-48-1.png",
+            "categories": [
+                {
+                    "id": 424,
+                    "name": "الاكسسوارات",
+                    "slug": "acssirois"
+                }
+            ]
+        },
+        {
+            "id": 36411,
+            "name": "طقم فبر مساعد امامي ktx",
+            "price": "450",
+            "regular_price": "500",
+            "sale_price": "450",
+            "stock_quantity": 99,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 20:21:21",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/471071801_18030529016605677_5395618802137972714_n.jpg",
+            "categories": [
+                {
+                    "id": 789,
+                    "name": "KTX250",
+                    "slug": "ktx250"
+                },
+                {
+                    "id": 398,
+                    "name": "فيجوري",
+                    "slug": "vigorey"
+                },
+                {
+                    "id": 365,
+                    "name": "قطع غيار براند",
+                    "slug": "sp-brand"
+                }
+            ]
+        },
+        {
+            "id": 40881,
+            "name": "جونتي قطن رصاصي",
+            "price": "150",
+            "regular_price": "150",
+            "sale_price": "",
+            "stock_quantity": 2,
+            "manage_stock": true,
+            "stock_status": "instock",
+            "in_stock": true,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 19:19:39",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/Abo-Shaaban-ELasly-2025-12-28T045339.461.png",
+            "categories": [
+                {
+                    "id": 422,
+                    "name": "جونتي",
+                    "slug": "motorcycle-gloves"
+                },
+                {
+                    "id": 420,
+                    "name": "سيفتي",
+                    "slug": "motorcycle-safety-gear"
+                }
+            ]
+        },
+        {
+            "id": 37069,
+            "name": "خوذه MRC Full Face مع نظاره شمس داخلية اصفر",
+            "price": "2100",
+            "regular_price": "2100",
+            "sale_price": "",
+            "stock_quantity": 0,
+            "manage_stock": true,
+            "stock_status": "outofstock",
+            "in_stock": false,
+            "sku": "",
+            "type": "simple",
+            "last_modified": "2026-01-01 19:19:39",
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/Abo-Shaaban-ELasly-12.png",
+            "categories": [
+                {
+                    "id": 421,
+                    "name": "خوذه",
+                    "slug": "motorcycle-helmets"
+                },
+                {
+                    "id": 420,
+                    "name": "سيفتي",
+                    "slug": "motorcycle-safety-gear"
+                }
+            ]
+        }
+    ],
+    "categories": [
+        {
+            "id": 376,
+            "name": "Boxer BM 150",
+            "slug": "boxer-bm-150",
+            "count": 8,
+            "parent": 375,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Bajaj-Boxer-BM-150.png"
+        },
+        {
+            "id": 390,
+            "name": "Dayun 4",
+            "slug": "dayun-4",
+            "count": 8,
+            "parent": 1117,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Dayun-4.png"
+        },
+        {
+            "id": 834,
+            "name": "Dayun 6",
+            "slug": "dayun-6",
+            "count": 20,
+            "parent": 1117,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/Untitled-design-23.png"
+        },
+        {
+            "id": 412,
+            "name": "F250",
+            "slug": "f250",
+            "count": 166,
+            "parent": 411,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Haojiang-F250.png"
+        },
+        {
+            "id": 393,
+            "name": "G1 155",
+            "slug": "g1-155",
+            "count": 41,
+            "parent": 1116,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Zontes-G1-125.png"
+        },
+        {
+            "id": 413,
+            "name": "H250",
+            "slug": "h250",
+            "count": 40,
+            "parent": 411,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Haojiang-H250.png"
+        },
+        {
+            "id": 414,
+            "name": "Haojiang 3",
+            "slug": "haojiang-3",
+            "count": 15,
+            "parent": 411,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Haojiang-3.png"
+        },
+        {
+            "id": 415,
+            "name": "Haojiang 4",
+            "slug": "haojiang-4",
+            "count": 8,
+            "parent": 411,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Haojiang-4.png"
+        },
+        {
+            "id": 789,
+            "name": "KTX250",
+            "slug": "ktx250",
+            "count": 71,
+            "parent": 398,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/Abo-Shaaban-ELasly-30.png"
+        },
+        {
+            "id": 416,
+            "name": "L250",
+            "slug": "l250",
+            "count": 78,
+            "parent": 411,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Haojiang-L250.png"
+        },
+        {
+            "id": 377,
+            "name": "Pulsar",
+            "slug": "pulsar",
+            "count": 2,
+            "parent": 375,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Bajaj-Pulsar.png"
+        },
+        {
+            "id": 877,
+            "name": "RKM 250",
+            "slug": "rkm-250",
+            "count": 12,
+            "parent": 876,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/RKM-250-RKX-250-2.png"
+        },
+        {
+            "id": 592,
+            "name": "RS",
+            "slug": "rs",
+            "count": 61,
+            "parent": 591,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/10/5cf50ee38e2147a98c59f3d44475e712_879c8a1e-dc48-4845-af52-aea5e031ad0d.jpeg"
+        },
+        {
+            "id": 738,
+            "name": "RV",
+            "slug": "rv",
+            "count": 68,
+            "parent": 591,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/Abo-Shaaban-ELasly-31.png"
+        },
+        {
+            "id": 876,
+            "name": "SRM",
+            "slug": "srm",
+            "count": 13,
+            "parent": 365,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/RKM-250-RKX-250.png"
+        },
+        {
+            "id": 400,
+            "name": "ST Plus",
+            "slug": "st-plus",
+            "count": 1,
+            "parent": 398,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Vigorey-ST-Plus-scaled.png"
+        },
+        {
+            "id": 380,
+            "name": "TNT",
+            "slug": "tnt",
+            "count": 211,
+            "parent": 1115,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Benelli-TNT.png"
+        },
+        {
+            "id": 417,
+            "name": "TX-250",
+            "slug": "tx-250",
+            "count": 13,
+            "parent": 411,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Haojiang-TX250.png"
+        },
+        {
+            "id": 397,
+            "name": "U1 155",
+            "slug": "u1-155",
+            "count": 41,
+            "parent": 1116,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Zontes-U1-125.png"
+        },
+        {
+            "id": 418,
+            "name": "V250",
+            "slug": "v-250",
+            "count": 133,
+            "parent": 411,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Haojiang-V250.png"
+        },
+        {
+            "id": 402,
+            "name": "V250",
+            "slug": "v250",
+            "count": 4,
+            "parent": 398,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Vigorey-V250-scaled.png"
+        },
+        {
+            "id": 381,
+            "name": "VLM",
+            "slug": "vlm",
+            "count": 154,
+            "parent": 1115,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Benelli-VLM.png"
+        },
+        {
+            "id": 404,
+            "name": "VLM 200",
+            "slug": "vlm-200",
+            "count": 4,
+            "parent": 398,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/vlm-200-scaled.png"
+        },
+        {
+            "id": 382,
+            "name": "VLR",
+            "slug": "vlr",
+            "count": 155,
+            "parent": 1115,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Benelli-VLR.png"
+        },
+        {
+            "id": 595,
+            "name": "VLX",
+            "slug": "vlx",
+            "count": 101,
+            "parent": 1115,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/10/Add-a-heading-1-scaled.jpg"
+        },
+        {
+            "id": 406,
+            "name": "VR 300",
+            "slug": "vr-300",
+            "count": 97,
+            "parent": 398,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/vr-300-scaled.png"
+        },
+        {
+            "id": 591,
+            "name": "Wuyang",
+            "slug": "wuyang",
+            "count": 171,
+            "parent": 365,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/10/images-1.png"
+        },
+        {
+            "id": 419,
+            "name": "Z250",
+            "slug": "z250",
+            "count": 45,
+            "parent": 411,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Haojiang-Z250.png"
+        },
+        {
+            "id": 454,
+            "name": "اكزوست",
+            "slug": "exhaust",
+            "count": 47,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/motorcycle-muffler-part-on-white-600nw-2204071557.webp"
+        },
+        {
+            "id": 445,
+            "name": "الإشارات",
+            "slug": "turn-signal",
+            "count": 16,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-design-14-scaled.jpg"
+        },
+        {
+            "id": 499,
+            "name": "الات الجر",
+            "slug": "motorcycle-drive-parts",
+            "count": 67,
+            "parent": 550,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/الات-الجر.png"
+        },
+        {
+            "id": 424,
+            "name": "الاكسسوارات",
+            "slug": "acssirois",
+            "count": 439,
+            "parent": 0,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/EWAN-KO.jpeg"
+        },
+        {
+            "id": 496,
+            "name": "البنزين و الكربراتير",
+            "slug": "motorcycle-fuel-parts",
+            "count": 32,
+            "parent": 550,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/البنزين-والكربراتير.png"
+        },
+        {
+            "id": 438,
+            "name": "الزيوت",
+            "slug": "oil",
+            "count": 42,
+            "parent": 0,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/زيوت-2.png"
+        },
+        {
+            "id": 385,
+            "name": "اليكانتو اكسبريس",
+            "slug": "%d8%a7%d9%84%d9%8a%d9%83%d8%a7%d9%86%d8%aa%d9%88-%d8%a7%d9%83%d8%b3%d8%a8%d8%b1%d9%8a%d8%b3",
+            "count": 2,
+            "parent": 384,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/حلاوه-اليكانتو-اكسبريس.png"
+        },
+        {
+            "id": 626,
+            "name": "انجن جارد",
+            "slug": "engine-guard",
+            "count": 7,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/انجن-جارد-موتوسيكلات.png"
+        },
+        {
+            "id": 1276,
+            "name": "انذار",
+            "slug": "alarm",
+            "count": 5,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/istockphoto-1144204158-612x612-removebg-preview.png"
+        },
+        {
+            "id": 550,
+            "name": "اهم قطع الغيار",
+            "slug": "sp",
+            "count": 740,
+            "parent": 0,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-image3.png"
+        },
+        {
+            "id": 375,
+            "name": "بجاج",
+            "slug": "bjaj",
+            "count": 11,
+            "parent": 365,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-design-8-scaled.jpg"
+        },
+        {
+            "id": 492,
+            "name": "بطاريات",
+            "slug": "motorcycle-batteries",
+            "count": 11,
+            "parent": 550,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/بطارية-موتوسيكلات-1.png"
+        },
+        {
+            "id": 1115,
+            "name": "بينيلي",
+            "slug": "benelli",
+            "count": 744,
+            "parent": 365,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Benelli_2016_logo.png"
+        },
+        {
+            "id": 614,
+            "name": "ترابه",
+            "slug": "mudguard",
+            "count": 9,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/Untitled-design-2025-11-17T194455.172.png"
+        },
+        {
+            "id": 178,
+            "name": "توب بوكس",
+            "slug": "motorcycle-top-box",
+            "count": 17,
+            "parent": 0,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/givi_trekker_outback58_liter_monokey_top_case_480x480.jpg"
+        },
+        {
+            "id": 599,
+            "name": "جادون",
+            "slug": "handlebar",
+            "count": 20,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/Untitled-design-2025-11-17T195017.370.png"
+        },
+        {
+            "id": 587,
+            "name": "جاكيت",
+            "slug": "jacket",
+            "count": 1,
+            "parent": 420,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-design-19-scaled.jpg"
+        },
+        {
+            "id": 431,
+            "name": "جريبات التانك",
+            "slug": "tank-grips",
+            "count": 14,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-image58.jpeg"
+        },
+        {
+            "id": 422,
+            "name": "جونتي",
+            "slug": "motorcycle-gloves",
+            "count": 25,
+            "parent": 420,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/ac90ec849e16d69aa4493887020c8d2f.jpg"
+        },
+        {
+            "id": 384,
+            "name": "حلاوه",
+            "slug": "%d8%ad%d9%84%d8%a7%d9%88%d9%87",
+            "count": 2,
+            "parent": 365,
+            "image": null
+        },
+        {
+            "id": 421,
+            "name": "خوذه",
+            "slug": "motorcycle-helmets",
+            "count": 25,
+            "parent": 420,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-design-2025-09-28T194052.859-1-scaled.png"
+        },
+        {
+            "id": 1117,
+            "name": "دايون",
+            "slug": "dayun",
+            "count": 44,
+            "parent": 365,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/dayun.png"
+        },
+        {
+            "id": 810,
+            "name": "دواسات",
+            "slug": "doasat",
+            "count": 12,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/Untitled-design-22-2.png"
+        },
+        {
+            "id": 1116,
+            "name": "زونتس",
+            "slug": "zontes",
+            "count": 68,
+            "parent": 365,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/10/images.jpeg"
+        },
+        {
+            "id": 458,
+            "name": "سلايدرز",
+            "slug": "sliders",
+            "count": 11,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-image63.jpeg"
+        },
+        {
+            "id": 420,
+            "name": "سيفتي",
+            "slug": "motorcycle-safety-gear",
+            "count": 64,
+            "parent": 0,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Riding-gear.webp"
+        },
+        {
+            "id": 1279,
+            "name": "شاحن",
+            "slug": "charger",
+            "count": 5,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/41qLt2XWzXL-removebg-preview.png"
+        },
+        {
+            "id": 429,
+            "name": "شنط",
+            "slug": "saddlebags",
+            "count": 11,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/J1wP7WpizYsaJmD7xkXti2bvGmMuo2u9uBJy9Z4A.png"
+        },
+        {
+            "id": 498,
+            "name": "عدادات",
+            "slug": "motorcycle-meters",
+            "count": 38,
+            "parent": 550,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/عدادات.png"
+        },
+        {
+            "id": 491,
+            "name": "فبر",
+            "slug": "fiber-motorcycle-fairings",
+            "count": 96,
+            "parent": 550,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-design-38.png"
+        },
+        {
+            "id": 495,
+            "name": "فرامل",
+            "slug": "motorcycle-brakes",
+            "count": 77,
+            "parent": 550,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/كل-قطع-غيار-الفرامل-للموتوسيكل.png"
+        },
+        {
+            "id": 493,
+            "name": "فلاتر",
+            "slug": "motorcycle-filters",
+            "count": 28,
+            "parent": 550,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/فلاتر-موتوسيكلل.png"
+        },
+        {
+            "id": 584,
+            "name": "فوجات",
+            "slug": "fog-lights",
+            "count": 18,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-design-17-scaled.jpg"
+        },
+        {
+            "id": 398,
+            "name": "فيجوري",
+            "slug": "vigorey",
+            "count": 185,
+            "parent": 365,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-design-7-scaled.jpg"
+        },
+        {
+            "id": 365,
+            "name": "قطع غيار براند",
+            "slug": "sp-brand",
+            "count": 1491,
+            "parent": 0,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-design-16-scaled.jpg"
+        },
+        {
+            "id": 1278,
+            "name": "قفل",
+            "slug": "lock",
+            "count": 14,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2026/01/1_5d043a0c-50e8-45d9-83f1-e035240c67f4-removebg-preview.png"
+        },
+        {
+            "id": 456,
+            "name": "كاوتش وجنوط",
+            "slug": "tires-rims",
+            "count": 21,
+            "parent": 0,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/كاوتش-وجنوط.png"
+        },
+        {
+            "id": 586,
+            "name": "كهرباء",
+            "slug": "electrical",
+            "count": 133,
+            "parent": 550,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/a9eaa857-5eb1-49c8-b7d1-8a441896ede2.png"
+        },
+        {
+            "id": 407,
+            "name": "كيوي",
+            "slug": "keeway",
+            "count": 20,
+            "parent": 365,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-design-12-scaled.jpg"
+        },
+        {
+            "id": 604,
+            "name": "لمبه ليد",
+            "slug": "led-lamp",
+            "count": 17,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-design-40.png"
+        },
+        {
+            "id": 618,
+            "name": "ماسك",
+            "slug": "mask",
+            "count": 9,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/Untitled-design-2025-11-17T203814.477.png"
+        },
+        {
+            "id": 428,
+            "name": "مرايات",
+            "slug": "mirrors",
+            "count": 39,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/xfm-m454_550x.webp"
+        },
+        {
+            "id": 425,
+            "name": "مقابض",
+            "slug": "grips",
+            "count": 50,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/s-l1600_2_e4fe7782-f3b4-491e-8c4d-d048da2d69ae_1100x.webp"
+        },
+        {
+            "id": 585,
+            "name": "موتور",
+            "slug": "engine",
+            "count": 143,
+            "parent": 550,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-design-2025-09-28T191636.223-scaled.png"
+        },
+        {
+            "id": 598,
+            "name": "هاند جارد",
+            "slug": "hand-guard",
+            "count": 14,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/11/Untitled-design-2025-11-17T204153.648.png"
+        },
+        {
+            "id": 411,
+            "name": "هوجان",
+            "slug": "haojiang",
+            "count": 262,
+            "parent": 365,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/09/Untitled-design-10-scaled.jpg"
+        },
+        {
+            "id": 151,
+            "name": "هولدر",
+            "slug": "mobile-holder-bike",
+            "count": 32,
+            "parent": 424,
+            "image": "https://api.spare2app.com/wp-content/uploads/2025/12/images-1.jpg"
+        }
+    ],
+    "pagination": {
+        "page": 1,
+        "per_page": 100,
+        "total_products": 682,
+        "total_pages": 7,
+        "has_more": true
+    },
+    "metadata": {
+        "sync_timestamp": "2026-01-03T02:26:48Z",
+        "vendor_id": "22",
+        "hash": "e55c6fd28ee7bbb4c3ae1d71e4c14736",
+        "cache": false
+    }
+}
