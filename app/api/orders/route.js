@@ -83,10 +83,16 @@ export async function GET(req) {
     // محاولة الحصول على total من الـ headers
     const totalCount = res.headers.get('X-WP-Total') || res.headers.get('X-Total-Count');
     
+    // 🔥 تطبيق فلتر الـ status على client-side (لأن WCFM API مش بيدعمه)
+    let filteredOrders = Array.isArray(data) ? data : [];
+    if (status && status !== 'all') {
+      filteredOrders = filteredOrders.filter(order => order.status === status);
+    }
+    
     // إضافة معلومات إضافية للـ response
     const response = {
-      orders: Array.isArray(data) ? data : [],
-      total: totalCount ? parseInt(totalCount) : (Array.isArray(data) ? data.length : 0),
+      orders: filteredOrders,
+      total: status && status !== 'all' ? filteredOrders.length : (totalCount ? parseInt(totalCount) : filteredOrders.length),
       page: parseInt(page),
       per_page: parseInt(perPage),
       status: status || 'all'

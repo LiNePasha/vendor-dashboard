@@ -9,7 +9,8 @@ import { getBostaSettings, validateInvoiceForBosta, formatBostaStatus, getBostaT
 import localforage from 'localforage';
 
 const STATUS_OPTIONS = [
-  { value: "on-hold", label: "معلق", color: "bg-yellow-500" },
+  { value: "pending", label: "ترك الدفع", color: "bg-gray-400" },
+  { value: "on-hold", label: "معلق - انتظار", color: "bg-yellow-500" },
   { value: "processing", label: "قيد التجهيز", color: "bg-blue-500" },
   { value: "completed", label: "مكتمل", color: "bg-green-500" },
   { value: "cancelled", label: "ملغى", color: "bg-gray-500" },
@@ -165,8 +166,7 @@ function OrdersContent() {
     return () => clearInterval(interval);
   }, [activeTab]);
   
-  // 🔥 Auto-refresh orders كل 30 ثانية (بس لو الصفحة مفتوحة)
-  // 🔥 Auto-refresh orders كل 30 ثانية (بس لو الصفحة مفتوحة)
+  // 🔥 Auto-refresh orders - معطّل حالياً
   useEffect(() => {
     // جلب الطلبات أول مرة
     loadOrders();
@@ -174,27 +174,26 @@ function OrdersContent() {
     // تحميل إعدادات Bosta
     loadBostaSettings();
 
-    // تحديث تلقائي كل دقيقة
-    // 🆕 تحقق لو الصفحة مفتوحة (visible) قبل ما نعمل fetch
-    const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        loadOrders();
-      }
-    }, 60000);
+    // تحديث تلقائي كل دقيقة - معطّل
+    // const interval = setInterval(() => {
+    //   if (document.visibilityState === 'visible') {
+    //     loadOrders();
+    //   }
+    // }, 60000);
 
-    // 🆕 لو المستخدم رجع للصفحة، حدث فوراً
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        loadOrders();
-      }
-    };
+    // لو المستخدم رجع للصفحة، حدث فوراً - معطّل
+    // const handleVisibilityChange = () => {
+    //   if (document.visibilityState === 'visible') {
+    //     loadOrders();
+    //   }
+    // };
     
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
+    // return () => {
+    //   clearInterval(interval);
+    //   document.removeEventListener('visibilitychange', handleVisibilityChange);
+    // };
   }, [fetchOrders]);
   
   // 🆕 دالة جلب الطلبات مع Pagination والفلاتر
@@ -239,24 +238,33 @@ function OrdersContent() {
     setBostaEnabled(settings.enabled && settings.apiKey);
   };
   
-  // 🆕 حفظ ملاحظة طلب في IndexedDB
+  // 🆕 حفظ ملاحظة طلب في meta_data
   const saveOrderNote = async (orderId, note) => {
     try {
       setSavingNote(true);
-      const notesStore = localforage.createInstance({
-        name: 'vendor-orders',
-        storeName: 'notes'
-      });
       
-      await notesStore.setItem(`note-${orderId}`, {
-        orderId,
-        note,
-        updatedAt: new Date().toISOString()
+      // حفظ في meta_data عن طريق update order API
+      const response = await fetch('/api/orders/update-meta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: orderId,
+          metaData: {
+            key: '_vendor_note',
+            value: note
+          }
+        })
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to save note');
+      }
       
+      // تحديث الـ state
       setOrderNotes(prev => ({ ...prev, [orderId]: note }));
       setToast({ message: '✅ تم حفظ الملاحظة بنجاح', type: 'success' });
       setEditingNote(null);
+      
     } catch (error) {
       console.error('Error saving note:', error);
       setToast({ message: '❌ فشل حفظ الملاحظة', type: 'error' });
@@ -265,24 +273,17 @@ function OrdersContent() {
     }
   };
   
-  // 🆕 تحميل ملاحظة طلب من IndexedDB
+  // 🆕 تحميل ملاحظة من meta_data (من الطلب نفسه)
   const loadOrderNote = async (orderId) => {
-    try {
-      const notesStore = localforage.createInstance({
-        name: 'vendor-orders',
-        storeName: 'notes'
-      });
-      
-      const noteData = await notesStore.getItem(`note-${orderId}`);
-      if (noteData && noteData.note) {
-        setOrderNotes(prev => ({ ...prev, [orderId]: noteData.note }));
-        return noteData.note;
+    // الملاحظات محملة بالفعل مع الطلبات، مش محتاجين نعمل fetch
+    const order = orders.find(o => o.id === orderId);
+    if (order && order.meta_data) {
+      const vendorNote = order.meta_data.find(m => m.key === '_vendor_note');
+      if (vendorNote && vendorNote.value) {
+        return vendorNote.value;
       }
-      return '';
-    } catch (error) {
-      console.error('Error loading note:', error);
-      return '';
     }
+    return '';
   };
   
   // 🆕 فتح نافذة تعديل الملاحظة
@@ -291,6 +292,22 @@ function OrdersContent() {
     setNoteText(note);
     setEditingNote(orderId);
   };
+  
+  // 🆕 تحميل الملاحظات من meta_data عند تحميل الطلبات
+  useEffect(() => {
+    if (orders && orders.length > 0) {
+      const notesMap = {};
+      orders.forEach(order => {
+        if (order.meta_data) {
+          const vendorNote = order.meta_data.find(m => m.key === '_vendor_note');
+          if (vendorNote && vendorNote.value) {
+            notesMap[order.id] = vendorNote.value;
+          }
+        }
+      });
+      setOrderNotes(notesMap);
+    }
+  }, [orders.map(o => o.id).join(',')]);
   
   // 🆕 تحميل الملاحظات المستقلة
   const loadStandaloneNotes = async () => {
@@ -1389,7 +1406,51 @@ function OrdersContent() {
                 </tr>
               </thead>
               <tbody>
-                {filteredOrders.length === 0 ? (
+                {ordersLoading ? (
+                  // Loading State
+                  Array(5).fill(0).map((_, i) => (
+                    <tr key={i} className="border-b border-gray-100 animate-pulse">
+                      <td className="px-2 py-3">
+                        <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
+                        <div className="h-3 bg-gray-100 rounded w-20"></div>
+                      </td>
+                      <td className="px-2 py-3">
+                        <div className="h-4 bg-gray-200 rounded w-24"></div>
+                      </td>
+                      <td className="px-2 py-3">
+                        <div className="h-4 bg-gray-200 rounded w-20"></div>
+                      </td>
+                      <td className="px-2 py-3">
+                        <div className="h-4 bg-gray-200 rounded w-16"></div>
+                      </td>
+                      <td className="px-2 py-3">
+                        <div className="h-4 bg-gray-200 rounded w-20"></div>
+                      </td>
+                      <td className="px-2 py-3">
+                        <div className="h-4 bg-gray-200 rounded w-24"></div>
+                      </td>
+                      <td className="px-2 py-3">
+                        <div className="h-6 bg-gray-200 rounded-full w-20"></div>
+                      </td>
+                      {activeTab === 'system' && (
+                        <td className="px-2 py-3">
+                          <div className="h-6 bg-gray-200 rounded-full w-16"></div>
+                        </td>
+                      )}
+                      {bostaEnabled && (
+                        <td className="px-2 py-3">
+                          <div className="h-4 bg-gray-200 rounded w-16"></div>
+                        </td>
+                      )}
+                      <td className="px-2 py-3">
+                        <div className="flex gap-1 justify-center">
+                          <div className="h-7 w-10 bg-gray-200 rounded"></div>
+                          <div className="h-7 w-10 bg-gray-200 rounded"></div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : filteredOrders.length === 0 ? (
                   <tr>
                     <td colSpan="10" className="px-4 py-12 text-center text-gray-500">
                       <div className="text-4xl mb-2">📦</div>
@@ -1630,15 +1691,22 @@ function OrdersContent() {
                       return (
                         <tr 
                           key={`${order.id}-${bostaTracking || 'no-track'}-${order.status}-${refreshKey}`}
-                          className={`border-b border-gray-100 hover:bg-blue-50 transition-colors ${
-                            isNew ? 'bg-yellow-50' : (index % 2 === 0 ? 'bg-white' : 'bg-gray-50')
+                          className={`border-b transition-colors ${
+                            order.status === 'pending'
+                              ? 'bg-gray-50/80 opacity-75 hover:opacity-100 border-dashed'
+                              : index % 2 === 0 
+                                ? 'bg-white hover:bg-blue-50 border-gray-100' 
+                                : 'bg-gray-50 hover:bg-blue-50 border-gray-100'
                           }`}
                         >
                           {/* Order ID + Badges */}
                           <td className="px-2 py-3">
                             <div className="flex items-center gap-1 mb-1">
                               <span className="font-bold text-blue-600 text-sm">#{order.id}</span>
-                              {isNew && (
+                              {order.status === 'pending' && (
+                                <span className="bg-gray-400 text-white text-[9px] px-1.5 py-0.5 rounded-full">💳 لم يدفع</span>
+                              )}
+                              {isNew && order.status !== 'pending' && (
                                 <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full animate-pulse">🔔 جديد</span>
                               )}
                             </div>
@@ -2263,9 +2331,11 @@ function OrdersContent() {
               <div
                 key={order.id}
                 className={`group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 border-2 cursor-pointer transform hover:-translate-y-2 ${
-                  isNew 
-                    ? "border-yellow-400 ring-4 ring-yellow-100 shadow-yellow-200/50" 
-                    : "border-gray-100 hover:border-blue-300"
+                  order.status === 'pending'
+                    ? "border-dashed border-gray-300 bg-gray-50/50 opacity-75 hover:opacity-100"
+                    : isNew 
+                      ? "border-yellow-400 ring-4 ring-yellow-100 shadow-yellow-200/50" 
+                      : "border-gray-100 hover:border-blue-300"
                 }`}
                 onClick={() => setSelectedOrder(order)}
               >
@@ -2274,7 +2344,12 @@ function OrdersContent() {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-gray-800 text-lg">#{order.id}</span>
-                      {isNew && (
+                      {order.status === 'pending' && (
+                        <span className="inline-flex items-center gap-1 bg-gray-400 text-white text-xs px-2 py-1 rounded-full">
+                          💳 لم يدفع
+                        </span>
+                      )}
+                      {isNew && order.status !== 'pending' && (
                         <span className="inline-flex items-center gap-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">
                           <span className="relative">🔔 جديد</span>
                         </span>
