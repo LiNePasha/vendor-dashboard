@@ -156,10 +156,8 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
     const vendorIdNum = typeof vendorId === 'string' ? parseInt(vendorId) : vendorId;
     const baseLink = VENDOR_STORE_BUNDLE_LINKS[vendorIdNum];
     
-    if (!baseLink) {
-      alert(`⚠️ لا يوجد رابط حزمة لهذا التاجر (ID: ${vendorId})`);
-      return;
-    }
+    // 🆕 استخدام رابط افتراضي لو مفيش رابط للتاجر
+    const finalBaseLink = baseLink || `https://www.spare2app.com/bundle/${vendorIdNum}?p=`;
 
     // بناء الـ link مع variations والكميات
     // ✅ Format الجديد مع prefix للتمييز:
@@ -184,7 +182,7 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
       }
     }).join(',');
 
-    const link = `${baseLink}${productParams}`;
+    const link = `${finalBaseLink}${productParams}`;
     setGeneratedLink(link);
   };
 
@@ -257,6 +255,103 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
             </span>
           </div>
 
+          {/* 🆕 قائمة المنتجات المحددة - في الأعلى */}
+          {selectedProducts.length > 0 && (
+            <div className="mb-6 bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-300 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-bold text-orange-800 flex items-center gap-2">
+                  🛒 المنتجات المحددة للحزمة
+                </h3>
+                <button
+                  onClick={() => {
+                    setSelectedProducts([]);
+                    setSelectedVariations({});
+                    setProductQuantities({});
+                  }}
+                  className="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full transition-colors"
+                >
+                  🗑️ مسح الكل
+                </button>
+              </div>
+              
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {selectedProducts.map((productId, index) => {
+                  const product = allProducts.find(p => p.id === productId);
+                  if (!product) return null;
+                  
+                  const selectedVariation = selectedVariations[productId];
+                  const quantity = productQuantities[productId] || 1;
+                  let variationInfo = null;
+                  
+                  if (selectedVariation && product.variations) {
+                    const variation = product.variations.find(v => 
+                      (v.id || v.variation_id) === selectedVariation
+                    );
+                    if (variation) {
+                      let varName = '';
+                      if (Array.isArray(variation.attributes)) {
+                        varName = variation.attributes.map(attr => attr.option).join(' - ');
+                      } else if (typeof variation.attributes === 'object' && variation.attributes !== null) {
+                        varName = Object.values(variation.attributes).join(' - ');
+                      }
+                      variationInfo = varName || `نوع #${selectedVariation}`;
+                    }
+                  }
+                  
+                  return (
+                    <div
+                      key={productId}
+                      className="bg-white border-2 border-orange-200 rounded-lg p-3 flex items-center gap-3 hover:shadow-md transition-shadow"
+                    >
+                      {/* رقم */}
+                      <div className="flex-shrink-0 w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                        {index + 1}
+                      </div>
+                      
+                      {/* صورة المنتج */}
+                      {product.images && product.images.length > 0 && (
+                        <img
+                          src={product.images[0].src}
+                          alt={product.name}
+                          className="w-12 h-12 object-cover rounded border"
+                        />
+                      )}
+                      
+                      {/* معلومات المنتج */}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-gray-900 text-sm truncate">
+                          {product.name}
+                        </div>
+                        {variationInfo && (
+                          <div className="text-xs text-green-600 font-medium">
+                            📦 {variationInfo}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-orange-600 font-bold">
+                            {product.price} ج.م
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            × {quantity}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {/* زر الحذف */}
+                      <button
+                        onClick={() => toggleProduct(product)}
+                        className="flex-shrink-0 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors"
+                        title="حذف المنتج"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Generated Link Section - SHOW AT TOP IF EXISTS */}
           {generatedLink && (
             <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4 mb-6">
@@ -285,6 +380,16 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
             </div>
           )}
 
+          {/* 🆕 عنوان قسم اختيار المنتجات */}
+          <div className="mb-4 pb-3 border-b-2 border-gray-200">
+            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              📦 اختر المنتجات للإضافة
+            </h3>
+            <p className="text-sm text-gray-600 mt-1">
+              اضغط على أي منتج لإضافته للحزمة
+            </p>
+          </div>
+
           {/* Products Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
             {filteredProducts.map(product => {
@@ -294,14 +399,23 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
               const selectedVariation = selectedVariations[product.id];
               
               return (
-                <div key={product.uniqueKey} className="border-2 rounded-lg overflow-hidden">
+                <div key={product.uniqueKey} className={`border-2 rounded-lg overflow-hidden transition-all relative ${
+                  isSelected ? 'border-orange-500 shadow-lg ring-2 ring-orange-200' : 'border-gray-200 hover:border-orange-300'
+                }`}>
+                  {/* علامة التحديد */}
+                  {isSelected && (
+                    <div className="absolute top-2 right-2 bg-orange-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold z-10 shadow-md">
+                      ✓
+                    </div>
+                  )}
+                  
                   {/* Main Product Card */}
                   <div
                     onClick={() => toggleProduct(product)}
                     className={`p-3 cursor-pointer transition-all ${
                       isSelected
-                        ? 'border-orange-500 bg-orange-50'
-                        : 'border-gray-200 hover:border-orange-300'
+                        ? 'bg-gradient-to-br from-orange-50 to-yellow-50'
+                        : 'bg-white hover:bg-orange-50'
                     }`}
                   >
                     <div className="flex gap-3">
@@ -510,20 +624,31 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 px-6 py-4 flex justify-between items-center border-t">
-          <button
-            onClick={onClose}
-            className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-bold transition-colors"
-          >
-            إغلاق
-          </button>
-          <button
-            onClick={generateLink}
-            disabled={selectedProducts.length === 0}
-            className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            🔗 إنشاء الرابط ({selectedProducts.length})
-          </button>
+        <div className="bg-gradient-to-r from-orange-50 to-yellow-50 px-6 py-4 border-t-2 border-orange-200 sticky bottom-0">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+            {/* معلومات الحزمة */}
+            <div className="flex-1 bg-white rounded-lg px-4 py-2 border-2 border-orange-200">
+              <div className="text-xs text-gray-600">المنتجات المحددة</div>
+              <div className="text-2xl font-bold text-orange-600">{selectedProducts.length}</div>
+            </div>
+            
+            {/* الأزرار */}
+            <div className="flex gap-3 sm:flex-1 justify-end">
+              <button
+                onClick={onClose}
+                className="flex-1 sm:flex-initial bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-bold transition-colors"
+              >
+                إغلاق
+              </button>
+              <button
+                onClick={generateLink}
+                disabled={selectedProducts.length === 0}
+                className="flex-1 sm:flex-initial bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white px-8 py-3 rounded-lg font-bold transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+              >
+                🔗 إنشاء رابط الحزمة
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

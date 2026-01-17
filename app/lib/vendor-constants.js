@@ -22,12 +22,6 @@ export const VENDOR_STORE_LINKS = {
 };
 
 export const VENDOR_STORE_BUNDLE_LINKS = {
-  9: 'https://www.spare2app.com/bundle/diesel363?ids=',
-  27: 'https://www.spare2app.com/bundle/abo-yousef?ids=',
-  74: 'https://www.spare2app.com/bundle/altayar?ids=',
-  20: 'https://www.spare2app.com/bundle/ashrafhelmy55?ids=',
-  19: 'https://www.spare2app.com/bundle/samerpepo1?ids=',
-  46: 'https://www.spare2app.com/bundle/spare2appeg?ids=',
   22: 'https://abosh3ban.com/bundle?p=',
 };
 
