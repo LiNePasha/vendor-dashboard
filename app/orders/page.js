@@ -134,12 +134,10 @@ function OrdersContent() {
     }
   }, [orders, posInvoices]);
   
-  // 🆕 تحميل الملاحظات المستقلة
+  // 🆕 تحميل الملاحظات المستقلة - دائماً عند التحميل لعرض العدد الصحيح
   useEffect(() => {
-    if (activeTab === 'notes') {
-      loadStandaloneNotes();
-    }
-  }, [activeTab]);
+    loadStandaloneNotes();
+  }, []);
   
   // 🆕 جلب طلبات الكاشير (POS Invoices)
   useEffect(() => {
@@ -367,7 +365,9 @@ function OrdersContent() {
       }
       
       await notesStore.setItem('notes', notes);
-      setStandaloneNotes(notes);
+      
+      // 🔥 إعادة تحميل البيانات لضمان التزامن
+      await loadStandaloneNotes();
       
       setNewNoteForm({
         title: '',
@@ -397,7 +397,10 @@ function OrdersContent() {
       notes = notes.filter(n => n.id !== noteId);
       
       await notesStore.setItem('notes', notes);
-      setStandaloneNotes(notes);
+      
+      // 🔥 إعادة تحميل البيانات لضمان التزامن
+      await loadStandaloneNotes();
+      
       setToast({ message: '✅ تم حذف الملاحظة', type: 'success' });
     } catch (error) {
       console.error('Error deleting note:', error);
@@ -422,7 +425,9 @@ function OrdersContent() {
       });
       
       await notesStore.setItem('notes', notes);
-      setStandaloneNotes(notes);
+      
+      // 🔥 إعادة تحميل البيانات لضمان التزامن
+      await loadStandaloneNotes();
     } catch (error) {
       console.error('Error toggling note status:', error);
     }
@@ -994,7 +999,7 @@ function OrdersContent() {
                 : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
             }`}
           >
-            📝 ملاحظات
+            📝 ملاحظات تستتستستس
             <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
               activeTab === 'notes' ? 'bg-white text-purple-600' : 'bg-gray-200 text-gray-700'
             }`}>
