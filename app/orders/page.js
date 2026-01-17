@@ -999,7 +999,7 @@ function OrdersContent() {
                 : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
             }`}
           >
-            📝 ملاحظات تستتستستس
+            📝 ملاحظات
             <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
               activeTab === 'notes' ? 'bg-white text-purple-600' : 'bg-gray-200 text-gray-700'
             }`}>
