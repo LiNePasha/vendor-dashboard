@@ -30,9 +30,11 @@ const normalizeArabic = (text) => {
 export default function POSPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState(''); // 🆕 Debounced search
-  const [searchType, setSearchType] = useState('text'); // 🆕 'text' or 'price'
+  const [searchType, setSearchType] = useState('text'); // 🆕 'text', 'price', 'stock', 'variable'
   const [priceFrom, setPriceFrom] = useState('');
   const [priceTo, setPriceTo] = useState('');
+  const [stockFrom, setStockFrom] = useState('');
+  const [stockTo, setStockTo] = useState('');
   const [category, setCategory] = useState('all');
   const [viewMode, setViewMode] = useState('categories'); // 🆕 categories or products
   const [toast, setToast] = useState(null);
@@ -139,6 +141,22 @@ export default function POSPage() {
         return productPrice >= minPrice && productPrice <= maxPrice;
       });
     }
+    // 🆕 البحث بالكمية (Stock)
+    else if (searchType === 'stock' && (stockFrom || stockTo)) {
+      const minStock = stockFrom ? parseFloat(stockFrom) : 0;
+      const maxStock = stockTo ? parseFloat(stockTo) : Infinity;
+      
+      filtered = filtered.filter(product => {
+        const productStock = parseFloat(product.stock_quantity) || 0;
+        return productStock >= minStock && productStock <= maxStock;
+      });
+    }
+    // 🆕 المنتجات المتعددة (Variable Products)
+    else if (searchType === 'variable') {
+      filtered = filtered.filter(product => 
+        product.type === 'variable' || product.is_variation === true
+      );
+    }
     // البحث بالكلام
     else if (searchType === 'text' && debouncedSearch.trim()) {
       const searchWords = normalizeArabic(debouncedSearch.toLowerCase().trim()).split(/\s+/);
@@ -214,7 +232,7 @@ export default function POSPage() {
         uniqueId: `prod_${product.id}`, // unique ID للمنتجات العادية
       };
     });
-  }, [allProducts, category, debouncedSearch, searchType, priceFrom, priceTo]);
+  }, [allProducts, category, debouncedSearch, searchType, priceFrom, priceTo, stockFrom, stockTo]);
 
   // 🆕 تحميل Tabs من localStorage
   useEffect(() => {
@@ -737,9 +755,13 @@ export default function POSPage() {
                     value={searchType}
                     onChange={(e) => {
                       setSearchType(e.target.value);
+                      // مسح القيم عند تغيير النوع
+                      setPriceFrom('');
+                      setPriceTo('');
+                      setStockFrom('');
+                      setStockTo('');
                       if (e.target.value === 'text') {
-                        setPriceFrom('');
-                        setPriceTo('');
+                        // لا تفعل شيء، الـ search موجود
                       } else {
                         setSearch('');
                       }
@@ -748,9 +770,11 @@ export default function POSPage() {
                   >
                     <option value="text">🔍 كلام</option>
                     <option value="price">💰 سعر</option>
+                    <option value="stock">📦 كمية</option>
+                    <option value="variable">🔀 متعدد</option>
                   </select>
                   
-                  {/* Search Input or Price Range */}
+                  {/* Search Input or Price/Stock Range */}
                   {searchType === 'text' ? (
                     <input
                       type="text"
@@ -759,7 +783,7 @@ export default function POSPage() {
                       onChange={handleSearch}
                       className="flex-1 px-3 sm:px-4 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                     />
-                  ) : (
+                  ) : searchType === 'price' ? (
                     <div className="flex-1 flex gap-2">
                       <input
                         type="number"
@@ -776,6 +800,28 @@ export default function POSPage() {
                         onChange={(e) => setPriceTo(e.target.value)}
                         className="flex-1 px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                       />
+                    </div>
+                  ) : searchType === 'stock' ? (
+                    <div className="flex-1 flex gap-2">
+                      <input
+                        type="number"
+                        placeholder="من (عدد)"
+                        value={stockFrom}
+                        onChange={(e) => setStockFrom(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                      />
+                      <span className="text-white self-center">-</span>
+                      <input
+                        type="number"
+                        placeholder="إلى (عدد)"
+                        value={stockTo}
+                        onChange={(e) => setStockTo(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex-1 px-3 py-2 rounded-lg bg-blue-700 text-white text-center text-sm sm:text-base">
+                      📋 عرض المنتجات المتعددة فقط
                     </div>
                   )}
                 </div>
