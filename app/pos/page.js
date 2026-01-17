@@ -30,6 +30,9 @@ const normalizeArabic = (text) => {
 export default function POSPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState(''); // 🆕 Debounced search
+  const [searchType, setSearchType] = useState('text'); // 🆕 'text' or 'price'
+  const [priceFrom, setPriceFrom] = useState('');
+  const [priceTo, setPriceTo] = useState('');
   const [category, setCategory] = useState('all');
   const [viewMode, setViewMode] = useState('categories'); // 🆕 categories or products
   const [toast, setToast] = useState(null);
@@ -126,8 +129,18 @@ export default function POSPage() {
       );
     }
 
-    // فلترة حسب البحث - نسخة محسّنة مع Scoring والترتيب حسب الدقة + معالجة الأحرف العربية
-    if (debouncedSearch.trim()) {
+    // 🆕 البحث بالسعر
+    if (searchType === 'price' && (priceFrom || priceTo)) {
+      const minPrice = priceFrom ? parseFloat(priceFrom) : 0;
+      const maxPrice = priceTo ? parseFloat(priceTo) : Infinity;
+      
+      filtered = filtered.filter(product => {
+        const productPrice = parseFloat(product.price) || 0;
+        return productPrice >= minPrice && productPrice <= maxPrice;
+      });
+    }
+    // البحث بالكلام
+    else if (searchType === 'text' && debouncedSearch.trim()) {
       const searchWords = normalizeArabic(debouncedSearch.toLowerCase().trim()).split(/\s+/);
       
       filtered = filtered
@@ -201,7 +214,7 @@ export default function POSPage() {
         uniqueId: `prod_${product.id}`, // unique ID للمنتجات العادية
       };
     });
-  }, [allProducts, category, debouncedSearch]);
+  }, [allProducts, category, debouncedSearch, searchType, priceFrom, priceTo]);
 
   // 🆕 تحميل Tabs من localStorage
   useEffect(() => {
@@ -718,14 +731,53 @@ export default function POSPage() {
                 </div>
 
                 {/* Search Bar */}
-                <div className="flex-1">
-                  <input
-                    type="text"
-                    placeholder="🔍 ابحث..."
-                    value={search}
-                    onChange={handleSearch}
-                    className="w-full px-3 sm:px-4 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                  />
+                <div className="flex-1 flex gap-2">
+                  {/* Search Type Dropdown */}
+                  <select
+                    value={searchType}
+                    onChange={(e) => {
+                      setSearchType(e.target.value);
+                      if (e.target.value === 'text') {
+                        setPriceFrom('');
+                        setPriceTo('');
+                      } else {
+                        setSearch('');
+                      }
+                    }}
+                    className="px-3 py-2 rounded-lg bg-blue-800 text-white border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                  >
+                    <option value="text">🔍 كلام</option>
+                    <option value="price">💰 سعر</option>
+                  </select>
+                  
+                  {/* Search Input or Price Range */}
+                  {searchType === 'text' ? (
+                    <input
+                      type="text"
+                      placeholder="🔍 ابحث..."
+                      value={search}
+                      onChange={handleSearch}
+                      className="flex-1 px-3 sm:px-4 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                    />
+                  ) : (
+                    <div className="flex-1 flex gap-2">
+                      <input
+                        type="number"
+                        placeholder="من (ج.م)"
+                        value={priceFrom}
+                        onChange={(e) => setPriceFrom(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                      />
+                      <span className="text-white self-center">-</span>
+                      <input
+                        type="number"
+                        placeholder="إلى (ج.م)"
+                        value={priceTo}
+                        onChange={(e) => setPriceTo(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -757,7 +809,7 @@ export default function POSPage() {
                     title="إضافة منتجات متعددة"
                   >
                     <span className="text-sm sm:text-base">📦</span>
-                    <span className="hidden lg:inline text-sm sm:text-base">إضافة متعددة</span>
+                    <span className="hidden lg:inline text-sm sm:text-base"> متعددة</span>
                   </button>
 
                   <button
@@ -776,7 +828,7 @@ export default function POSPage() {
                     title="شوف الفواتير"
                   >
                     <span className="text-sm sm:text-base">📋</span>
-                    <span className="hidden lg:inline text-sm sm:text-base">شوف الفواتير</span>
+                    <span className="hidden lg:inline text-sm sm:text-base"> فواتير</span>
                   </button>
 
                   {/* Sync Button */}
@@ -796,7 +848,7 @@ export default function POSPage() {
                     title="إضافة منتج"
                   >
                     <span className="text-sm sm:text-base">➕</span>
-                    <span className="hidden lg:inline text-sm sm:text-base">منتج جديد</span>
+                    <span className="hidden lg:inline text-sm sm:text-base"> جديد</span>
                   </button>
                 </div>
               </div>

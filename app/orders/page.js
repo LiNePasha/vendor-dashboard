@@ -30,6 +30,7 @@ function OrdersContent() {
   
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchInput, setSearchInput] = useState(""); // 🆕 Input منفصل عن البحث الفعلي
   const [statusFilter, setStatusFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -236,6 +237,19 @@ function OrdersContent() {
   const loadBostaSettings = async () => {
     const settings = await getBostaSettings();
     setBostaEnabled(settings.enabled && settings.apiKey);
+  };
+  
+  // 🆕 دالة البحث عند الضغط على الزر
+  const handleSearch = () => {
+    setSearchTerm(searchInput);
+    setCurrentPage(1);
+  };
+  
+  // 🆕 البحث عند الضغط على Enter
+  const handleSearchKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
   };
   
   // 🆕 حفظ ملاحظة طلب في meta_data
@@ -996,13 +1010,22 @@ function OrdersContent() {
         <div className="flex flex-col gap-4">
           {/* Search and Status Filter Row */}
           <div className="flex flex-col md:flex-row gap-4">
-            <input
-              type="text"
-              placeholder={activeTab === 'website' ? "🔍 ابحث بالرقم أو اسم العميل..." : "🔍 ابحث برقم الفاتورة أو اسم العميل أو رقم الهاتف..."}
-              className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <div className="flex-1 flex gap-2">
+              <input
+                type="text"
+                placeholder={activeTab === 'website' ? "🔍 ابحث بالرقم أو اسم العميل..." : "🔍 ابحث برقم الفاتورة أو اسم العميل أو رقم الهاتف..."}
+                className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyPress={handleSearchKeyPress}
+              />
+              <button
+                onClick={handleSearch}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold transition-all shadow-md hover:shadow-lg whitespace-nowrap"
+              >
+                🔍 بحث
+              </button>
+            </div>
             {/* Status filter فقط لطلبات الموقع */}
             {activeTab === 'website' && (
               <select
@@ -1044,6 +1067,7 @@ function OrdersContent() {
               <button
                 onClick={() => {
                   setSearchTerm("");
+                  setSearchInput("");
                   setStatusFilter("");
                   setDateFrom("");
                   setDateTo("");
@@ -1065,7 +1089,7 @@ function OrdersContent() {
               {searchTerm && (
                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
                   🔍 {searchTerm}
-                  <button onClick={() => setSearchTerm("")} className="hover:text-blue-900">×</button>
+                  <button onClick={() => { setSearchTerm(""); setSearchInput(""); }} className="hover:text-blue-900">×</button>
                 </span>
               )}
               {statusFilter && (
@@ -1918,6 +1942,7 @@ function OrdersContent() {
               <button
                 onClick={() => {
                   setSearchTerm('');
+                  setSearchInput('');
                   setStatusFilter('');
                   setDateFrom('');
                   setDateTo('');
