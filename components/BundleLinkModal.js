@@ -4,9 +4,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { VENDOR_STORE_BUNDLE_LINKS } from '@/app/lib/vendor-constants';
 
 export default function BundleLinkModal({ isOpen, onClose, allProducts = [], vendorId }) {
-  const [selectedProducts, setSelectedProducts] = useState([]);
-  const [selectedVariations, setSelectedVariations] = useState({}); // { productId: variationId }
-  const [productQuantities, setProductQuantities] = useState({}); // { productId: quantity } 🆕
+  // 🆕 بنية جديدة: array of objects بدلاً من arrays منفصلة
+  // كل item: { id: unique, productId, variationId?, quantity }
+  const [selectedItems, setSelectedItems] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [generatedLink, setGeneratedLink] = useState('');
@@ -19,9 +19,7 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
   // Reset state only when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setSelectedProducts([]);
-      setSelectedVariations({});
-      setProductQuantities({}); // 🆕
+      setSelectedItems([]);
       setSearch('');
       setSelectedCategory('all');
       setGeneratedLink('');
@@ -94,62 +92,63 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
   // Toggle product selection
   const toggleProduct = (product) => {
     const productId = product.id;
-    const isCurrentlySelected = selectedProducts.includes(productId);
     
-    if (isCurrentlySelected) {
-      // إزالة المنتج
-      setSelectedProducts(prev => prev.filter(id => id !== productId));
-      setSelectedVariations(prev => {
-        const newVar = { ...prev };
-        delete newVar[productId];
-        return newVar;
-      });
-      setProductQuantities(prev => {
-        const newQty = { ...prev };
-        delete newQty[productId];
-        return newQty;
-      }); // 🆕
-      setExpandedProduct(null);
+    // لو منتج variable، نفتح الـ variations بس
+    if (product.type === 'variable' && product.variations && product.variations.length > 0) {
+      setExpandedProduct(expandedProduct === productId ? null : productId);
+      return;
+    }
+    
+    // منتج simple - نشوف لو موجود نحذفه
+    const existingIndex = selectedItems.findIndex(
+      item => item.productId === productId && !item.variationId
+    );
+    
+    if (existingIndex >= 0) {
+      // حذف المنتج
+      setSelectedItems(prev => prev.filter((_, index) => index !== existingIndex));
     } else {
       // إضافة المنتج
-      setSelectedProducts(prev => [...prev, productId]);
-      setProductQuantities(prev => ({ ...prev, [productId]: 1 })); // 🆕 كمية افتراضية = 1
-      
-      // لو variable product، افتح الـ variations
-      if (product.type === 'variable' && product.variations && product.variations.length > 0) {
-        setExpandedProduct(productId);
-      }
+      setSelectedItems(prev => [
+        ...prev,
+        {
+          id: Date.now() + Math.random(), // unique ID
+          productId: productId,
+          quantity: 1
+        }
+      ]);
     }
   };
 
-  // Select specific variation
-  const selectVariation = (productId, variationId) => {
-    setSelectedVariations(prev => ({
+  // 🆕 إضافة variation محدد
+  const addVariation = (productId, variationId) => {
+    setSelectedItems(prev => [
       ...prev,
-      [productId]: variationId
-    }));
+      {
+        id: Date.now() + Math.random(),
+        productId: productId,
+        variationId: variationId,
+        quantity: 1
+      }
+    ]);
+  };
+  
+  // 🆕 حذف item محدد
+  const removeItem = (itemId) => {
+    setSelectedItems(prev => prev.filter(item => item.id !== itemId));
+  };
+  
+  // 🆕 تحديث الكمية
+  const updateQuantity = (itemId, quantity) => {
+    setSelectedItems(prev => prev.map(item =>
+      item.id === itemId ? { ...item, quantity: Math.max(1, quantity) } : item
+    ));
   };
 
   // Generate bundle link
   const generateLink = () => {
-    if (selectedProducts.length === 0) {
+    if (selectedItems.length === 0) {
       alert('⚠️ اختر منتجات أولاً');
-      return;
-    }
-
-    // ✅ التحقق من المنتجات المتغيرة بدون variation محدد
-    const variableProductsWithoutVariation = selectedProducts.filter(prodId => {
-      const product = allProducts.find(p => p.id === prodId);
-      const hasVariation = selectedVariations[prodId];
-      return product?.type === 'variable' && !hasVariation;
-    });
-
-    if (variableProductsWithoutVariation.length > 0) {
-      const productNames = variableProductsWithoutVariation
-        .map(id => allProducts.find(p => p.id === id)?.name)
-        .join('، ');
-      
-      alert(`⚠️ يجب اختيار نوع محدد للمنتجات المتغيرة التالية:\n${productNames}`);
       return;
     }
 
@@ -165,20 +164,19 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
     // - Simple مع كمية: productId:q{quantity} (مثال: 123:q5)
     // - Variable بدون كمية: productId:v{variationId} (مثال: 456:v789)
     // - Variable مع كمية: productId:v{variationId}:q{quantity} (مثال: 456:v789:q3)
-    const productParams = selectedProducts.map(prodId => {
-      const variationId = selectedVariations[prodId];
-      const quantity = productQuantities[prodId] || 1;
+    const productParams = selectedItems.map(item => {
+      const { productId, variationId, quantity } = item;
       
       if (variationId) {
         // منتج متغير - نضيف v قبل variation و q قبل الكمية
         return quantity > 1 
-          ? `${prodId}:v${variationId}:q${quantity}` 
-          : `${prodId}:v${variationId}`;
+          ? `${productId}:v${variationId}:q${quantity}` 
+          : `${productId}:v${variationId}`;
       } else {
         // منتج عادي - نضيف q قبل الكمية
         return quantity > 1 
-          ? `${prodId}:q${quantity}` 
-          : `${prodId}`;
+          ? `${productId}:q${quantity}` 
+          : `${productId}`;
       }
     }).join(',');
 
@@ -251,23 +249,19 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
           {/* Selected Count */}
           <div className="mb-4 text-center">
             <span className="bg-orange-100 text-orange-800 px-4 py-2 rounded-full font-bold">
-              {selectedProducts.length} منتج محدد
+              {selectedItems.length} عنصر محدد
             </span>
           </div>
 
           {/* 🆕 قائمة المنتجات المحددة - في الأعلى */}
-          {selectedProducts.length > 0 && (
+          {selectedItems.length > 0 && (
             <div className="mb-6 bg-gradient-to-r from-orange-50 to-yellow-50 border-2 border-orange-300 rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-bold text-orange-800 flex items-center gap-2">
                   🛒 المنتجات المحددة للحزمة
                 </h3>
                 <button
-                  onClick={() => {
-                    setSelectedProducts([]);
-                    setSelectedVariations({});
-                    setProductQuantities({});
-                  }}
+                  onClick={() => setSelectedItems([])}
                   className="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-full transition-colors"
                 >
                   🗑️ مسح الكل
@@ -275,17 +269,15 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
               </div>
               
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {selectedProducts.map((productId, index) => {
-                  const product = allProducts.find(p => p.id === productId);
+                {selectedItems.map((item, index) => {
+                  const product = allProducts.find(p => p.id === item.productId);
                   if (!product) return null;
                   
-                  const selectedVariation = selectedVariations[productId];
-                  const quantity = productQuantities[productId] || 1;
                   let variationInfo = null;
                   
-                  if (selectedVariation && product.variations) {
+                  if (item.variationId && product.variations) {
                     const variation = product.variations.find(v => 
-                      (v.id || v.variation_id) === selectedVariation
+                      (v.id || v.variation_id) === item.variationId
                     );
                     if (variation) {
                       let varName = '';
@@ -294,13 +286,13 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                       } else if (typeof variation.attributes === 'object' && variation.attributes !== null) {
                         varName = Object.values(variation.attributes).join(' - ');
                       }
-                      variationInfo = varName || `نوع #${selectedVariation}`;
+                      variationInfo = varName || `نوع #${item.variationId}`;
                     }
                   }
                   
                   return (
                     <div
-                      key={productId}
+                      key={item.id}
                       className="bg-white border-2 border-orange-200 rounded-lg p-3 flex items-center gap-3 hover:shadow-md transition-shadow"
                     >
                       {/* رقم */}
@@ -327,19 +319,40 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                             📦 {variationInfo}
                           </div>
                         )}
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-3 mt-1">
                           <span className="text-xs text-orange-600 font-bold">
                             {product.price} ج.م
                           </span>
-                          <span className="text-xs text-gray-500">
-                            × {quantity}
-                          </span>
+                          {/* Quantity controls */}
+                          <div className="flex items-center gap-1 bg-white border border-gray-300 rounded px-2 py-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateQuantity(item.id, item.quantity - 1);
+                              }}
+                              className="text-gray-600 hover:text-gray-900 font-bold text-sm w-5 h-5 flex items-center justify-center"
+                            >
+                              −
+                            </button>
+                            <span className="text-xs font-bold text-gray-900 min-w-[20px] text-center">
+                              {item.quantity}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateQuantity(item.id, item.quantity + 1);
+                              }}
+                              className="text-gray-600 hover:text-gray-900 font-bold text-sm w-5 h-5 flex items-center justify-center"
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
                       </div>
                       
                       {/* زر الحذف */}
                       <button
-                        onClick={() => toggleProduct(product)}
+                        onClick={() => removeItem(item.id)}
                         className="flex-shrink-0 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors"
                         title="حذف المنتج"
                       >
@@ -393,19 +406,26 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
           {/* Products Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
             {filteredProducts.map(product => {
-              const isSelected = selectedProducts.includes(product.id);
+              // Check if this product (simple) or any of its variations are selected
+              const isSelected = selectedItems.some(item => 
+                item.productId === product.id && !item.variationId
+              );
               const isVariable = product.type === 'variable';
               const isExpanded = expandedProduct === product.id;
-              const selectedVariation = selectedVariations[product.id];
+              
+              // Count how many times this product appears (including variations)
+              const productCount = selectedItems.filter(item => 
+                item.productId === product.id
+              ).length;
               
               return (
                 <div key={product.uniqueKey} className={`border-2 rounded-lg overflow-hidden transition-all relative ${
-                  isSelected ? 'border-orange-500 shadow-lg ring-2 ring-orange-200' : 'border-gray-200 hover:border-orange-300'
+                  productCount > 0 ? 'border-orange-500 shadow-lg ring-2 ring-orange-200' : 'border-gray-200 hover:border-orange-300'
                 }`}>
-                  {/* علامة التحديد */}
-                  {isSelected && (
+                  {/* علامة التحديد مع العدد */}
+                  {productCount > 0 && (
                     <div className="absolute top-2 right-2 bg-orange-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold z-10 shadow-md">
-                      ✓
+                      {productCount}
                     </div>
                   )}
                   
@@ -413,7 +433,7 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                   <div
                     onClick={() => toggleProduct(product)}
                     className={`p-3 cursor-pointer transition-all ${
-                      isSelected
+                      productCount > 0
                         ? 'bg-gradient-to-br from-orange-50 to-yellow-50'
                         : 'bg-white hover:bg-orange-50'
                     }`}
@@ -440,12 +460,12 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                         <div className="flex items-start gap-2 mb-2">
                           <div
                             className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 mt-1 ${
-                              isSelected
+                              productCount > 0
                                 ? 'bg-orange-500 border-orange-500'
                                 : 'border-gray-300'
                             }`}
                           >
-                            {isSelected && (
+                            {productCount > 0 && (
                               <span className="text-white text-xs font-bold">✓</span>
                             )}
                           </div>
@@ -468,36 +488,15 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                           <div className="text-sm text-orange-600 font-bold">
                             {product.price} ج.م
                           </div>
-                          
-                          {/* 🆕 Quantity Input */}
-                          {isSelected && (
-                            <div className="flex items-center gap-1 mr-auto">
-                              <label className="text-xs text-gray-600 font-semibold">الكمية:</label>
-                              <input
-                                type="number"
-                                min="1"
-                                value={productQuantities[product.id] || 1}
-                                onClick={(e) => e.stopPropagation()}
-                                onChange={(e) => {
-                                  const value = parseInt(e.target.value) || 1;
-                                  setProductQuantities(prev => ({
-                                    ...prev,
-                                    [product.id]: Math.max(1, value)
-                                  }));
-                                }}
-                                className="w-16 px-2 py-1 border border-gray-300 rounded text-sm text-center font-bold focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                              />
-                            </div>
-                          )}
                         </div>
-                        {isVariable && !selectedVariation && (
-                          <div className="text-xs text-red-600 font-bold mt-1 animate-pulse">
-                            ⚠️ اختر نوع محدد
+                        {isVariable && productCount === 0 && (
+                          <div className="text-xs text-blue-600 font-bold mt-1">
+                            📦 اضغط لإضافة نوع محدد
                           </div>
                         )}
-                        {isVariable && selectedVariation && (
+                        {isVariable && productCount > 0 && (
                           <div className="text-xs text-green-600 font-bold mt-1">
-                            ✓ تم اختيار variation
+                            ✓ تم إضافة {productCount} {productCount === 1 ? 'نوع' : 'أنواع'}
                           </div>
                         )}
                       </div>
@@ -505,10 +504,10 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                   </div>
 
                   {/* Variations Panel */}
-                  {isSelected && isVariable && isExpanded && (
+                  {isVariable && isExpanded && (
                     <div className="bg-gray-50 border-t-2 border-orange-200 p-3">
                       <div className="text-sm font-bold text-gray-700 mb-2">
-                        اختر نوع محدد:
+                        اختر نوع لإضافته:
                       </div>
                       
                       {/* استخدام variations من product نفسه (زي الكاشير) */}
@@ -518,7 +517,11 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                             .filter(v => v && (v.id || v.variation_id))
                             .map((variation, varIndex) => {
                             const varId = variation.id || variation.variation_id;
-                            const isVarSelected = selectedVariation === varId;
+                            
+                            // Count how many times this variation is in selectedItems
+                            const varCount = selectedItems.filter(item => 
+                              item.productId === product.id && item.variationId === varId
+                            ).length;
                             
                             // بناء اسم الـ variation من الـ attributes (زي الكاشير)
                             let varName = '';
@@ -537,14 +540,9 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                                 key={`var_${varId}_${varIndex}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  selectVariation(product.id, varId);
-                                  setExpandedProduct(null); // إغلاق بعد الاختيار
+                                  addVariation(product.id, varId);
                                 }}
-                                className={`p-2 rounded cursor-pointer border-2 transition-all ${
-                                  isVarSelected
-                                    ? 'bg-green-100 border-green-500'
-                                    : 'bg-white border-gray-200 hover:border-green-300'
-                                }`}
+                                className="p-2 rounded cursor-pointer border-2 transition-all bg-white border-gray-200 hover:border-green-300 hover:shadow-md"
                               >
                                 <div className="flex items-center justify-between">
                                   <div className="flex-1">
@@ -573,9 +571,22 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                                       )}
                                     </div>
                                   </div>
-                                  {isVarSelected && (
-                                    <span className="text-green-600 text-xl ml-2">✓</span>
-                                  )}
+                                  <div className="flex items-center gap-2">
+                                    {varCount > 0 && (
+                                      <span className="bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                                        {varCount}
+                                      </span>
+                                    )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        addVariation(product.id, varId);
+                                      }}
+                                      className="bg-green-500 hover:bg-green-600 text-white text-xs font-bold px-3 py-1 rounded transition-colors"
+                                    >
+                                      ➕ إضافة
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             );
@@ -592,7 +603,7 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                           e.stopPropagation();
                           setExpandedProduct(null);
                         }}
-                        className="mt-2 text-xs text-gray-600 hover:text-gray-800"
+                        className="mt-2 text-xs text-gray-600 hover:text-gray-800 w-full text-center"
                       >
                         إغلاق
                       </button>
@@ -600,7 +611,7 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                   )}
 
                   {/* Show variations button if variable and not expanded */}
-                  {isSelected && isVariable && !isExpanded && (
+                  {isVariable && !isExpanded && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -608,7 +619,7 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                       }}
                       className="w-full bg-blue-50 text-blue-700 text-sm font-bold py-2 hover:bg-blue-100 transition-colors"
                     >
-                      {selectedVariation ? '✓ تعديل الاختيار' : '⚙️ اختر نوع محدد'}
+                      {productCount > 0 ? '➕ إضافة المزيد' : '⚙️ اختر نوع محدد'}
                     </button>
                   )}
                 </div>
@@ -628,8 +639,8 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
             {/* معلومات الحزمة */}
             <div className="flex-1 bg-white rounded-lg px-4 py-2 border-2 border-orange-200">
-              <div className="text-xs text-gray-600">المنتجات المحددة</div>
-              <div className="text-2xl font-bold text-orange-600">{selectedProducts.length}</div>
+              <div className="text-xs text-gray-600">العناصر المحددة</div>
+              <div className="text-2xl font-bold text-orange-600">{selectedItems.length}</div>
             </div>
             
             {/* الأزرار */}
@@ -642,7 +653,7 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
               </button>
               <button
                 onClick={generateLink}
-                disabled={selectedProducts.length === 0}
+                disabled={selectedItems.length === 0}
                 className="flex-1 sm:flex-initial bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white px-8 py-3 rounded-lg font-bold transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
               >
                 🔗 إنشاء رابط الحزمة
