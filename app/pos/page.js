@@ -639,15 +639,40 @@ export default function POSPage() {
     
     if (result.success && result.invoice) {
       setLastInvoice(result.invoice);
-      setShowInvoice(true);
-      setToast({ message: 'تم إنشاء الفاتورة وتحديث المخزون بنجاح ✅', type: 'success' });
       
-      // 🔥 إضافة المنتجات المؤقتة للسيستم في الخلفية
+      // 🔥 فتح صفحة الطباعة فوراً (مش مستني حاجة!)
+      if (result.invoice?.id) {
+        const url = `/pos/invoices/print?id=${encodeURIComponent(result.invoice.id)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+      
+      // 🔥 إعادة تهيئة الـ tab الحالي فوراً عشان الكاشير يقدر يشتغل
+      updateActiveTab({
+        cart: [],
+        services: [],
+        discount: 0,
+        discountType: 'amount',
+        discountApplyMode: 'both',
+        extraFee: 0,
+        extraFeeType: 'amount',
+        orderType: 'pickup',
+        selectedCustomer: null,
+        deliveryFee: 0,
+        deliveryNotes: '',
+        deliveryPaymentStatus: 'cash_on_delivery',
+        deliveryPaidAmount: 0,
+        deliveryPaymentNote: '',
+        paymentMethod: 'cash',
+        orderNotes: ''
+      });
+      
+      setToast({ message: 'تم إنشاء الفاتورة ✅ جاري التحديث في الخلفية...', type: 'success' });
+      
+      // 🔥 إضافة المنتجات المؤقتة للسيستم في الخلفية (بدون انتظار)
       const tempProducts = activeTab.cart.filter(item => item.is_temp_product);
       if (tempProducts.length > 0) {
         console.log('🔄 Adding temp products to system:', tempProducts.length);
         
-        // إضافة في الخلفية بدون انتظار
         Promise.all(
           tempProducts.map(async (item) => {
             try {
@@ -670,27 +695,7 @@ export default function POSPage() {
         });
       }
       
-      // إعادة تهيئة الـ tab الحالي (مسح السلة فقط مع الحفاظ على الـ ID)
-      updateActiveTab({
-        cart: [],
-        services: [],
-        discount: 0,
-        discountType: 'amount',
-        discountApplyMode: 'both',
-        extraFee: 0,
-        extraFeeType: 'amount',
-        deliveryFee: 0,
-        deliveryNotes: '',
-        deliveryPaymentStatus: 'cash_on_delivery',
-        deliveryPaidAmount: 0,
-        deliveryPaymentNote: '',
-        orderNotes: '',
-        paymentMethod: 'cash',
-        orderType: 'store',
-        selectedCustomer: null
-      });
-      
-      // 🔄 إعادة تحميل المنتجات تلقائياً بعد الفاتورة عشان الكاشير يشتغل صح
+      // 🔄 إعادة تحميل المنتجات تلقائياً بعد الفاتورة
       setTimeout(async () => {
         try {
           await syncAllProducts();

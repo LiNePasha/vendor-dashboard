@@ -2,6 +2,11 @@
 
 import { useState, useEffect } from 'react';
 
+// 🔥 Global cache للـ attributes لتجنب التحميل المتكرر
+let attributesCache = null;
+let cacheTimestamp = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 دقائق
+
 /**
  * AttributeSelector Component
  * يسمح باختيار attributes من WooCommerce أو إنشاء جديدة
@@ -18,13 +23,23 @@ export default function AttributeSelector({ attributes, onChange, onGenerateVari
   }, []);
 
   const loadWooAttributes = async () => {
+    // 🔥 استخدام الـ cache لو موجود وصالح
+    if (attributesCache && cacheTimestamp && (Date.now() - cacheTimestamp) < CACHE_DURATION) {
+      console.log('[AttributeSelector] ✅ Using cached attributes');
+      setWooAttributes(attributesCache);
+      return;
+    }
+
     setLoadingAttributes(true);
     try {
+      console.log('[AttributeSelector] 🚀 Fetching attributes from API...');
       const response = await fetch('/api/products/attributes?include_terms=true');
       const data = await response.json();
       
       
       if (data.success && data.attributes) {
+        attributesCache = data.attributes;
+        cacheTimestamp = Date.now();
         setWooAttributes(data.attributes);
       } else {
         setWooAttributes([]);

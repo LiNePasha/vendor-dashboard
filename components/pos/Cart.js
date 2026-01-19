@@ -348,7 +348,7 @@ export function Cart({
                     )}
                     {" × "}{item.quantity} = 
                     <span className="font-bold text-blue-600 mr-1">
-                      {(item.price * item.quantity).toFixed(2)} ج.م
+                      {(item.price * item.quantity)} ج.م
                     </span>
                   </div>
                 </div>
@@ -889,7 +889,7 @@ export function Cart({
           <div className="flex-1">
             <div className="text-xs text-gray-600 mb-0.5">الإجمالي</div>
             <div className="text-2xl font-black text-blue-600">
-              {total.toFixed(2)} <span className="text-sm">ج.م</span>
+              {total} <span className="text-sm">ج.م</span>
             </div>
           </div>
           

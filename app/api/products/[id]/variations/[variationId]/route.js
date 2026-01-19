@@ -15,6 +15,25 @@ export async function PUT(req, { params }) {
     const { id, variationId } = await params;
     const body = await req.json();
 
+    // 🔧 معالجة sale_price لضمان التوافق مع WooCommerce API
+    // WooCommerce يتوقع sale_price كـ string أو empty string (مش null أو undefined)
+    if (body.hasOwnProperty('sale_price')) {
+      if (body.sale_price === null || body.sale_price === undefined || body.sale_price === '') {
+        // لو فاضي، نبعت empty string لإزالة sale price
+        body.sale_price = '';
+      } else {
+        // لو فيه قيمة، نتأكد إنها string
+        body.sale_price = String(body.sale_price);
+      }
+    }
+
+    // 🔧 معالجة regular_price لضمان إنه string
+    if (body.regular_price) {
+      body.regular_price = String(body.regular_price);
+    }
+
+    console.log('🔍 Processed variation data to send to WooCommerce:', JSON.stringify(body, null, 2));
+
     // Update variation via WooCommerce API
     const response = await fetch(`${API_BASE}/wp-json/wc/v3/products/${id}/variations/${variationId}`, {
       method: 'PUT',

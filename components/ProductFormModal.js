@@ -43,7 +43,7 @@ export default function ProductFormModal({ isOpen, onClose, mode = 'create', pro
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm overflow-hidden animate-fadeIn"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm overflow-hidden animate-fadeIn"
       onClick={(e) => {
         // إغلاق لو ضغط على الـ backdrop
         if (e.target === e.currentTarget) {

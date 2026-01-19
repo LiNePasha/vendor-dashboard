@@ -163,13 +163,19 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       }
 
       if (product.variations && product.variations.length > 0) {
-        // 🆕 جلب المخزون المحلي لكل المتغيرات
+        // 🆕 جلب المخزون المحلي لكل المتغيرات وتنسيق البيانات
         const variationsWithLocalStock = await Promise.all(
           product.variations.map(async (v) => {
             const localStock = await warehouseStorage.getVariationLocalStock(v.id);
             return {
-              ...v,
-              localStock: localStock || 0
+              id: v.id,
+              sku: v.sku,
+              price: v.regular_price || v.price,
+              sale_price: v.sale_price || '',
+              stock_quantity: v.stock_quantity,
+              localStock: localStock || 0,
+              attributes: v.attributes,
+              image: typeof v.image === 'string' ? v.image : v.image?.src
             };
           })
         );
@@ -193,8 +199,8 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         variations: product.variations?.map(v => ({
           id: v.id,
           sku: v.sku,
-          price: v.price || v.regular_price,
-          sale_price: v.sale_price,
+          price: v.regular_price || v.price,
+          sale_price: v.sale_price || '',
           stock_quantity: v.stock_quantity,
           localStock: 0,
           attributes: v.attributes,
@@ -706,21 +712,32 @@ export default function ProductForm({ mode = 'create', productId = null, initial
           ? variation.image 
           : variation.image?.src;
 
+        // 🔥 Validation: تأكد إن sale_price أقل من regular_price
+        let salePriceToSend = variation.sale_price ? String(variation.sale_price) : '';
+        if (salePriceToSend && parseFloat(salePriceToSend) >= parseFloat(variation.price)) {
+          console.warn(`⚠️ Sale price (${salePriceToSend}) >= Regular price (${variation.price}). WooCommerce will reject it.`);
+          salePriceToSend = ''; // إزالة sale_price لو أعلى من regular_price
+        }
+
+        const variationData = {
+          sku: variation.sku,
+          regular_price: String(variation.price),
+          sale_price: salePriceToSend,
+          stock_quantity: parseInt(variation.stock_quantity) || 0,
+          manage_stock: true,
+          attributes: variation.attributes.map(attr => ({
+            name: attr.name,
+            option: attr.option
+          })),
+          image: imageUrl ? { src: imageUrl } : null
+        };
+
+        console.log('🔍 Sending variation data:', variationData);
+
         const variationResponse = await fetch(url, {
           method: method,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sku: variation.sku,
-            regular_price: variation.price,
-            sale_price: variation.sale_price || null,
-            stock_quantity: parseInt(variation.stock_quantity) || 0,
-            manage_stock: true,
-            attributes: variation.attributes.map(attr => ({
-              name: attr.name,
-              option: attr.option
-            })),
-            image: imageUrl ? { src: imageUrl } : null
-          })
+          body: JSON.stringify(variationData)
         });
 
         if (variationResponse.ok) {
@@ -1139,10 +1156,19 @@ export default function ProductForm({ mode = 'create', productId = null, initial
                             updateVariation(index, 'sale_price', val);
                           }
                         }}
-                        className="w-full px-2 py-1 border rounded text-sm bg-yellow-50"
+                        className={`w-full px-2 py-1 border rounded text-sm ${
+                          variation.sale_price && parseFloat(variation.sale_price) >= parseFloat(variation.price)
+                            ? 'bg-red-50 border-red-400'
+                            : 'bg-yellow-50'
+                        }`}
                         placeholder="اختياري"
                         title="سعر العرض (أقل من السعر الأساسي)"
                       />
+                      {variation.sale_price && parseFloat(variation.sale_price) >= parseFloat(variation.price) && (
+                        <p className="text-xs text-red-600 mt-1 font-bold">
+                          ⚠️ سعر العرض يجب أن يكون أقل من السعر الأساسي ({variation.price} ج.م)
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-600 mb-1">
