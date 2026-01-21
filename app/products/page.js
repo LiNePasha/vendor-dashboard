@@ -102,6 +102,7 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterImages, setFilterImages] = useState("all"); // all, no-images
   const [toast, setToast] = useState(null);
   const [imageModal, setImageModal] = useState(null);
   const [initialized, setInitialized] = useState(false);
@@ -135,6 +136,24 @@ export default function ProductsPage() {
     // فلترة حسب الحالة
     if (filterStatus && filterStatus !== 'all') {
       filtered = filtered.filter(product => product.status === filterStatus);
+    }
+
+    // 🖼️ فلترة حسب الصور - المنتجات بدون صور
+    if (filterImages === 'no-images') {
+      filtered = filtered.filter(product => {
+        // تحقق بس من صورة المنتج الأساسية (مش المتغيرات لأنها مش محملة في الليست)
+        const hasNoImage = !product.images || 
+                         product.images.length === 0 || 
+                         !product.images[0]?.src || 
+                         product.images[0].src === '';
+        
+        if (hasNoImage) {
+          console.log('✅ منتج بدون صورة:', product.name, product.id, 'type:', product.type);
+        }
+        
+        return hasNoImage;
+      });
+      console.log(`🖼️ فلتر بدون صور: وجدنا ${filtered.length} منتج`);
     }
 
     // فلترة حسب البحث - نسخة محسّنة مع Scoring والترتيب حسب الدقة + معالجة الأحرف العربية
@@ -198,7 +217,7 @@ export default function ProductsPage() {
     }
 
     return filtered;
-  }, [products, category, filterStatus, debouncedSearch]);
+  }, [products, category, filterStatus, filterImages, debouncedSearch]);
 
   // 🔥 إضافة unique keys للمنتجات (مثل الكاشير تماماً)
   const productsWithUniqueKeys = useMemo(() => {
@@ -554,8 +573,8 @@ export default function ProductsPage() {
               )}
             </div>
             
-            {/* Filters Row - 2 selects + refresh button */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {/* Filters Row - 3 selects + refresh button */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <select
                 className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white font-medium text-sm"
                 value={category}
@@ -584,15 +603,24 @@ export default function ProductsPage() {
                 <option value="draft">✎ مسودة</option>
                 <option value="pending">⏳ قيد المراجعة</option>
               </select>
+              <select
+                className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white font-medium text-sm"
+                value={filterImages}
+                onChange={(e) => setFilterImages(e.target.value)}
+              >
+                <option value="all">🖼️ كل المنتجات</option>
+                <option value="no-images">🚫 بدون صور</option>
+              </select>
               <button
                 onClick={() => {
                   setSearch('');
                   setCategory('all');
                   setFilterStatus('all');
+                  setFilterImages('all');
                   fetchProducts(true); // 🔥 Force refresh
                 }}
                 disabled={loading}
-                className="col-span-2 md:col-span-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all font-medium text-sm"
+                className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all font-medium text-sm"
                 title="تحديث المنتجات من السيرفر"
               >
                 <span className={loading ? 'animate-spin' : ''}>🔄</span>
@@ -611,7 +639,7 @@ export default function ProductsPage() {
         </div>
       ) : filteredProducts.length === 0 ? (
         <div className="text-center py-16">
-          {search || category !== 'all' || filterStatus !== 'all' ? (
+          {search || category !== 'all' || filterStatus !== 'all' || filterImages !== 'all' ? (
             // رسالة عدم وجود نتائج بحث
             <>
               <div className="text-6xl mb-4">🔍</div>
@@ -625,6 +653,7 @@ export default function ProductsPage() {
                   setSearch('');
                   setCategory('all');
                   setFilterStatus('all');
+                  setFilterImages('all');
                 }}
                 className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-all shadow-sm"
               >

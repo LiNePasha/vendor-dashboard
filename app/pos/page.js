@@ -386,7 +386,7 @@ export default function POSPage() {
   };
 
   const updateActiveTab = (updates) => {
-    setTabs(tabs.map(tab => 
+    setTabs(prevTabs => prevTabs.map(tab => 
       tab.id === activeTabId ? { ...tab, ...updates } : tab
     ));
   };
@@ -553,6 +553,50 @@ export default function POSPage() {
         )
       });
     }
+  };
+
+  // 🆕 دالة تعديل سعر المنتج في العربة (جملة فورية)
+  const handleUpdateItemPrice = async (id, newPrice, variation_id) => {
+    if (!activeTab) return;
+    
+    if (newPrice <= 0) {
+      setToast({ message: 'السعر يجب أن يكون أكبر من 0', type: 'error' });
+      setTimeout(() => setToast(null), 2000);
+      return;
+    }
+
+    // تحديث السعر في العربة
+    const updatedCart = activeTab.cart.map(item => {
+      // للمنتجات العادية
+      if (!variation_id && item.id === id) {
+        return { 
+          ...item, 
+          price: parseFloat(newPrice),
+          wholesalePrice: true,
+          originalPrice: item.originalPrice || item.price
+        };
+      }
+      // للمنتجات المتغيرة
+      if (variation_id && item.variation_id === variation_id) {
+        return { 
+          ...item, 
+          price: parseFloat(newPrice),
+          wholesalePrice: true,
+          originalPrice: item.originalPrice || item.price
+        };
+      }
+      return item;
+    });
+
+    updateActiveTab({
+      cart: [...updatedCart]
+    });
+
+    setToast({ 
+      message: `✅ تم تحديث السعر إلى ${newPrice} جنيه`, 
+      type: 'success' 
+    });
+    setTimeout(() => setToast(null), 2000);
   };
 
   const handleCheckout = async () => {
@@ -1027,6 +1071,7 @@ export default function POSPage() {
             {/* Cart Component - Full Height Scrollable */}
             <div className="flex-1 overflow-y-auto">
               <Cart
+                key={`cart-${activeTabId}-${activeTab?.cart?.length || 0}-${JSON.stringify(activeTab?.cart?.map(i => i.price) || [])}`}
                 items={activeTab?.cart || cart}
                 services={activeTab?.services || services}
                 employees={employees}
@@ -1047,6 +1092,7 @@ export default function POSPage() {
                   setDeliveryFee(shippingCost); // تحديث الـ store أيضًا
                 }}
                 onUpdateQuantity={handleUpdateQuantity}
+                onUpdateItemPrice={handleUpdateItemPrice} // 🆕 تعديل سعر المنتج (جملة فورية)
                 onAddItem={(tempProduct) => {
                   if (!activeTab) return;
                   updateActiveTab({
@@ -1223,10 +1269,12 @@ export default function POSPage() {
                 {/* Cart Content */}
                 <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
                   <Cart
+                    key={`mobile-cart-${activeTabId}-${cart?.length || 0}-${JSON.stringify(cart?.map(i => i.price) || [])}`}
                     items={cart}
                     services={services}
                     employees={employees}
                     onUpdateQuantity={handleUpdateQuantity}
+                    onUpdateItemPrice={handleUpdateItemPrice} // 🆕 تعديل سعر المنتج (جملة فورية)
                     onAddItem={(tempProduct) => {
                       addToCart(tempProduct);
                     }}

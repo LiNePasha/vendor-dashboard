@@ -156,10 +156,10 @@ function DashboardContent() {
       action: () => router.push('/pos'),
     },
     {
-      title: ' المخزن',
+      title: ' الطلبات',
       icon: '📦',
       color: 'from-purple-500 to-purple-600',
-      action: () => router.push('/warehouse'),
+      action: () => router.push('/orders'),
     },
     {
       title: 'إدارة الفواتير',

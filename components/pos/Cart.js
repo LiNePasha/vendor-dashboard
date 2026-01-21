@@ -16,6 +16,7 @@ export function Cart({
   onUpdateQuantity,
   onRemoveItem,
   onAddItem, // 🆕 للإضافة السريعة
+  onUpdateItemPrice, // 🆕 لتعديل سعر المنتج (جملة فورية)
   onAddService,
   onUpdateService,
   onRemoveService,
@@ -82,6 +83,10 @@ export function Cart({
     saleQuantity: 1,    // الكمية في الفاتورة
     stockQuantity: 1    // الكمية في المحل
   });
+
+  // 🆕 Edit Price State (جملة فورية)
+  const [editingPriceId, setEditingPriceId] = useState(null);
+  const [editPriceValue, setEditPriceValue] = useState('');
 
   useEffect(() => {
     loadSavedServices();
@@ -336,21 +341,90 @@ export function Cart({
                         🏷️ {Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)}%
                       </span>
                     )}
-                  </div>
-                  <div className="text-xs text-gray-600 font-semibold">
-                    {item.originalPrice && item.originalPrice > item.price ? (
-                      <>
-                        <span className="line-through text-gray-400 ml-1">{item.originalPrice} ج.م</span>
-                        <span className="text-red-600 font-bold">{item.price} ج.م</span>
-                      </>
-                    ) : (
-                      <span className="font-bold text-gray-900">{item.price} ج.م</span>
+                    {item.wholesalePrice && (
+                      <span className="text-xs bg-orange-500 text-white px-1.5 py-0.5 rounded-full font-bold">
+                        جملة
+                      </span>
                     )}
-                    {" × "}{item.quantity} = 
-                    <span className="font-bold text-blue-600 mr-1">
-                      {(item.price * item.quantity)} ج.م
-                    </span>
                   </div>
+                  
+                  {/* 🆕 Price Edit Mode */}
+                  {editingPriceId === `${item.id}_${item.variation_id || 'single'}_${index}` ? (
+                    <div className="flex items-center gap-1 mb-1">
+                      <input
+                        type="number"
+                        value={editPriceValue}
+                        onChange={(e) => setEditPriceValue(e.target.value)}
+                        placeholder="السعر الجديد"
+                        className="w-20 px-2 py-1 text-xs border border-orange-300 rounded focus:outline-none focus:ring-1 focus:ring-orange-500"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const newPrice = parseFloat(editPriceValue);
+                            if (newPrice > 0 && onUpdateItemPrice) {
+                              onUpdateItemPrice(item.id, newPrice, item.variation_id);
+                            }
+                            setEditingPriceId(null);
+                            setEditPriceValue('');
+                          } else if (e.key === 'Escape') {
+                            setEditingPriceId(null);
+                            setEditPriceValue('');
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          const newPrice = parseFloat(editPriceValue);
+                          if (newPrice > 0 && onUpdateItemPrice) {
+                            onUpdateItemPrice(item.id, newPrice, item.variation_id);
+                          }
+                          setEditingPriceId(null);
+                          setEditPriceValue('');
+                        }}
+                        className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 font-bold"
+                      >
+                        ✓
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingPriceId(null);
+                          setEditPriceValue('');
+                        }}
+                        className="px-2 py-1 text-xs bg-gray-300 text-gray-700 rounded hover:bg-gray-400 font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <div className="text-xs text-gray-600 font-semibold">
+                        {item.originalPrice && item.originalPrice > item.price ? (
+                          <>
+                            <span className="line-through text-gray-400 ml-1">{item.originalPrice} ج.م</span>
+                            <span className="text-red-600 font-bold">{item.price} ج.م</span>
+                          </>
+                        ) : (
+                          <span className="font-bold text-gray-900">{item.price} ج.م</span>
+                        )}
+                        {" × "}{item.quantity} = 
+                        <span className="font-bold text-blue-600 mr-1">
+                          {(item.price * item.quantity)} ج.م
+                        </span>
+                      </div>
+                      
+                      {/* 🆕 Edit Price Button */}
+                      <button
+                        onClick={() => {
+                          setEditingPriceId(`${item.id}_${item.variation_id || 'single'}_${index}`);
+                          setEditPriceValue(item.price.toString());
+                        }}
+                        className="px-1.5 py-0.5 text-xs bg-orange-50 text-orange-600 rounded hover:bg-orange-100 border border-orange-200 font-bold transition-all"
+                        title="تعديل السعر (جملة فورية)"
+                      >
+                        💰
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-1">

@@ -24,6 +24,11 @@ export default function OrderDetailsModal({
 
   if (!isOpen || !order) return null;
 
+  // 🔍 Debug: طباعة كل الـ order structure
+  console.log('🔍 Full Order Object:', order);
+  console.log('🔍 Order Keys:', Object.keys(order));
+  console.log('🔍 Customer Note:', order.customer_note);
+  
   // 🆕 استخراج بيانات الدفع من meta_data
   const getMetaValue = (key) => order.meta_data?.find(m => m.key === key)?.value;
   
@@ -127,6 +132,14 @@ export default function OrderDetailsModal({
       
       const addressObject = parseAddress();
       
+      // 🔍 Debug: طباعة الملاحظات للتأكد
+      console.log('📝 Order Notes:', {
+        orderNote: orderNote,
+        customerNote: order.customer_note,
+        hasOrderNote: !!orderNote,
+        hasCustomerNote: !!order.customer_note
+      });
+      
       const invoice = {
         id: `order-${order.id}-${Date.now()}`,
         orderId: order.id,
@@ -134,6 +147,8 @@ export default function OrderDetailsModal({
         items: invoiceItems,
         services: [],
         orderType: 'delivery', // 🚚 نوع الطلب
+        orderNotes: orderNote || '', // 🔥 ملاحظاتنا الداخلية
+        customerNote: order.customer_note || '', // 🔥 ملاحظات العميل
         summary: {
           productsSubtotal: productsSubtotal,
           servicesTotal: 0,
@@ -212,35 +227,33 @@ export default function OrderDetailsModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-60 p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-2 sm:p-4">
       <div
         ref={modalRef}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[98vh] overflow-hidden flex flex-col animate-fadeIn"
       >
-        {/* Modal Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-6 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">📋</span>
+        {/* Compact Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <span className="text-2xl sm:text-3xl">📋</span>
             <div>
-              <h2 className="text-2xl font-bold">طلب #{order.id}</h2>
-              <p className="text-blue-100 text-sm">
+              <h2 className="text-lg sm:text-xl font-bold">طلب #{order.id}</h2>
+              <p className="text-blue-100 text-xs sm:text-sm">
                 {(() => {
                   if (!order.date_created) return 'تاريخ غير محدد';
                   try {
-                    // معالجة التاريخ وإضافة ساعتين (فرق التوقيت بين UTC والقاهرة)
                     const dateStr = order.date_created.replace('T', ' ').substring(0, 16);
                     const [datePart, timePart] = dateStr.split(' ');
                     const [year, month, day] = datePart.split('-');
                     const [hour, minute] = timePart.split(':');
-                    const date = new Date(year, month - 1, day, parseInt(hour) + 2, minute); // +2 hours for Cairo timezone
+                    const date = new Date(year, month - 1, day, parseInt(hour) + 2, minute);
                     
                     return date.toLocaleString('ar-EG', { 
                       year: 'numeric',
-                      month: 'long',
+                      month: 'short',
                       day: 'numeric',
                       hour: '2-digit',
-                      minute: '2-digit',
-                      hour12: true
+                      minute: '2-digit'
                     });
                   } catch (e) {
                     return 'تاريخ غير صالح';
@@ -251,37 +264,35 @@ export default function OrderDetailsModal({
           </div>
           <button
             onClick={onClose}
-            className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-2xl transition-all hover:rotate-90"
+            className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-xl sm:text-2xl transition-all hover:rotate-90"
           >
             ×
           </button>
         </div>
 
-        {/* Modal Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* 🆕 نوع التوصيل Badge */}
-          <section className={`${deliveryColor} border-2 rounded-xl p-4`}>
-            <div className="flex items-center gap-3 text-gray-600">
-              <span className="text-3xl">{deliveryIcon}</span>
-              <div>
-                <p className="font-bold text-lg">{deliveryType}</p>
-                {isStorePickup && (
-                  <p className="text-sm">العميل سيستلم الطلب من المتجر</p>
-                )}
-              </div>
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
+          {/* Delivery Type Badge - Compact */}
+          <div className={`${deliveryColor} border rounded-lg p-3 flex items-center gap-2`}>
+            <span className="text-2xl">{deliveryIcon}</span>
+            <div className="flex-1 text-gray-900">
+              <p className="font-bold text-sm">{deliveryType}</p>
+              {isStorePickup && (
+                <p className="text-xs text-gray-600">استلام من المتجر</p>
+              )}
             </div>
-          </section>
+          </div>
 
-          {/* Status & Actions */}
-          <section className="flex items-center gap-3">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+          {/* Status & Register - في صف واحد responsive */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">
                 حالة الطلب
               </label>
               <div className="relative">
                 <select
                   disabled={updatingStatus}
-                  className="w-full border-2 border-gray-300 rounded-lg px-4 py-3 text-base bg-white hover:border-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  className="w-full border-2 border-gray-300 rounded-lg px-3 py-2 text-sm bg-white hover:border-blue-500 transition-colors disabled:opacity-50 font-medium"
                   value={order.status}
                   onChange={(e) => handleStatusChange(e.target.value)}
                 >
@@ -293,44 +304,38 @@ export default function OrderDetailsModal({
                   <option value="failed">فشل</option>
                 </select>
                 {updatingStatus && (
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
+                  <div className="absolute left-2 top-1/2 -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
                   </div>
                 )}
               </div>
             </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">
                 &nbsp;
               </label>
               <button
-                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-3 rounded-lg transition-all font-bold shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-3 py-2 rounded-lg transition-all font-bold text-sm shadow-md hover:shadow-lg disabled:opacity-50"
                 onClick={handleRegisterInvoice}
                 disabled={registeringInvoice}
               >
-                {registeringInvoice ? '⏳ جاري التسجيل...' : '🧾 تسجيل فاتورة'}
+                {registeringInvoice ? '⏳ جاري...' : '🧾 تسجيل فاتورة'}
               </button>
             </div>
-          </section>
+          </div>
 
-          {/* Customer Info */}
-          <section className="bg-blue-50 rounded-xl p-5 text-gray-600">
-            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+          {/* Customer Info - Compact */}
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 border border-blue-200">
+            <h3 className="font-bold text-sm mb-2 flex items-center gap-1.5 text-gray-800">
               <span>👤</span> بيانات العميل
             </h3>
-            <div className="space-y-2">
-              <p>
-                <span className="font-medium">الاسم:</span>{" "}
-                {order.billing?.first_name} {order.billing?.last_name}
+            <div className="space-y-1 text-xs">
+              <p className="text-gray-700">
+                <span className="font-semibold">الاسم:</span> {order.billing?.first_name} {order.billing?.last_name}
               </p>
-              {/* {order.billing?.email && (
-                <p className="text-gray-700">
-                  <span className="font-medium">البريد:</span> {order.billing.email}
-                </p>
-              )} */}
               {order.billing?.phone && (
                 <p className="text-gray-700">
-                  <span className="font-medium">الهاتف:</span> {order.billing.phone}
+                  <span className="font-semibold">الهاتف:</span> {order.billing.phone}
                 </p>
               )}
               {order.billing?.address_1 && (
@@ -365,62 +370,61 @@ export default function OrderDetailsModal({
               )}              
               {/* Customer Note */}
               {order.customer_note && order.customer_note.trim() && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 rounded-lg p-3 mt-3">
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 rounded-lg p-2 sm:p-3 mt-2">
                   <div className="flex items-start gap-2">
-                    <span className="text-yellow-600 text-base flex-shrink-0">📝</span>
+                    <span className="text-yellow-600 text-sm sm:text-base flex-shrink-0">📝</span>
                     <div className="flex-1">
-                      <div className="text-sm font-bold text-yellow-800 mb-1">ملاحظة العميل:</div>
-                      <p className="text-sm text-gray-800 leading-relaxed">
+                      <div className="text-xs sm:text-sm font-bold text-yellow-800 mb-0.5">ملاحظة العميل:</div>
+                      <p className="text-xs sm:text-sm text-gray-800 leading-relaxed">
                         {order.customer_note}
                       </p>
                     </div>
                   </div>
                 </div>
-              )}            </div>
-          </section>
+              )}
+            </div>
+          </div>
 
           {/* Payment Method */}
-          <section className="bg-green-50 rounded-xl p-5 text-gray-600">
-            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+          <section className="bg-green-50 rounded-lg sm:rounded-xl p-3 sm:p-4 text-gray-600">
+            <h3 className="font-bold text-sm sm:text-base mb-2 sm:mb-3 flex items-center gap-2">
               <span>💳</span> معلومات الدفع
             </h3>
             
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">طريقة الدفع:</span>
-                <span className="font-semibold text-gray-800">{order.payment_method_title}</span>
+                <span className="text-xs sm:text-sm text-gray-600">طريقة الدفع:</span>
+                <span className="font-semibold text-xs sm:text-sm text-gray-800">{order.payment_method_title}</span>
               </div>
               
               {isHalfPayment && (
-                <>
-                  <div className="mt-3 p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">⚠️</span>
-                      <span className="font-bold text-yellow-800">دفع جزئي (نصف المبلغ)</span>
-                    </div>
-                    <div className="space-y-1.5 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">المبلغ المدفوع:</span>
-                        <span className="font-bold text-green-700">{paidAmount} جنيه ✓</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-700">المبلغ المتبقي:</span>
-                        <span className="font-bold text-red-700">{remainingAmount} جنيه</span>
-                      </div>
-                      {paymentNote && (
-                        <div className="mt-2 pt-2 border-t border-yellow-300">
-                          <p className="text-xs text-gray-700">📝 {paymentNote}</p>
-                        </div>
-                      )}
-                    </div>
+                <div className="mt-2 p-2 sm:p-3 bg-yellow-100 border border-yellow-300 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base sm:text-lg">⚠️</span>
+                    <span className="font-bold text-xs sm:text-sm text-yellow-800">دفع جزئي (نصف المبلغ)</span>
                   </div>
-                </>
+                  <div className="space-y-1 sm:space-y-1.5 text-xs sm:text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">المبلغ المدفوع:</span>
+                      <span className="font-bold text-green-700">{paidAmount} جنيه ✓</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-700">المبلغ المتبقي:</span>
+                      <span className="font-bold text-red-700">{remainingAmount} جنيه</span>
+                    </div>
+                    {paymentNote && (
+                      <div className="mt-2 pt-2 border-t border-yellow-300">
+                        <p className="text-xs text-gray-700">📝 {paymentNote}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
               
               {isFullPayment && paidAmount && (
                 <div className="mt-2 p-2 bg-green-100 border border-green-300 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-700">تم الدفع كاملاً:</span>
+                  <div className="flex items-center justify-between text-xs sm:text-sm">
+                    <span className="text-gray-700">تم الدفع كاملاً:</span>
                     <span className="font-bold text-green-700">{paidAmount} جنيه ✓</span>
                   </div>
                 </div>
@@ -430,21 +434,21 @@ export default function OrderDetailsModal({
 
           {/* InstaPay Payment Proof */}
           {instaPayProof && (
-            <section className="bg-indigo-50 rounded-xl p-5 text-gray-600">
-              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+            <section className="bg-indigo-50 rounded-lg sm:rounded-xl p-3 sm:p-4 text-gray-600">
+              <h3 className="font-bold text-sm sm:text-base mb-2 sm:mb-3 flex items-center gap-2">
                 <span>📱</span> إثبات الدفع (InstaPay)
               </h3>
               <div className="relative group">
                 <img
                   src={instaPayProof}
                   alt="إثبات الدفع"
-                  className="w-full max-w-md rounded-lg border-2 border-indigo-300 shadow-md hover:shadow-xl transition-all cursor-pointer"
+                  className="w-full max-w-sm sm:max-w-md rounded-lg border-2 border-indigo-300 shadow-md hover:shadow-xl transition-all cursor-pointer"
                   onClick={() => window.open(instaPayProof, '_blank')}
                 />
-                <div className="mt-3 flex gap-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     onClick={() => window.open(instaPayProof, '_blank')}
-                    className="text-sm px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all font-medium"
+                    className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all font-medium"
                   >
                     🔍 عرض بالحجم الكامل
                   </button>
@@ -453,7 +457,7 @@ export default function OrderDetailsModal({
                       navigator.clipboard.writeText(instaPayProof);
                       if (showToast) showToast("تم نسخ رابط الصورة!");
                     }}
-                    className="text-sm px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium"
+                    className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium"
                   >
                     📋 نسخ الرابط
                   </button>
@@ -464,21 +468,21 @@ export default function OrderDetailsModal({
 
           {/* Transfer Image (order_image) */}
           {orderImage && (
-            <section className="bg-blue-50 rounded-xl p-5 text-gray-600">
-              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+            <section className="bg-blue-50 rounded-lg sm:rounded-xl p-3 sm:p-4 text-gray-600">
+              <h3 className="font-bold text-sm sm:text-base mb-2 sm:mb-3 flex items-center gap-2">
                 <span>🖼️</span> صورة التحويل
               </h3>
               <div className="relative group">
                 <img
                   src={orderImage}
                   alt="صورة التحويل"
-                  className="w-full max-w-md rounded-lg border-2 border-blue-300 shadow-md hover:shadow-xl transition-all cursor-pointer"
+                  className="w-full max-w-sm sm:max-w-md rounded-lg border-2 border-blue-300 shadow-md hover:shadow-xl transition-all cursor-pointer"
                   onClick={() => window.open(orderImage, '_blank')}
                 />
-                <div className="mt-3 flex gap-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     onClick={() => window.open(orderImage, '_blank')}
-                    className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium"
+                    className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium"
                   >
                     🔍 عرض بالحجم الكامل
                   </button>
@@ -487,7 +491,7 @@ export default function OrderDetailsModal({
                       navigator.clipboard.writeText(orderImage);
                       if (showToast) showToast("تم نسخ رابط الصورة!");
                     }}
-                    className="text-sm px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium"
+                    className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium"
                   >
                     📋 نسخ الرابط
                   </button>
@@ -498,34 +502,34 @@ export default function OrderDetailsModal({
 
           {/* Products */}
           <section>
-            <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-gray-600">
+            <h3 className="font-bold text-sm sm:text-base mb-3 flex items-center gap-2 text-gray-600">
               <span>📦</span> المنتجات ({order.line_items?.length || 0})
             </h3>
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {order.line_items?.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-4 bg-gray-50 rounded-xl p-4"
+                  className="flex items-center gap-2 sm:gap-3 bg-gray-50 rounded-lg sm:rounded-xl p-2 sm:p-3"
                 >
                   {item.image_url && (
                     <img
                       src={item.image_url}
                       alt={item.name}
-                      className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                      className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg border border-gray-200 flex-shrink-0"
                       onError={(e) => {
                         e.target.src = '/icons/placeholder.webp';
                       }}
                     />
                   )}
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-800">{item.name}</p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      الكمية: {item.quantity} × {item.price} {order.currency}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-xs sm:text-sm text-gray-800 truncate">{item.name}</p>
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      {item.quantity} × {item.price} {order.currency}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-lg text-gray-900">
-                      {(item.quantity * parseFloat(item.price)).toFixed(2)}
+                  <div className="text-right flex-shrink-0">
+                    <p className="font-bold text-sm sm:text-base text-gray-900">
+                      {(item.quantity * parseFloat(item.price))}
                     </p>
                     <p className="text-xs text-gray-500">{order.currency}</p>
                   </div>
@@ -535,90 +539,82 @@ export default function OrderDetailsModal({
           </section>
 
           {/* Total */}
-          <section className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-5">
-            <div className="space-y-3">
-              {/* 🆕 إخفاء الشحن لو استلام من المتجر */}
+          <section className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg sm:rounded-xl p-3 sm:p-4">
+            <div className="space-y-2">
               {!isStorePickup && order.shipping_total && parseFloat(order.shipping_total) > 0 && (
-                <div className="flex justify-between items-center text-gray-700">
+                <div className="flex justify-between items-center text-xs sm:text-sm text-gray-700">
                   <span className="font-medium">🚚 رنج الشحن</span>
                   <span className="font-semibold">من {order.shipping_total - 25} إلي {order.shipping_total} {order.currency}</span>
                 </div>
               )}
 
               {!isStorePickup && order.shipping_total && parseFloat(order.shipping_total) > 0 && (
-                <div className="flex justify-between items-center text-gray-700">
-                  <span className="font-medium"> 💰 مجموع الاوردر</span>
-                  <p className="text-gray-900 font-bold text-xl flex items-center gap-2">
-                      {(parseFloat(order.total) - parseFloat(order.shipping_total || 0)).toFixed(2)} {order.currency}
+                <div className="flex justify-between items-center text-xs sm:text-sm text-gray-700">
+                  <span className="font-medium">💰 مجموع الاوردر</span>
+                  <p className="text-gray-900 font-bold text-base sm:text-lg">
+                      {(parseFloat(order.total) - parseFloat(order.shipping_total || 0))} {order.currency}
                     </p>
                 </div>
               )}
-              
-              {/* <div className="flex justify-between items-center pt-3 border-t-2 border-blue-200">
-                <h3 className="font-bold text-xl text-gray-800">المجموع الكلي</h3>
-                <p className="text-3xl font-bold text-blue-600">
-                  {order.total} {order.currency}
-                </p>
-              </div> */}
             </div>
           </section>
         </div>
 
-        {/* 🆕 قسم الملاحظات */}
-        <div className="px-6 pb-6">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-gray-800">📝 ملاحظات الطلب</h3>
+        {/* Notes Section */}
+        <div className="px-3 sm:px-6 pb-3 sm:pb-4">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <h3 className="text-sm sm:text-base font-bold text-gray-800">📝 ملاحظات الطلب</h3>
               {!editingNote && (
                 <button
                   onClick={() => onEditNote(order.id)}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                  className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium"
                 >
-                  {orderNote ? '✏️ تعديل' : '➕ إضافة ملاحظة'}
+                  {orderNote ? '✏️ تعديل' : '➕ إضافة'}
                 </button>
               )}
             </div>
             
             {editingNote ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <textarea
                   value={noteText}
                   onChange={(e) => onNoteTextChange(e.target.value)}
                   placeholder="اكتب ملاحظات عن الطلب (استرجاع، تبديل، إلخ...)"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[120px] resize-y"
+                  className="w-full px-3 py-2 text-xs sm:text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px] resize-y"
                   autoFocus
                 />
                 <div className="flex gap-2">
                   <button
                     onClick={() => onSaveNote(order.id, noteText)}
                     disabled={savingNote}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-medium transition-all disabled:opacity-50"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm py-2 rounded-lg font-medium transition-all disabled:opacity-50"
                   >
                     {savingNote ? '⏳ جاري الحفظ...' : '✅ حفظ'}
                   </button>
                   <button
                     onClick={onCancelNote}
-                    className="px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all"
+                    className="px-4 sm:px-6 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs sm:text-sm rounded-lg font-medium transition-all"
                   >
                     إلغاء
                   </button>
                 </div>
               </div>
             ) : orderNote ? (
-              <div className="bg-white border border-yellow-300 rounded-lg p-4">
-                <p className="text-gray-800 whitespace-pre-wrap">{orderNote}</p>
+              <div className="bg-white border border-yellow-300 rounded-lg p-2 sm:p-3">
+                <p className="text-xs sm:text-sm text-gray-800 whitespace-pre-wrap">{orderNote}</p>
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">لا توجد ملاحظات لهذا الطلب</p>
+              <p className="text-gray-500 text-xs sm:text-sm">لا توجد ملاحظات لهذا الطلب</p>
             )}
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="bg-gray-50 border-t border-gray-200 px-6 py-4">
+        <div className="bg-gray-50 border-t border-gray-200 px-3 sm:px-6 py-3 sm:py-4">
           <button
             onClick={onClose}
-            className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 rounded-xl transition-all"
+            className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 sm:py-3 rounded-lg sm:rounded-xl text-sm sm:text-base transition-all"
           >
             إغلاق
           </button>
