@@ -386,110 +386,250 @@ export default function InvoiceUploadModal({ isOpen, onClose, onSuccess, setToas
                 </div>
               )}
 
-              {/* Products Table */}
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">#</th>
-                        <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">اسم المنتج</th>
-                        <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">SKU</th>
-                        <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">الكمية</th>
-                        <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">السعر</th>
-                        <th className="px-4 py-3 text-center text-sm font-bold text-gray-700">إجراء</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {products.map((product, index) => {
-                        const isImported = importedProducts.has(index);
-                        const isCurrentlyImporting = importing && importProgress.current === index + 1;
-                        
-                        return (
-                          <tr 
-                            key={index} 
-                            className={`border-t border-gray-200 transition-all ${
-                              isImported 
-                                ? 'bg-green-50' 
-                                : isCurrentlyImporting 
-                                ? 'bg-blue-50 animate-pulse' 
-                                : 'hover:bg-gray-50'
-                            }`}
-                          >
-                            <td className="px-4 py-3 text-sm text-gray-600 relative">
+              {/* Products List - Responsive */}
+              <div className="space-y-3">
+                {/* Desktop: Table View */}
+                <div className="hidden md:block border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">#</th>
+                          <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">اسم المنتج</th>
+                          <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">SKU</th>
+                          <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">الكمية</th>
+                          <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">السعر</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-700">إجراء</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {products.map((product, index) => {
+                          const isImported = importedProducts.has(index);
+                          const isCurrentlyImporting = importing && importProgress.current === index + 1;
+                          
+                          return (
+                            <tr 
+                              key={index} 
+                              className={`border-t border-gray-200 transition-all ${
+                                isImported 
+                                  ? 'bg-green-50' 
+                                  : isCurrentlyImporting 
+                                  ? 'bg-blue-50 animate-pulse' 
+                                  : 'hover:bg-gray-50'
+                              }`}
+                            >
+                              <td className="px-4 py-3 text-sm text-gray-600 relative font-bold">
+                                {index + 1}
+                                {isImported && (
+                                  <span className="absolute -top-1 -right-1 text-green-600 text-lg">✓</span>
+                                )}
+                                {isCurrentlyImporting && (
+                                  <span className="absolute -top-1 -right-1 text-blue-600 text-lg animate-spin">⏳</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="text"
+                                  value={product.name}
+                                  onChange={(e) => updateProduct(index, 'name', e.target.value)}
+                                  disabled={importing}
+                                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="text"
+                                  value={product.sku || ''}
+                                  onChange={(e) => updateProduct(index, 'sku', e.target.value)}
+                                  placeholder="اختياري"
+                                  disabled={importing}
+                                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  value={product.quantity}
+                                  onChange={(e) => updateProduct(index, 'quantity', parseInt(e.target.value) || 0)}
+                                  min="1"
+                                  disabled={importing}
+                                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                />
+                              </td>
+                              <td className="px-4 py-3">
+                                <input
+                                  type="number"
+                                  value={product.price}
+                                  onChange={(e) => updateProduct(index, 'price', parseFloat(e.target.value) || 0)}
+                                  min="0.01"
+                                  step="0.01"
+                                  disabled={importing}
+                                  className={`w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed ${
+                                    !product.price || parseFloat(product.price) <= 0 
+                                      ? 'border-red-500 bg-red-50' 
+                                      : 'border-gray-300'
+                                  }`}
+                                />
+                                {(!product.price || parseFloat(product.price) <= 0) && (
+                                  <span className="text-xs text-red-600 mt-1 block">⚠️ مطلوب</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                {isImported ? (
+                                  <span className="text-green-600 font-bold text-sm">✓ تم</span>
+                                ) : (
+                                  <button
+                                    onClick={() => removeProduct(index)}
+                                    disabled={importing}
+                                    className="text-red-600 hover:text-red-800 font-semibold text-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:scale-110"
+                                    title="حذف المنتج"
+                                  >
+                                    🗑️
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Mobile: Card View */}
+                <div className="md:hidden space-y-3">
+                  {products.map((product, index) => {
+                    const isImported = importedProducts.has(index);
+                    const isCurrentlyImporting = importing && importProgress.current === index + 1;
+                    
+                    return (
+                      <div 
+                        key={index}
+                        className={`relative rounded-xl border-2 p-4 transition-all ${
+                          isImported 
+                            ? 'bg-green-50 border-green-400 shadow-lg' 
+                            : isCurrentlyImporting 
+                            ? 'bg-blue-50 border-blue-400 shadow-lg animate-pulse' 
+                            : 'bg-white border-gray-200 hover:border-purple-300 hover:shadow-md'
+                        }`}
+                      >
+                        {/* Status Badge */}
+                        <div className="absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center text-lg font-bold shadow-lg z-10">
+                          {isImported ? (
+                            <span className="bg-green-500 text-white w-full h-full rounded-full flex items-center justify-center">✓</span>
+                          ) : isCurrentlyImporting ? (
+                            <span className="bg-blue-500 text-white w-full h-full rounded-full flex items-center justify-center animate-spin">⏳</span>
+                          ) : (
+                            <span className="bg-gradient-to-br from-purple-500 to-indigo-600 text-white w-full h-full rounded-full flex items-center justify-center shadow-md">
                               {index + 1}
-                              {isImported && (
-                                <span className="absolute -top-1 -right-1 text-green-600 text-lg">✓</span>
-                              )}
-                              {isCurrentlyImporting && (
-                                <span className="absolute -top-1 -right-1 text-blue-600 text-lg animate-spin">⏳</span>
-                              )}
-                            </td>
-                          <td className="px-4 py-3">
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Delete Button */}
+                        {!isImported && (
+                          <button
+                            onClick={() => removeProduct(index)}
+                            disabled={importing}
+                            className="absolute -top-3 -left-3 w-8 h-8 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-110 disabled:opacity-30 disabled:cursor-not-allowed z-10"
+                            title="حذف المنتج"
+                          >
+                            🗑️
+                          </button>
+                        )}
+
+                        <div className="space-y-3 mt-2">
+                          {/* Product Name */}
+                          <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
+                              <span>📦</span>
+                              <span>اسم المنتج</span>
+                            </label>
                             <input
                               type="text"
                               value={product.name}
                               onChange={(e) => updateProduct(index, 'name', e.target.value)}
                               disabled={importing}
-                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                              className="w-full border-2 border-gray-300 rounded-lg px-3 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all"
                             />
-                          </td>
-                          <td className="px-4 py-3">
+                          </div>
+
+                          {/* SKU */}
+                          <div>
+                            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
+                              <span>🔖</span>
+                              <span>SKU (اختياري)</span>
+                            </label>
                             <input
                               type="text"
                               value={product.sku || ''}
                               onChange={(e) => updateProduct(index, 'sku', e.target.value)}
-                              placeholder="اختياري"
+                              placeholder="ادخل الباركود أو SKU"
                               disabled={importing}
-                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                              className="w-full border-2 border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all"
                             />
-                          </td>
-                          <td className="px-4 py-3">
-                            <input
-                              type="number"
-                              value={product.quantity}
-                              onChange={(e) => updateProduct(index, 'quantity', parseInt(e.target.value) || 0)}
-                              min="1"
-                              disabled={importing}
-                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            />
-                          </td>
-                          <td className="px-4 py-3">
-                            <input
-                              type="number"
-                              value={product.price}
-                              onChange={(e) => updateProduct(index, 'price', parseFloat(e.target.value) || 0)}
-                              min="0.01"
-                              step="0.01"
-                              disabled={importing}
-                              className={`w-full border rounded px-2 py-1 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                                !product.price || parseFloat(product.price) <= 0 
-                                  ? 'border-red-500 bg-red-50' 
-                                  : 'border-gray-300'
-                              }`}
-                            />
-                            {(!product.price || parseFloat(product.price) <= 0) && (
-                              <span className="text-xs text-red-600 mt-1 block">⚠️ مطلوب</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            {isImported ? (
-                              <span className="text-green-600 font-bold text-sm">✓ تم</span>
-                            ) : (
-                              <button
-                                onClick={() => removeProduct(index)}
+                          </div>
+
+                          {/* Quantity & Price in Grid */}
+                          <div className="grid grid-cols-2 gap-3">
+                            {/* Quantity */}
+                            <div>
+                              <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
+                                <span>📊</span>
+                                <span>الكمية</span>
+                              </label>
+                              <input
+                                type="number"
+                                value={product.quantity}
+                                onChange={(e) => updateProduct(index, 'quantity', parseInt(e.target.value) || 0)}
+                                min="1"
                                 disabled={importing}
-                                className="text-red-600 hover:text-red-800 font-semibold text-sm disabled:opacity-30 disabled:cursor-not-allowed"
-                                title="حذف المنتج"
-                              >
-                                🗑️
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      )})}
-                    </tbody>
-                  </table>
+                                className="w-full border-2 border-gray-300 rounded-lg px-3 py-2.5 text-sm font-bold text-center focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all"
+                              />
+                            </div>
+
+                            {/* Price */}
+                            <div>
+                              <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
+                                <span>💰</span>
+                                <span>السعر</span>
+                                {(!product.price || parseFloat(product.price) <= 0) && (
+                                  <span className="text-red-600 text-xs">⚠️</span>
+                                )}
+                              </label>
+                              <input
+                                type="number"
+                                value={product.price}
+                                onChange={(e) => updateProduct(index, 'price', parseFloat(e.target.value) || 0)}
+                                min="0.01"
+                                step="0.01"
+                                placeholder="0.00"
+                                disabled={importing}
+                                className={`w-full border-2 rounded-lg px-3 py-2.5 text-sm font-bold text-center focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all ${
+                                  !product.price || parseFloat(product.price) <= 0 
+                                    ? 'border-red-500 bg-red-50 focus:border-red-600' 
+                                    : 'border-gray-300 focus:border-purple-500'
+                                }`}
+                              />
+                              {(!product.price || parseFloat(product.price) <= 0) && (
+                                <span className="text-xs text-red-600 mt-1 block font-semibold">⚠️ السعر مطلوب</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Imported Status */}
+                        {isImported && (
+                          <div className="mt-3 pt-3 border-t border-green-300">
+                            <p className="text-center text-sm font-bold text-green-700 flex items-center justify-center gap-2">
+                              <span>✓</span>
+                              <span>تم الاستيراد بنجاح</span>
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
