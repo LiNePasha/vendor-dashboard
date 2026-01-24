@@ -119,7 +119,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                 e.stopPropagation();
                 onEdit(product.id); // إرسال ID فقط
               }}
-              className="absolute top-2 left-2 z-20 bg-white hover:bg-blue-500 hover:text-white text-gray-700 rounded-lg w-8 h-8 flex items-center justify-center shadow-lg transition-all border border-gray-300 hover:border-blue-400"
+              className="absolute top-2 left-2 z-20 bg-white hover:bg-slate-700 hover:text-white text-gray-700 rounded-lg w-8 h-8 flex items-center justify-center shadow-lg transition-all border border-gray-300 hover:border-slate-600"
               title="تعديل المنتج"
             >
               ✏️
@@ -236,7 +236,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                   return (
                     <div
                       key={variation.variation_id}
-                      className="bg-gray-50 border border-gray-200 rounded p-1 hover:bg-blue-50 hover:border-blue-300 transition-all flex flex-col flex-shrink-0"
+                      className="bg-gray-50 border border-gray-200 rounded p-1 hover:bg-slate-50 hover:border-slate-300 transition-all flex flex-col flex-shrink-0"
                       style={{ minWidth: '65px' }}
                     >
                       <div className="flex flex-col gap-0.5 mb-1">
@@ -296,17 +296,17 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                             disabled={variation.stock_quantity === 0}
                             className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all w-full ${
                               variation.stock_quantity > 0
-                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                ? 'bg-slate-700 text-white hover:bg-slate-800'
                                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                             }`}
                           >
                             +
                           </button>
                         ) : (
-                          <div className="flex items-center gap-0 bg-blue-600 rounded text-white text-[9px] w-full justify-center">
+                          <div className="flex items-center gap-0 bg-slate-700 rounded text-white text-[9px] w-full justify-center">
                             <button
                               onClick={() => handleDecrease(variation)}
-                              className="px-1 py-0.5 hover:bg-blue-700 rounded-r transition-all font-bold flex-1"
+                              className="px-1 py-0.5 hover:bg-slate-800 rounded-r transition-all font-bold flex-1"
                             >
                               −
                             </button>
@@ -316,7 +316,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                             <button
                               onClick={() => handleIncrease(variation)}
                               disabled={varCartQty >= variation.stock_quantity}
-                              className="px-1 py-0.5 hover:bg-blue-700 rounded-l transition-all font-bold disabled:opacity-50 flex-1"
+                              className="px-1 py-0.5 hover:bg-slate-800 rounded-l transition-all font-bold disabled:opacity-50 flex-1"
                             >
                               +
                             </button>
@@ -374,17 +374,17 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                   disabled={product.stock_quantity === 0}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md border
                     ${product.stock_quantity > 0
-                      ? 'bg-blue-600 text-white hover:bg-blue-700 border-blue-500'
+                      ? 'bg-slate-700 text-white hover:bg-slate-800 border-slate-600'
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-300'
                     }`}
                 >
                   {product.stock_quantity > 0 ? '+ إضافة' : 'نفذ'}
                 </button>
               ) : (
-                <div className="flex items-center gap-0 bg-blue-600 rounded-lg shadow-md border border-blue-500">
+                <div className="flex items-center gap-0 bg-slate-700 rounded-lg shadow-md border border-slate-600">
                   <button
                     onClick={() => handleDecrease(product)}
-                    className="px-2 py-1.5 text-white hover:bg-blue-700 rounded-r-lg transition-all font-bold text-sm"
+                    className="px-2 py-1.5 text-white hover:bg-slate-800 rounded-r-lg transition-all font-bold text-sm"
                   >
                     −
                   </button>
@@ -394,7 +394,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                   <button
                     onClick={() => handleIncrease(product)}
                     disabled={currentQty >= product.stock_quantity}
-                    className="px-2 py-1.5 text-white hover:bg-blue-700 rounded-l-lg transition-all font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-2 py-1.5 text-white hover:bg-slate-800 rounded-l-lg transition-all font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     +
                   </button>

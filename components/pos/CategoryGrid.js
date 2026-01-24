@@ -96,7 +96,7 @@ export function CategoryGrid({ categories, loading, onSelectCategory, totalProdu
           <>
             <button
               onClick={handleBack}
-              className="mb-4 flex items-center gap-2 mx-auto px-4 py-2 bg-white border border-blue-300 text-gray-800 rounded-lg hover:bg-blue-50 transition-all font-bold shadow-md"
+              className="mb-4 flex items-center gap-2 mx-auto px-4 py-2 bg-white border border-slate-300 text-gray-800 rounded-lg hover:bg-slate-50 transition-all font-bold shadow-md"
             >
               <span className="text-lg">⬅️</span>
               <span>رجوع للتصنيفات الرئيسية</span>
@@ -125,7 +125,7 @@ export function CategoryGrid({ categories, loading, onSelectCategory, totalProdu
         <div className="max-w-2xl mx-auto mb-4">
           <button
             onClick={() => onSelectCategory('all')}
-            className="w-full bg-blue-600 text-white p-4 rounded-lg shadow-lg hover:shadow-xl transition-all hover:bg-blue-700 border border-blue-700 group"
+            className="w-full bg-slate-700 text-white p-4 rounded-lg shadow-lg hover:shadow-xl transition-all hover:bg-slate-800 border border-slate-600 group"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -182,7 +182,7 @@ export function CategoryGrid({ categories, loading, onSelectCategory, totalProdu
                 </h3>
                 
                 <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <span className="bg-blue-600 text-white px-2 py-1 rounded-lg text-xs font-bold border border-blue-500 shadow-md">
+                  <span className="bg-slate-600 text-white px-2 py-1 rounded-lg text-xs font-bold border border-slate-500 shadow-md">
                     📦 {category.count || 0}
                   </span>
                   

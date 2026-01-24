@@ -70,6 +70,9 @@ export default function POSPage() {
   const [deliveryPaidAmount, setDeliveryPaidAmount] = useState(0);
   const [deliveryPaymentNote, setDeliveryPaymentNote] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
+  
+  // 🆕 Cart Expansion State
+  const [isCartExpanded, setIsCartExpanded] = useState(false);
 
   // 🆕 Multi-Tabs System for Multiple Invoices
   const [tabs, setTabs] = useState([]);
@@ -1067,9 +1070,9 @@ export default function POSPage() {
           </div>
 
           {/* 🛒 Cart - RIGHT SIDE (اليمين) */}
-          <div className="hidden md:flex w-[25rem] bg-white shadow-xl border-l border-gray-200 flex-col ml-auto" dir="rtl">
+          <div className={`hidden md:flex w-[25rem] bg-white shadow-xl border-l border-gray-200 flex-col ml-auto ${isCartExpanded ? 'h-auto' : ''}`} dir="rtl">
             {/* Cart Component - Full Height Scrollable */}
-            <div className="flex-1 overflow-y-auto">
+            <div className={`${isCartExpanded ? 'h-auto' : 'flex-1 overflow-y-auto'}`}>
               <Cart
                 key={`cart-${activeTabId}-${activeTab?.cart?.length || 0}-${JSON.stringify(activeTab?.cart?.map(i => i.price) || [])}`}
                 items={activeTab?.cart || cart}
@@ -1209,6 +1212,7 @@ export default function POSPage() {
                   updateActiveTab({ paymentStatus: v });
                 }}
                 paymentStatus={activeTab?.paymentStatus || 'paid_full'} // 🆕 حالة الدفع
+                onExpandChange={(expanded) => setIsCartExpanded(expanded)} // 🆕 تتبع حالة التوسيع
               />
             </div>
           </div>
@@ -1219,7 +1223,7 @@ export default function POSPage() {
           {/* Floating Cart Button */}
           <button
             onClick={() => setShowMobileCart(true)}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gradient-to-r from-blue-900 to-indigo-900 text-white px-6 py-4 rounded-full shadow-2xl hover:shadow-3xl transition-all z-40 flex items-center gap-3 font-bold text-lg"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-4 rounded-full shadow-2xl hover:shadow-3xl transition-all z-40 flex items-center gap-3 font-bold text-lg"
           >
             <span className="text-2xl">🛒</span>
             <span>السلة ({(cart?.length || 0) + (services?.length || 0)})</span>
@@ -1367,7 +1371,7 @@ export default function POSPage() {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-4 flex items-center justify-between">
+            <div className="bg-gradient-to-r from-slate-700 to-gray-700 text-white px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span className="text-3xl">📋</span>
                 <h2 className="text-2xl font-bold">الفواتير</h2>

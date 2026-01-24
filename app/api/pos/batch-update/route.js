@@ -11,10 +11,34 @@ async function processUpdate(update, headers, WC_BASE) {
             url = `${WC_BASE}/products/${update.productId}`;
         }
 
+        // إذا كان adjustment موجود، نجيب المخزون الحالي ونطبق الفرق
+        let finalQuantity = update.newQuantity;
+        
+        if (update.adjustment !== undefined) {
+            // جلب المخزون الحالي
+            const getCurrentUrl = url;
+            const currentResponse = await fetch(getCurrentUrl, {
+                method: 'GET',
+                headers
+            });
+            
+            if (currentResponse.ok) {
+                const currentData = await currentResponse.json();
+                const currentStock = currentData.stock_quantity || 0;
+                finalQuantity = currentStock + update.adjustment; // تطبيق الفرق
+                
+                console.log(`📊 Stock adjustment for ${update.productId}:`, {
+                    current: currentStock,
+                    adjustment: update.adjustment,
+                    final: finalQuantity
+                });
+            }
+        }
+
         const response = await fetch(url, {
             method: 'PUT',
             headers,
-            body: JSON.stringify({ stock_quantity: update.newQuantity })
+            body: JSON.stringify({ stock_quantity: finalQuantity })
         });
 
         const text = await response.text().catch(() => null);

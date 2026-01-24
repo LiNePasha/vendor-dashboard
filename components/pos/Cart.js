@@ -45,7 +45,8 @@ export function Cart({
   onDeliveryPaidAmountChange,
   onDeliveryPaymentNoteChange,
   onOrderNotesChange,
-  onPaymentMethodChange
+  onPaymentMethodChange,
+  onExpandChange // 🆕 callback لإخبار الـ parent بحالة التوسيع
 }) {
   const productsSubtotal = items.reduce(
     (sum, item) => sum + (Number(item.price) * item.quantity),
@@ -74,6 +75,9 @@ export function Cart({
   // Load saved services from LocalForage
   const [savedServices, setSavedServices] = useState([]);
   const [selectedServiceId, setSelectedServiceId] = useState('');
+  
+  // 🆕 Cart Expansion State
+  const [isExpanded, setIsExpanded] = useState(false);
   
   // 🆕 Quick Add Product State
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -154,18 +158,42 @@ export function Cart({
 
   return (
     <div className="h-full flex flex-col bg-white relative">
-      {/* Header */}
-      {/* <div className="p-2 bg-blue-900 text-white flex-shrink-0">
-        <h2 className="text-base font-bold flex items-center gap-2">
+      {/* Header مع زرار التوسيع */}
+      <div className="p-3 bg-gradient-to-r from-slate-800 to-slate-700 text-white flex-shrink-0 flex items-center justify-between">
+        <div className="flex items-center gap-2">
           <span className="text-xl">🛒</span>
-          <span>السلة</span>
+          <h2 className="text-base font-bold">السلة</h2>
           {items.length > 0 && (
-            <span className="bg-blue-700 px-2 py-0.5 rounded-full text-xs">
+            <span className="bg-slate-600 px-2 py-0.5 rounded-full text-xs">
               {items.length}
             </span>
           )}
-        </h2>
-      </div> */}
+        </div>
+        {/* زرار التوسيع - يظهر فقط لما الكارت فيه منتجات */}
+        {items.length > 0 && (
+          <button
+            onClick={() => {
+              const newExpandedState = !isExpanded;
+              setIsExpanded(newExpandedState);
+              // إخبار الـ parent بحالة التوسيع
+              if (onExpandChange) {
+                onExpandChange(newExpandedState);
+              }
+            }}
+            className="bg-white/20 hover:bg-white/30 rounded-lg px-3 py-1.5 text-xs font-bold transition-all flex items-center gap-1.5"
+            title={isExpanded ? "إخفاء بعض المنتجات" : "عرض كل المنتجات"}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {isExpanded ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              )}
+            </svg>
+            <span>{isExpanded ? 'تصغير' : 'توسيع'}</span>
+          </button>
+        )}
+      </div>
 
       {/* Employee Selector - Compact */}
       {/* {selectedEmployee && (
@@ -184,7 +212,7 @@ export function Cart({
             onClick={() => onOrderTypeChange && onOrderTypeChange('store')}
             className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
               orderType === 'store'
-                ? '!bg-blue-600 !text-white'
+                ? '!bg-slate-700 !text-white'
                 : '!bg-gray-100 !text-gray-600 hover:!bg-gray-200'
             }`}
           >
@@ -194,7 +222,7 @@ export function Cart({
             onClick={() => onOrderTypeChange && onOrderTypeChange('delivery')}
             className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition-all ${
               orderType === 'delivery'
-                ? '!bg-green-600 !text-white'
+                ? '!bg-slate-600 !text-white'
                 : '!bg-gray-100 !text-gray-600 hover:!bg-gray-200'
             }`}
           >
@@ -317,7 +345,10 @@ export function Cart({
       </div>
 
       {/* Cart Items */}
-      <div className="flex-1 overflow-y-auto p-2 bg-gray-50 pb-20" style={{ minHeight: '10rem' }}>
+      <div 
+        className="flex-1 overflow-y-auto p-2 bg-gray-50 pb-20"
+        style={isExpanded ? { maxHeight: '70vh' } : { minHeight: '10rem' }}
+      >
         {items.length === 0 ? (
           <div className="text-center text-gray-400 py-8">
             <div className="text-4xl mb-2">🛒</div>
@@ -468,11 +499,11 @@ export function Cart({
       </div>
 
       {/* 🆕 Quick Add Section */}
-      <div className="border-t border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50 p-2">
+      <div className="border-t border-b border-gray-200 bg-gradient-to-r from-slate-50 to-gray-50 p-2">
         {!showQuickAdd ? (
           <button
             onClick={() => setShowQuickAdd(true)}
-            className="w-full py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 
+            className="w-full py-2 bg-gradient-to-r from-slate-700 to-slate-600 hover:from-slate-800 hover:to-slate-700 
               text-white rounded-lg font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2"
           >
             <span className="text-lg">⚡</span>
@@ -481,7 +512,7 @@ export function Cart({
         ) : (
           <div className="space-y-2">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-bold text-green-800 text-sm flex items-center gap-1">
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-1">
                 <span>⚡</span>
                 <span>إضافة سريعة</span>
               </h3>
@@ -571,7 +602,7 @@ export function Cart({
             <button
               onClick={handleQuickAddProduct}
               disabled={!quickAddForm.name || !quickAddForm.price || !quickAddForm.saleQuantity || !quickAddForm.stockQuantity}
-              className="w-full py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 
+              className="w-full py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 
                 text-white rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ✅ إضافة للسلة
@@ -720,7 +751,7 @@ export function Cart({
         {/* Payment, Discount & Extra Fee - في صف واحد */}
         <div className="grid grid-cols-3 gap-1.5">
           {/* Payment Method */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-1.5 rounded-md border border-blue-300">
+          <div className="bg-gradient-to-br from-slate-50 to-gray-50 p-1.5 rounded-md border border-slate-300">
             <label className="text-[10px] font-bold text-blue-800 mb-0.5 flex items-center gap-0.5">
               <span className="text-xs">💳</span>
               <span>الدفع</span>
@@ -740,7 +771,7 @@ export function Cart({
           </div>
 
           {/* Discount */}
-          <div className="bg-gradient-to-br from-red-50 to-rose-50 p-1.5 rounded-md border border-red-300">
+          <div className="bg-gradient-to-br from-slate-50 to-gray-50 p-1.5 rounded-md border border-slate-300">
             <label className="text-[10px] font-bold text-red-800 flex items-center gap-0.5 mb-0.5">
               <span className="text-xs">🏷️</span>
               <span>خصم</span>
@@ -773,7 +804,7 @@ export function Cart({
           </div>
 
           {/* Extra Fee */}
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-1.5 rounded-md border border-green-300">
+          <div className="bg-gradient-to-br from-slate-50 to-gray-50 p-1.5 rounded-md border border-slate-300">
             <label className="text-[10px] font-bold text-green-800 flex items-center gap-0.5 mb-0.5">
               <span className="text-xs">➕</span>
               <span>رسوم</span>
@@ -827,7 +858,7 @@ export function Cart({
         )}
 
         {/* Order Notes (ملاحظات الطلب) */}
-        <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-300 rounded-lg p-2">
+        <div className="bg-gradient-to-br from-slate-50 to-gray-50 border-2 border-slate-300 rounded-lg p-2">
           <label className="text-xs font-bold text-purple-800 mb-1 flex items-center gap-1">
             <span className="text-base">📝</span>
             ملاحظات على الطلب
@@ -976,7 +1007,7 @@ export function Cart({
               ${
                 (items.length === 0 && services.length === 0) || processing
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-green-600 to-green-500 text-white shadow-lg hover:shadow-xl'
+                  : 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg hover:shadow-xl'
               }
             `}
           >

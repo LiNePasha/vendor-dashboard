@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { invoiceStorage } from '@/app/lib/localforage';
 import { Toast } from '@/components/Toast';
 import InvoiceModal from '@/app/pos/InvoiceModal';
+import VariationSelector from '@/components/pos/VariationSelector';
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState([]);
@@ -20,6 +21,17 @@ export default function InvoicesPage() {
   const [exporting, setExporting] = useState(false);
   const [editingDeliveryFee, setEditingDeliveryFee] = useState(null); // { invoiceId, value }
   const [editingInvoiceDiscount, setEditingInvoiceDiscount] = useState(null); // { invoiceId, value }
+  const [editingProduct, setEditingProduct] = useState(null); // { invoiceId, productId, field, value }
+  const [addingService, setAddingService] = useState(null); // invoiceId
+  const [newService, setNewService] = useState({ description: '', amount: 0, employeeName: '' });
+  
+  // State for adding products from API
+  const [showProductSelector, setShowProductSelector] = useState(null); // invoiceId
+  const [availableProducts, setAvailableProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [variationSelectorProduct, setVariationSelectorProduct] = useState(null);
+  const [variationSelectorVariations, setVariationSelectorVariations] = useState([]);
 
   // Helper function to format numbers nicely (removes decimals, adds thousands separator)
   const formatPrice = (price) => {
@@ -110,6 +122,388 @@ export default function InvoicesPage() {
     } catch (error) {
       console.error('Error updating delivery fee:', error);
       setToast({ message: '❌ فشل تحديث رسوم الشحن', type: 'error' });
+    }
+  };
+
+  // Update product quantity (with stock management)
+  const updateProductQuantity = async (invoice, productId, newQuantity) => {
+    try {
+      const quantity = parseInt(newQuantity);
+      if (isNaN(quantity) || quantity < 1) {
+        setToast({ message: 'الكمية يجب أن تكون رقم أكبر من صفر', type: 'error' });
+        return;
+      }
+
+      // Get the current item to calculate stock change
+      const currentItem = invoice.items.find(item => item.id === productId);
+      if (!currentItem) {
+        setToast({ message: 'المنتج غير موجود في الفاتورة', type: 'error' });
+        return;
+      }
+
+      const quantityDiff = quantity - currentItem.quantity; // الفرق: موجب = زيادة، سالب = نقصان
+
+      if (quantityDiff === 0) {
+        setEditingProduct(null);
+        return; // لا تغيير
+      }
+
+      console.log('📊 تعديل الكمية:', {
+        'الكمية القديمة': currentItem.quantity,
+        'الكمية الجديدة': quantity,
+        'الفرق': quantityDiff,
+        'نوع المنتج': currentItem.variation_id ? 'متغير' : 'عادي',
+        'Item ID': currentItem.id,
+        'ملاحظة': quantityDiff > 0 ? `زيادة ${quantityDiff} - سيتم خصم من المخزون` : `نقصان ${Math.abs(quantityDiff)} - سيتم إضافة للمخزون`
+      });
+
+      // بنبعت الفرق للـ API عشان يطبقه
+      const stockAdjustment = -quantityDiff;
+      
+      console.log('🔄 سيتم إرسال تعديل للمخزون:', stockAdjustment, stockAdjustment > 0 ? '(إضافة)' : '(خصم)');
+
+      // التحقق إذا كان المنتج متغير
+      let updatePayload;
+      
+      if (currentItem.variation_id) {
+        // متغير - استخدم variation_id و parent_id
+        updatePayload = {
+          productId: currentItem.parent_id || currentItem.parentId,
+          variationId: currentItem.variation_id,
+          adjustment: stockAdjustment
+        };
+      } else if (typeof productId === 'string' && productId.includes('_var_')) {
+        // ID مركب - استخرج الـ IDs منه
+        const parts = productId.split('_var_');
+        updatePayload = {
+          productId: parseInt(parts[0]),
+          variationId: parseInt(parts[1]),
+          adjustment: stockAdjustment
+        };
+      } else {
+        // منتج عادي
+        updatePayload = {
+          productId: productId,
+          adjustment: stockAdjustment
+        };
+      }
+
+      console.log('📤 Payload:', updatePayload);
+
+      // تحديث المخزون في API بالفرق
+      console.log('🔄 جاري تحديث المخزون في API...');
+      const stockUpdateResponse = await fetch('/api/pos/batch-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updates: [updatePayload]
+        }),
+        credentials: 'include'
+      });
+
+      const updateResult = await stockUpdateResponse.json();
+      console.log('✅ نتيجة التحديث:', updateResult);
+
+      if (!stockUpdateResponse.ok) {
+        console.error('❌ فشل التحديث:', updateResult);
+        setToast({ message: '❌ فشل تحديث المخزون', type: 'error' });
+        return;
+      }
+
+      // Update invoice items - لا نعرف المخزون النهائي، نحفظ null ونحدثه لاحقاً
+      const updatedItems = invoice.items.map(item => {
+        if (item.id === productId) {
+          return { ...item, quantity }; // فقط نحدث الكمية
+        }
+        return item;
+      });
+
+      // Recalculate totals
+      const productsSubtotal = updatedItems.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
+      const servicesTotal = invoice.services?.reduce((sum, s) => sum + Number(s.amount), 0) || 0;
+      const subtotal = productsSubtotal + servicesTotal;
+      const discountAmount = invoice.summary?.discount?.amount || 0;
+      const extraFee = invoice.summary?.extraFee || 0;
+      const deliveryFee = invoice.summary?.deliveryFee || 0;
+      const total = subtotal - discountAmount + extraFee + deliveryFee;
+
+      const updatedInvoice = {
+        ...invoice,
+        items: updatedItems,
+        summary: {
+          ...invoice.summary,
+          productsSubtotal,
+          subtotal,
+          total
+        }
+      };
+
+      console.log('💾 جاري حفظ الفاتورة...');
+      
+      await invoiceStorage.updateInvoice(invoice.id, updatedInvoice);
+      await loadInvoices();
+      
+      setEditingProduct(null);
+      setToast({ message: `✅ تم تحديث الكمية والمخزون`, type: 'success' });
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      setToast({ message: '❌ فشل تحديث الكمية', type: 'error' });
+    }
+  };
+
+  // Update product price
+  const updateProductPrice = async (invoice, productId, newPrice) => {
+    try {
+      const price = parseFloat(newPrice);
+      if (isNaN(price) || price < 0) {
+        setToast({ message: 'السعر يجب أن يكون رقم صحيح', type: 'error' });
+        return;
+      }
+
+      const updatedItems = invoice.items.map(item => {
+        if (item.id === productId) {
+          return { ...item, price };
+        }
+        return item;
+      });
+
+      // Recalculate totals
+      const productsSubtotal = updatedItems.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
+      const servicesTotal = invoice.services?.reduce((sum, s) => sum + Number(s.amount), 0) || 0;
+      const subtotal = productsSubtotal + servicesTotal;
+      const discountAmount = invoice.summary?.discount?.amount || 0;
+      const extraFee = invoice.summary?.extraFee || 0;
+      const deliveryFee = invoice.summary?.deliveryFee || 0;
+      const invoiceDiscount = invoice.summary?.invoiceDiscount || 0;
+      const total = subtotal - discountAmount - invoiceDiscount + extraFee + deliveryFee;
+
+      const updatedInvoice = {
+        ...invoice,
+        items: updatedItems,
+        summary: {
+          ...invoice.summary,
+          productsSubtotal,
+          subtotal,
+          total
+        }
+      };
+
+      await invoiceStorage.updateInvoice(invoice.id, updatedInvoice);
+      await loadInvoices();
+      setEditingProduct(null);
+      setToast({ message: '✅ تم تحديث السعر', type: 'success' });
+    } catch (error) {
+      console.error('Error updating price:', error);
+      setToast({ message: '❌ فشل تحديث السعر', type: 'error' });
+    }
+  };
+
+  // Load products from API (كل المنتجات)
+  const loadProductsFromAPI = async () => {
+    setProductsLoading(true);
+    try {
+      const timestamp = Date.now();
+      const response = await fetch(`/api/cashier/initial?all=true&force=1&t=${timestamp}`, {
+        credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableProducts(data.products || []);
+      } else {
+        setToast({ message: '❌ فشل تحميل المنتجات', type: 'error' });
+      }
+    } catch (error) {
+      setToast({ message: '❌ خطأ في تحميل المنتجات', type: 'error' });
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  // Handle selecting variations for variable products
+  const handleSelectVariation = async (product) => {
+    try {
+      const res = await fetch(`/api/products/${product.id}/variations`);
+      const data = await res.json();
+      
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'فشل تحميل المتغيرات');
+      }
+      
+      setVariationSelectorProduct(product);
+      setVariationSelectorVariations(data.variations || []);
+    } catch (error) {
+      setToast({ message: error.message || 'فشل تحميل المتغيرات', type: 'error' });
+    }
+  };
+
+  // Add variation to invoice
+  const handleAddVariationToInvoice = async (invoice, product, variation) => {
+    const variationProduct = {
+      id: `${product.id}_var_${variation.id}`,
+      variation_id: variation.id,
+      parent_id: product.id,
+      name: `${product.name} - ${variation.description}`,
+      price: variation.price,
+      stock_quantity: variation.stock_quantity || 0,
+      purchase_price: variation.purchase_price || null,
+      is_variation: true
+    };
+    
+    await addProductToInvoice(invoice, variationProduct);
+    setVariationSelectorProduct(null);
+    setVariationSelectorVariations([]);
+  };
+
+  // Add product to invoice (from API with stock update)
+  const addProductToInvoice = async (invoice, product) => {
+    try {
+      // التحقق من المخزون
+      if (product.stock_quantity <= 0) {
+        setToast({ message: '❌ المنتج غير متوفر في المخزون', type: 'error' });
+        return;
+      }
+
+      // خصم 1 من المخزون في API - check if variation
+      const updatePayload = product.variation_id ? {
+        productId: product.parent_id || product.parentId || product.product_id,
+        variationId: product.variation_id,
+        adjustment: -1
+      } : {
+        productId: product.id,
+        adjustment: -1
+      };
+
+      console.log('🔄 خصم من المخزون:', updatePayload);
+
+      const stockUpdateResponse = await fetch('/api/pos/batch-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updates: [updatePayload]
+        }),
+        credentials: 'include'
+      });
+
+      if (!stockUpdateResponse.ok) {
+        setToast({ message: '❌ فشل تحديث المخزون', type: 'error' });
+        return;
+      }
+
+      // إضافة المنتج للفاتورة
+      const newInvoiceItem = {
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        quantity: 1,
+        totalPrice: product.price,
+        purchase_price: product.purchase_price || null,
+        profit: product.purchase_price ? (product.price - product.purchase_price) : null,
+        hasPurchasePrice: !!product.purchase_price,
+        // حفظ معلومات المتغير إذا كان متغير
+        ...(product.variation_id && {
+          variation_id: product.variation_id,
+          parent_id: product.parent_id || product.parentId || product.product_id,
+          is_variation: true
+        })
+      };
+
+      const updatedItems = [...(invoice.items || []), newInvoiceItem];
+      
+      // إعادة حساب المجاميع
+      const productsSubtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const servicesTotal = invoice.services?.reduce((sum, service) => sum + service.amount, 0) || 0;
+      const subtotal = productsSubtotal + servicesTotal;
+      
+      const discountAmount = invoice.summary?.discount?.amount || 0;
+      const extraFeeAmount = invoice.summary?.extraFee || 0;
+      const deliveryFee = invoice.summary?.deliveryFee || 0;
+      const total = subtotal - discountAmount + extraFeeAmount + deliveryFee;
+      
+      // حساب الأرباح
+      const productsProfit = updatedItems.reduce((sum, item) => {
+        if (item.purchase_price) {
+          return sum + ((item.price - item.purchase_price) * item.quantity);
+        }
+        return sum;
+      }, 0);
+      
+      const updatedInvoice = {
+        ...invoice,
+        items: updatedItems,
+        summary: {
+          ...invoice.summary,
+          productsSubtotal,
+          servicesTotal,
+          subtotal,
+          total,
+          productsProfit
+        }
+      };
+      
+      await invoiceStorage.updateInvoice(invoice.id, updatedInvoice);
+      await loadInvoices();
+      
+      setShowProductSelector(null);
+      setToast({ message: '✅ تمت إضافة المنتج للفاتورة وخصم من المخزون', type: 'success' });
+    } catch (error) {
+      setToast({ message: '❌ فشل إضافة المنتج', type: 'error' });
+    }
+  };
+
+  // Add service to invoice
+  const addServiceToInvoice = async (invoice) => {
+    try {
+      if (!newService.description.trim()) {
+        setToast({ message: 'اكتب وصف الخدمة', type: 'error' });
+        return;
+      }
+      if (newService.amount < 0) {
+        setToast({ message: 'المبلغ يجب أن يكون صحيح', type: 'error' });
+        return;
+      }
+
+      const service = {
+        description: newService.description,
+        amount: parseFloat(newService.amount),
+        employeeName: newService.employeeName || invoice.soldBy?.employeeName || ''
+      };
+
+      const updatedServices = [...(invoice.services || []), service];
+      
+      // Recalculate totals
+      const productsSubtotal = invoice.items?.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0) || 0;
+      const servicesTotal = updatedServices.reduce((sum, s) => sum + Number(s.amount), 0);
+      const subtotal = productsSubtotal + servicesTotal;
+      const discountAmount = invoice.summary?.discount?.amount || 0;
+      const extraFee = invoice.summary?.extraFee || 0;
+      const deliveryFee = invoice.summary?.deliveryFee || 0;
+      const invoiceDiscount = invoice.summary?.invoiceDiscount || 0;
+      const total = subtotal - discountAmount - invoiceDiscount + extraFee + deliveryFee;
+
+      const updatedInvoice = {
+        ...invoice,
+        services: updatedServices,
+        summary: {
+          ...invoice.summary,
+          servicesTotal,
+          subtotal,
+          total
+        }
+      };
+
+      await invoiceStorage.updateInvoice(invoice.id, updatedInvoice);
+      await loadInvoices();
+      setAddingService(null);
+      setNewService({ description: '', amount: 0, employeeName: '' });
+      setToast({ message: '✅ تم إضافة الخدمة للفاتورة', type: 'success' });
+    } catch (error) {
+      console.error('Error adding service:', error);
+      setToast({ message: '❌ فشل إضافة الخدمة', type: 'error' });
     }
   };
 
@@ -353,6 +747,55 @@ export default function InvoicesPage() {
   // 🆕 حذف منتج من الفاتورة
   const deleteProductFromInvoice = async (invoice, itemId) => {
     try {
+      // Get the item before deletion to return stock
+      const itemToDelete = invoice.items.find(item => item.id === itemId);
+      if (!itemToDelete) {
+        setToast({ message: 'المنتج غير موجود', type: 'error' });
+        return;
+      }
+
+      // Return stock to API - check if variation
+      let updatePayload;
+      
+      if (itemToDelete.variation_id) {
+        // متغير - استخدم variation_id و parent_id
+        updatePayload = {
+          productId: itemToDelete.parent_id || itemToDelete.parentId,
+          variationId: itemToDelete.variation_id,
+          adjustment: +itemToDelete.quantity
+        };
+      } else if (typeof itemId === 'string' && itemId.includes('_var_')) {
+        // ID مركب - استخرج الـ IDs منه
+        const parts = itemId.split('_var_');
+        updatePayload = {
+          productId: parseInt(parts[0]),
+          variationId: parseInt(parts[1]),
+          adjustment: +itemToDelete.quantity
+        };
+      } else {
+        // منتج عادي
+        updatePayload = {
+          productId: itemId,
+          adjustment: +itemToDelete.quantity
+        };
+      }
+
+      console.log('🔄 إرجاع المخزون:', updatePayload);
+
+      const stockUpdateResponse = await fetch('/api/pos/batch-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updates: [updatePayload]
+        }),
+        credentials: 'include'
+      });
+
+      if (!stockUpdateResponse.ok) {
+        setToast({ message: '❌ فشل إرجاع المخزون', type: 'error' });
+        return;
+      }
+
       // تصفية المنتجات (حذف المنتج المطلوب)
       const updatedItems = invoice.items.filter(item => item.id !== itemId);
       
@@ -417,7 +860,7 @@ export default function InvoicesPage() {
       
       await invoiceStorage.updateInvoice(invoice.id, updatedInvoice);
       await loadInvoices();
-      setToast({ message: '✅ تم حذف المنتج من الفاتورة', type: 'success' });
+      setToast({ message: '✅ تم حذف المنتج وإرجاع المخزون', type: 'success' });
     } catch (error) {
       setToast({ message: 'فشل حذف المنتج', type: 'error' });
     }
@@ -993,10 +1436,10 @@ export default function InvoicesPage() {
           </div>
         </div>
 
-        {/* Invoices List */}
-        <div className="space-y-4">
+        {/* Invoices List - Compact Grid Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {filteredInvoices.length === 0 ? (
-            <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+            <div className="col-span-full bg-white rounded-xl shadow-sm p-12 text-center">
               <div className="text-gray-400 mb-4">
                 <svg className="w-20 h-20 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1009,88 +1452,228 @@ export default function InvoicesPage() {
             filteredInvoices.map((invoice) => (
               <div
                 key={invoice.id}
-                className="group bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 overflow-hidden border border-gray-200 hover:border-blue-300"
+                onClick={() => setSelectedInvoice(selectedInvoice?.id === invoice.id ? null : invoice)}
+                className="group bg-white rounded-lg shadow-sm hover:shadow-xl transition-all duration-200 overflow-hidden border border-gray-200 hover:border-blue-400 cursor-pointer"
               >
-                {/* Header Bar with Gradient */}
+                {/* Compact Header with Status Stripe */}
                 <div className={`h-1 ${
                   invoice.source === 'order' ? 'bg-gradient-to-r from-cyan-400 to-blue-500' :
                   invoice.synced ? 'bg-gradient-to-r from-green-400 to-emerald-500' : 
                   'bg-gradient-to-r from-yellow-400 to-orange-500'
                 }`}></div>
 
-                <div className="p-4">
-                  {/* Invoice Header - Redesigned */}
-                  <div className="flex items-start justify-between mb-3 pb-3 border-b border-gray-100">
-                    <div className="flex-1">
-                      {/* Title Row */}
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-lg font-bold text-gray-900">
-                          #{invoice.id.split('-').pop()}
-                        </h3>
-                        <div className="flex items-center gap-1.5">
-                          {(!invoice.items || invoice.items.length === 0) ? (
-                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-purple-500 text-white">
-                              🛠️ خدمات
-                            </span>
-                          ) : (
-                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                              invoice.synced 
-                                ? 'bg-green-500 text-white'
-                                : 'bg-yellow-400 text-yellow-900'
-                            }`}>
-                              {invoice.synced ? '✓' : '⏳'}
-                            </span>
-                          )}
-                          {invoice.source === 'order' && (
-                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-cyan-500 to-blue-600 text-white">
-                              🌐 ستور
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* Meta Info */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="flex items-center gap-1 text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded-md">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <span className="font-medium">{new Date(invoice.date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                        </span>
-                        
-                        <span className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm ${
-                          invoice.source === 'order' ? 'bg-gradient-to-r from-cyan-50 to-blue-50 text-cyan-700 border border-cyan-200' :
-                          invoice.paymentMethod === 'cash' ? 'bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 border border-green-200' :
-                          invoice.paymentMethod === 'wallet' ? 'bg-gradient-to-r from-purple-50 to-pink-50 text-purple-700 border border-purple-200' :
-                          invoice.paymentMethod === 'instapay' ? 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200' :
-                          invoice.paymentMethod === 'vera' ? 'bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 border border-indigo-200' :
-                          'bg-gray-50 text-gray-700 border border-gray-200'
-                        }`}>
-                          {invoice.source === 'order' ? '🌐 من الستور' :
-                           invoice.paymentMethod === 'cash' ? '💵 كاش' :
-                           invoice.paymentMethod === 'wallet' ? '👛 محفظة' :
-                           invoice.paymentMethod === 'instapay' ? '📱 انستا باي' :
-                           invoice.paymentMethod === 'vera' ? '💳 مكنة فيزا' : '💳 أخرى'}
-                        </span>
-                        
-                        {invoice.orderId && (
-                          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                            📦 #{invoice.orderId}
+                <div className="p-3">
+                  {/* Compact Header - One Line */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <h3 className="text-base font-bold text-gray-900 truncate">
+                        #{invoice.id.split('-').pop()}
+                      </h3>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {(!invoice.items || invoice.items.length === 0) ? (
+                          <span className="w-5 h-5 rounded-full bg-purple-500 text-white flex items-center justify-center text-[10px] font-bold" title="خدمات فقط">
+                            🛠
                           </span>
+                        ) : (
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                            invoice.synced ? 'bg-green-500 text-white' : 'bg-yellow-400 text-yellow-900'
+                          }`} title={invoice.synced ? 'تمت المزامنة' : 'في الانتظار'}>
+                            {invoice.synced ? '✓' : '⏳'}
+                          </span>
+                        )}
+                        {invoice.source === 'order' && (
+                          <span className="w-5 h-5 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white flex items-center justify-center text-[10px] font-bold" title="من الستور">
+                            🌐
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Total - Prominent but Compact */}
+                    <div className="text-right bg-gradient-to-br from-blue-50 to-indigo-50 px-2.5 py-1.5 rounded-lg border border-blue-200 flex-shrink-0">
+                      <div className="text-lg font-black text-blue-700 leading-tight">
+                        {formatPrice(invoice.summary?.total)}
+                      </div>
+                      <div className="text-[9px] text-gray-600 font-medium">ج.م</div>
+                    </div>
+                  </div>
+
+                  {/* Meta Row - Compact */}
+                  <div className="flex items-center gap-1.5 mb-2 text-[10px] flex-wrap">
+                    <span className="flex items-center gap-1 bg-gray-100 px-1.5 py-0.5 rounded text-gray-700 font-medium">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      {new Date(invoice.date).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    
+                    <span className={`px-1.5 py-0.5 rounded font-bold ${
+                      invoice.source === 'order' ? 'bg-cyan-100 text-cyan-700' :
+                      invoice.paymentMethod === 'cash' ? 'bg-green-100 text-green-700' :
+                      invoice.paymentMethod === 'wallet' ? 'bg-purple-100 text-purple-700' :
+                      invoice.paymentMethod === 'instapay' ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {invoice.source === 'order' ? '🌐' :
+                       invoice.paymentMethod === 'cash' ? '💵' :
+                       invoice.paymentMethod === 'wallet' ? '👛' :
+                       invoice.paymentMethod === 'instapay' ? '📱' : '💳'}
+                    </span>
+
+                    <span className={`px-1.5 py-0.5 rounded font-bold ${
+                      (invoice.paymentStatus || 'paid_full') === 'paid_full' ? 'bg-emerald-100 text-emerald-700' :
+                      (invoice.paymentStatus || 'paid_full') === 'paid_partial' ? 'bg-orange-100 text-orange-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {(invoice.paymentStatus || 'paid_full') === 'paid_full' ? '✅' :
+                       (invoice.paymentStatus || 'paid_full') === 'paid_partial' ? '⚠️' : '🔙'}
+                    </span>
+
+                    {invoice.soldBy?.employeeName && (
+                      <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-bold truncate max-w-[80px]" title={invoice.soldBy.employeeName}>
+                        👤 {invoice.soldBy.employeeName}
+                      </span>
+                    )}
+
+                    <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-bold ml-auto">
+                      {invoice.items?.length || 0}م{invoice.services?.length > 0 && ` • ${invoice.services.length}خ`}
+                    </span>
+                  </div>
+
+                  {/* Quick Stats Bar */}
+                  <div className="grid grid-cols-4 gap-1 text-[10px] mb-2">
+                    {invoice.summary?.productsSubtotal > 0 && (
+                      <div className="bg-gray-50 rounded px-1.5 py-1 text-center">
+                        <div className="text-gray-500 font-medium mb-0.5">منتجات</div>
+                        <div className="font-bold text-gray-900">{formatPrice(invoice.summary.productsSubtotal)}</div>
+                      </div>
+                    )}
+                    {invoice.summary?.servicesTotal > 0 && (
+                      <div className="bg-purple-50 rounded px-1.5 py-1 text-center border border-purple-200">
+                        <div className="text-purple-600 font-medium mb-0.5">خدمات</div>
+                        <div className="font-bold text-purple-700">{formatPrice(invoice.summary.servicesTotal)}</div>
+                      </div>
+                    )}
+                    {invoice.summary?.discount?.amount > 0 && (
+                      <div className="bg-red-50 rounded px-1.5 py-1 text-center border border-red-200">
+                        <div className="text-red-600 font-medium mb-0.5">خصم</div>
+                        <div className="font-bold text-red-700">-{formatPrice(invoice.summary.discount.amount)}</div>
+                      </div>
+                    )}
+                    {(invoice.summary?.totalProfit !== undefined && invoice.summary?.totalProfit !== null) && (
+                      <div className="bg-green-50 rounded px-1.5 py-1 text-center border border-green-200">
+                        <div className="text-green-600 font-medium mb-0.5">ربح</div>
+                        <div className="font-bold text-green-700">{formatPrice(invoice.summary.totalProfit)}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Expandable Details */}
+                  {selectedInvoice?.id === invoice.id && (
+                    <div className="pt-2 border-t border-gray-200 space-y-2 animate-in slide-in-from-top duration-200"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* Financial Details Grid */}
+                      <div className="grid grid-cols-2 gap-1.5 text-[10px] bg-gray-50 p-2 rounded">
+                        {/* Delivery Fee - Editable */}
+                        {(invoice.summary?.deliveryFee > 0 || invoice.orderType === 'delivery') && (
+                          <div className="bg-cyan-50 rounded px-2 py-1 border border-cyan-200">
+                            <div className="text-cyan-700 font-medium mb-0.5">🚚 شحن</div>
+                            {editingDeliveryFee?.invoiceId === invoice.id ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={editingDeliveryFee.value}
+                                  onChange={(e) => setEditingDeliveryFee({ 
+                                    invoiceId: invoice.id, 
+                                    value: e.target.value 
+                                  })}
+                                  className="w-16 px-1 py-0.5 text-[10px] border border-cyan-500 rounded text-right font-bold"
+                                  placeholder="0"
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={() => saveDeliveryFee(invoice.id)}
+                                  className="px-1.5 py-0.5 bg-green-500 text-white rounded text-[9px] font-bold"
+                                >
+                                  ✓
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setEditingDeliveryFee({ 
+                                  invoiceId: invoice.id, 
+                                  value: invoice.summary.deliveryFee || 0 
+                                })}
+                                className="font-bold text-cyan-800 hover:bg-cyan-100 px-1 py-0.5 rounded text-[10px]"
+                              >
+                                {formatPrice(invoice.summary.deliveryFee || 0)} ✏️
+                              </button>
+                            )}
+                          </div>
                         )}
 
-                        {/* 🆕 عرض اسم الكاشير */}
-                        {invoice.soldBy?.employeeName && (
-                          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-to-r from-indigo-50 to-blue-50 text-indigo-700 border border-indigo-200">
-                            👤 {invoice.soldBy.employeeName}
-                          </span>
+                        {/* Invoice Discount - Editable */}
+                        <div className="bg-orange-50 rounded px-2 py-1 border border-orange-200">
+                          <div className="text-orange-700 font-medium mb-0.5">🎁 خصم فاتورة</div>
+                          {editingInvoiceDiscount?.invoiceId === invoice.id ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={editingInvoiceDiscount.value}
+                                onChange={(e) => setEditingInvoiceDiscount({ 
+                                  invoiceId: invoice.id, 
+                                  value: e.target.value 
+                                })}
+                                className="w-16 px-1 py-0.5 text-[10px] border border-orange-500 rounded text-right font-bold"
+                                placeholder="0"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => saveInvoiceDiscount(invoice.id)}
+                                className="px-1.5 py-0.5 bg-green-500 text-white rounded text-[9px] font-bold"
+                              >
+                                ✓
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setEditingInvoiceDiscount({ 
+                                invoiceId: invoice.id, 
+                                value: invoice.summary.invoiceDiscount || 0 
+                              })}
+                              className="font-bold text-orange-800 hover:bg-orange-100 px-1 py-0.5 rounded text-[10px]"
+                            >
+                              {formatPrice(invoice.summary.invoiceDiscount || 0)} ✏️
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Profit Info */}
+                        {(invoice.summary?.totalProfit !== undefined && invoice.summary?.totalProfit !== null) && (
+                          <div className="bg-green-50 rounded px-2 py-1 border border-green-200 col-span-2">
+                            <div className="text-green-700 font-medium mb-0.5">💰 صافي الربح</div>
+                            <div className="font-bold text-green-800 text-[11px]">
+                              {formatPrice(invoice.summary.totalProfit)} ج.م
+                            </div>
+                            {invoice.summary?.finalProductsProfit !== invoice.summary?.productsProfit && (
+                              <div className="text-[9px] text-green-600 mt-0.5">
+                                منتجات: {formatPrice(invoice.summary.finalProductsProfit || 0)} 
+                                {invoice.summary?.servicesTotal > 0 && ` • خدمات: ${formatPrice(invoice.summary.servicesTotal)}`}
+                              </div>
+                            )}
+                          </div>
                         )}
-                        
-                        {/* 🆕 Payment Status - Editable Dropdown */}
+                      </div>
+
+                      {/* Payment Status Selector */}
+                      <div className="bg-gray-50 rounded p-2">
+                        <label className="text-[10px] font-bold text-gray-700 mb-1 block">💰 حالة الدفع:</label>
                         <select
                           value={invoice.paymentStatus || 'paid_full'}
                           onChange={async (e) => {
-                            e.stopPropagation();
                             const newStatus = e.target.value;
                             try {
                               await invoiceStorage.updateInvoicePaymentStatus(invoice.id, newStatus);
@@ -1100,502 +1683,445 @@ export default function InvoicesPage() {
                               setToast({ message: 'فشل تحديث حالة الدفع', type: 'error' });
                             }
                           }}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm cursor-pointer transition-all ${
-                            (invoice.paymentStatus || 'paid_full') === 'paid_full' ? 'bg-gradient-to-r from-emerald-50 to-green-50 text-emerald-700 border border-emerald-200 hover:border-emerald-400' :
-                            (invoice.paymentStatus || 'paid_full') === 'paid_partial' ? 'bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 border border-orange-200 hover:border-orange-400' :
-                            (invoice.paymentStatus || 'paid_full') === 'returned' ? 'bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 hover:border-red-400' :
-                            'bg-gray-50 text-gray-700 border border-gray-200'
+                          className={`w-full px-2 py-1 rounded text-[10px] font-bold border cursor-pointer ${
+                            (invoice.paymentStatus || 'paid_full') === 'paid_full' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' :
+                            (invoice.paymentStatus || 'paid_full') === 'paid_partial' ? 'bg-orange-50 text-orange-700 border-orange-300' :
+                            'bg-red-50 text-red-700 border-red-300'
                           }`}
-                          onClick={(e) => e.stopPropagation()}
                         >
                           <option value="paid_full">✅ مدفوعة كاملة</option>
                           <option value="paid_partial">⚠️ مدفوع جزئي</option>
                           <option value="returned">🔙 مرتجع</option>
                         </select>
                       </div>
-                    </div>
 
-                    {/* 🆕 Invoice Notes Section */}
-                    <div className="mt-3 bg-gray-50 rounded-lg p-3 border border-gray-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-sm">📝</span>
-                        <label className="text-xs font-bold text-gray-700">ملاحظات على الفاتورة</label>
+                      {/* Invoice Notes - Editable */}
+                      <div className="bg-yellow-50 rounded p-2 border border-yellow-200">
+                        <label className="text-[10px] font-bold text-gray-700 mb-1 block">📝 ملاحظات على الفاتورة:</label>
+                        <textarea
+                          value={invoice.notes || ''}
+                          onChange={async (e) => {
+                            const newNotes = e.target.value;
+                            try {
+                              await invoiceStorage.updateInvoiceNotes(invoice.id, newNotes);
+                              await loadInvoices();
+                            } catch (error) {
+                              setToast({ message: 'فشل حفظ الملاحظات', type: 'error' });
+                            }
+                          }}
+                          placeholder="اكتب ملاحظات..."
+                          rows={2}
+                          className="w-full px-2 py-1 bg-white border border-yellow-300 rounded text-[10px] focus:ring-1 focus:ring-yellow-500 resize-none"
+                        />
                       </div>
-                      <textarea
-                        value={invoice.notes || ''}
-                        onChange={async (e) => {
-                          e.stopPropagation();
-                          const newNotes = e.target.value;
-                          try {
-                            await invoiceStorage.updateInvoiceNotes(invoice.id, newNotes);
-                            await loadInvoices();
-                          } catch (error) {
-                            setToast({ message: 'فشل حفظ الملاحظات', type: 'error' });
-                          }
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        placeholder="اكتب ملاحظات على الفاتورة..."
-                        rows={2}
-                        className="w-full px-2 py-2 bg-white border border-gray-300 rounded-lg text-xs
-                          focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                      />
-                    </div>
-                    
-                    {/* Total Amount - Prominent */}
-                    <div className="text-left bg-gradient-to-br from-blue-50 to-indigo-50 px-4 py-2.5 rounded-lg border border-blue-200">
-                      <div className="text-xs font-semibold text-blue-600">الإجمالي</div>
-                      <div className="text-2xl font-black text-blue-700">
-                        {formatPrice(invoice.summary?.total)}
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1">
-                        {invoice.items?.length || 0} منتج{invoice.services?.length > 0 && ` • ${invoice.services.length} خدمة`}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Invoice Details - Improved Grid */}
-                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg p-3 mb-3 border border-gray-200">
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-xs">
-                      {invoice.summary?.productsSubtotal > 0 && (
-                        <div className="flex justify-between items-center bg-white rounded-md px-2 py-1.5">
-                          <span className="text-gray-600 font-medium">منتجات</span>
-                          <span className="font-bold text-gray-900">{formatPrice(invoice.summary.productsSubtotal)}</span>
+                      {/* Order Notes - if available */}
+                      {invoice.orderNotes && (
+                        <div className="bg-purple-50 rounded p-2 border border-purple-200">
+                          <div className="text-[10px] font-bold text-purple-900 mb-1">📝 ملاحظات الطلب</div>
+                          <div className="text-[9px] text-purple-800 whitespace-pre-wrap">{invoice.orderNotes}</div>
                         </div>
                       )}
 
-                      {invoice.summary?.servicesTotal > 0 && (
-                        <div className="flex justify-between items-center bg-purple-50 rounded-md px-2 py-1.5 border border-purple-200">
-                          <span className="text-purple-700 font-medium">خدمات</span>
-                          <span className="font-bold text-purple-800">{formatPrice(invoice.summary.servicesTotal)}</span>
-                        </div>
-                      )}
-
-                      <div className="flex justify-between items-center bg-white rounded-md px-2 py-1.5">
-                        <span className="text-gray-600 font-medium">مجموع</span>
-                        <span className="font-bold text-gray-900">{formatPrice(invoice.summary?.subtotal)}</span>
-                      </div>
-                      
-                      {invoice.summary?.discount?.amount > 0 && (
-                        <div className="flex justify-between items-center bg-red-50 rounded-md px-2 py-1.5 border border-red-200">
-                          <span className="text-red-700 font-medium">
-                            خصم {invoice.summary.discount.type === 'percentage' ? `${invoice.summary.discount.value}%` : ''}
-                          </span>
-                          <span className="font-bold text-red-700">- {formatPrice(invoice.summary.discount.amount)}</span>
-                        </div>
-                      )}
-                      
-                      {invoice.summary?.extraFee > 0 && (
-                        <div className="flex justify-between items-center bg-blue-50 rounded-md px-2 py-1.5 border border-blue-200">
-                          <span className="text-blue-700 font-medium">
-                            رسوم {invoice.summary.extraFeeType === 'percentage' ? `${invoice.summary.extraFeeValue}%` : ''}
-                          </span>
-                          <span className="font-bold text-blue-700">+ {formatPrice(invoice.summary.extraFee)}</span>
-                        </div>
-                      )}
-
-                      {/* Delivery/Shipping Fee */}
-                      {(invoice.summary?.deliveryFee > 0 || invoice.orderType === 'delivery') && (
-                        <div className="flex justify-between items-center bg-cyan-50 rounded-md px-2 py-1.5 border border-cyan-200">
-                          <span className="text-cyan-700 font-medium">🚚 شحن</span>
-                          {editingDeliveryFee?.invoiceId === invoice.id ? (
-                            <div className="flex items-center gap-1">
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={editingDeliveryFee.value}
-                                onChange={(e) => setEditingDeliveryFee({ 
-                                  invoiceId: invoice.id, 
-                                  value: e.target.value 
-                                })}
-                                className="w-20 px-2 py-1 text-sm border-2 border-cyan-500 rounded text-right font-bold"
-                                placeholder="0"
-                              />
-                              <button
-                                onClick={() => saveDeliveryFee(invoice.id)}
-                                className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 font-bold"
-                              >
-                                حفظ
-                              </button>
-                            </div>
-                          ) : (
+                      {/* Products List - Advanced Editing */}
+                      {invoice.items?.length > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <h5 className="text-[10px] font-bold text-gray-700 flex items-center gap-1">
+                              <div className="w-1 h-3 bg-blue-600 rounded-full"></div>
+                              المنتجات ({invoice.items.length})
+                            </h5>
                             <button
-                              onClick={() => setEditingDeliveryFee({ 
-                                invoiceId: invoice.id, 
-                                value: invoice.summary.deliveryFee || 0 
-                              })}
-                              className="font-bold text-cyan-800 hover:bg-cyan-100 px-2 py-1 rounded"
-                              title="اضغط للتعديل"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                setShowProductSelector(invoice.id);
+                                await loadProductsFromAPI();
+                              }}
+                              className="px-2 py-0.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-[9px] font-bold"
+                              title="إضافة منتج من المخزون"
                             >
-                              + {formatPrice(invoice.summary.deliveryFee || 0)} ✏️
+                              + منتج
                             </button>
-                          )}
+                          </div>
+                          <div className="space-y-0.5 max-h-40 overflow-y-auto">
+                            {invoice.items.map((item) => (
+                              <div key={item.id} className="group bg-blue-50 rounded p-1.5 border border-blue-200">
+                                <div className="flex items-center gap-1.5">
+                                  {/* Quantity - Editable */}
+                                  <div className="flex items-center gap-0.5">
+                                    {editingProduct?.invoiceId === invoice.id && editingProduct?.productId === item.id && editingProduct?.field === 'quantity' ? (
+                                      <input
+                                        type="number"
+                                        value={editingProduct.value}
+                                        onChange={(e) => setEditingProduct({...editingProduct, value: e.target.value})}
+                                        onBlur={() => updateProductQuantity(invoice, item.id, editingProduct.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && updateProductQuantity(invoice, item.id, editingProduct.value)}
+                                        className="w-10 px-1 py-0.5 text-[9px] border border-blue-500 rounded text-center font-bold"
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <button
+                                        onClick={() => setEditingProduct({ invoiceId: invoice.id, productId: item.id, field: 'quantity', value: item.quantity })}
+                                        className="w-6 h-6 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center justify-center text-[9px] font-bold"
+                                        title="تعديل الكمية"
+                                      >
+                                        {item.quantity}
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Product Name */}
+                                  <span className="font-semibold text-gray-900 text-[10px] flex-1 truncate">{item.name}</span>
+
+                                  {/* Price - Editable */}
+                                  <div className="flex items-center gap-0.5">
+                                    {editingProduct?.invoiceId === invoice.id && editingProduct?.productId === item.id && editingProduct?.field === 'price' ? (
+                                      <input
+                                        type="number"
+                                        value={editingProduct.value}
+                                        onChange={(e) => setEditingProduct({...editingProduct, value: e.target.value})}
+                                        onBlur={() => updateProductPrice(invoice, item.id, editingProduct.value)}
+                                        onKeyPress={(e) => e.key === 'Enter' && updateProductPrice(invoice, item.id, editingProduct.value)}
+                                        className="w-16 px-1 py-0.5 text-[9px] border border-blue-500 rounded text-right font-bold"
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <button
+                                        onClick={() => setEditingProduct({ invoiceId: invoice.id, productId: item.id, field: 'price', value: item.price })}
+                                        className="text-[10px] font-bold text-blue-700 hover:bg-blue-100 px-1 py-0.5 rounded"
+                                        title="تعديل السعر"
+                                      >
+                                        {formatPrice(item.price)} ✏️
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Total */}
+                                  <span className="font-bold text-blue-800 text-[10px]">=</span>
+                                  <span className="font-bold text-blue-700 text-[10px] w-14 text-left">
+                                    {formatPrice(Number(item.price) * item.quantity)}
+                                  </span>
+
+                                  {/* Delete */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (window.confirm(`هل تريد حذف "${item.name}" من الفاتورة؟`)) {
+                                        deleteProductFromInvoice(invoice, item.id);
+                                      }
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                                    title="حذف المنتج"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+
+                            {/* Product Selector Modal */}
+                            {showProductSelector === invoice.id && (
+                              <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={() => setShowProductSelector(null)}>
+                                <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                                  {/* Header */}
+                                  <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white">
+                                    <h3 className="text-lg font-bold text-gray-900">اختر منتج للإضافة</h3>
+                                    <button
+                                      onClick={() => setShowProductSelector(null)}
+                                      className="w-8 h-8 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded flex items-center justify-center font-bold"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                  
+                                  {/* Search */}
+                                  <div className="p-4 border-b border-gray-200 bg-gray-50">
+                                    <input
+                                      type="text"
+                                      placeholder="ابحث عن منتج..."
+                                      value={productSearchTerm}
+                                      onChange={(e) => setProductSearchTerm(e.target.value)}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500"
+                                    />
+                                  </div>
+
+                                  {/* Products List */}
+                                  <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+                                    {productsLoading ? (
+                                      <div className="text-center py-8 text-gray-600">جاري التحميل...</div>
+                                    ) : (
+                                      <div className="grid grid-cols-1 gap-2">
+                                        {availableProducts
+                                          .filter(p => p.name.toLowerCase().includes(productSearchTerm.toLowerCase()))
+                                          .map((product) => (
+                                          <div
+                                            key={product.id}
+                                            onClick={() => {
+                                              if (product.type === 'variable') {
+                                                handleSelectVariation(product);
+                                              } else {
+                                                addProductToInvoice(invoice, product);
+                                              }
+                                            }}
+                                            className="p-3 border border-gray-300 bg-white rounded-lg hover:bg-blue-50 hover:border-blue-300 cursor-pointer flex items-center justify-between transition-colors"
+                                          >
+                                            <div className="flex-1">
+                                              <h4 className="font-bold text-sm text-gray-900">{product.name}</h4>
+                                              <div className="flex items-center gap-4 text-xs text-gray-600 mt-1">
+                                                <span className="text-gray-700">السعر: {formatPrice(product.price)}</span>
+                                                {product.type === 'variable' ? (
+                                                  <span className="text-blue-600 font-semibold">منتج متغير - اختر المواصفات</span>
+                                                ) : (
+                                                  <span className={product.stock_quantity <= 0 ? 'text-red-600 font-bold' : 'text-green-600 font-semibold'}>
+                                                    المخزون: {product.stock_quantity}
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                            <button 
+                                              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-bold text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                              disabled={product.type !== 'variable' && product.stock_quantity <= 0}
+                                            >
+                                              {product.type === 'variable' ? 'اختيارات' : product.stock_quantity <= 0 ? 'غير متوفر' : 'إضافة'}
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
 
-                      {/* 🆕 خصم الفاتورة */}
-                      <div className="flex justify-between items-center bg-orange-50 rounded-md px-2 py-1.5 border border-orange-200">
-                        <span className="text-orange-700 font-medium">🎁 خصم فاتورة</span>
-                        {editingInvoiceDiscount?.invoiceId === invoice.id ? (
-                          <div className="flex items-center gap-1">
+                      {/* Services List - Advanced Editing */}
+                      <div>
+                        {invoice.services?.length > 0 && (
+                          <div>
+                            <h5 className="text-[10px] font-bold text-gray-700 mb-1 flex items-center gap-1">
+                              <div className="w-1 h-3 bg-purple-600 rounded-full"></div>
+                              الخدمات ({invoice.services.length})
+                            </h5>
+                          <div className="space-y-0.5">
+                            {invoice.services.map((service, index) => (
+                              <div key={index} className="group flex items-center justify-between text-[10px] bg-purple-50 rounded p-1.5 border border-purple-200">
+                                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                  <span className="text-sm">🔧</span>
+                                  <div className="flex-1">
+                                    <span className="font-semibold text-gray-900 truncate block">{service.description}</span>
+                                    {service.employeeName && (
+                                      <span className="text-[9px] text-purple-600">({service.employeeName})</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="font-bold text-purple-700 flex-shrink-0">
+                                    {formatPrice(service.amount)}
+                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (window.confirm(`هل تريد حذف خدمة "${service.description}" من الفاتورة؟`)) {
+                                        deleteServiceFromInvoice(invoice, index);
+                                      }
+                                    }}
+                                    className="opacity-0 group-hover:opacity-100 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded flex items-center justify-center text-[10px] font-bold"
+                                    title="حذف الخدمة"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Add Service Section */}
+                      <div>
+                        {addingService === invoice.id ? (
+                          <div className="bg-purple-50 border-2 border-purple-400 rounded p-2 space-y-1.5">
+                            <h5 className="text-[10px] font-bold text-purple-900 mb-1">🔧 إضافة خدمة جديدة</h5>
                             <input
                               type="text"
-                              inputMode="numeric"
-                              value={editingInvoiceDiscount.value}
-                              onChange={(e) => setEditingInvoiceDiscount({ 
-                                invoiceId: invoice.id, 
-                                value: e.target.value 
-                              })}
-                              className="w-20 px-2 py-1 text-sm border-2 border-orange-500 rounded text-right font-bold"
-                              placeholder="0"
+                              placeholder="وصف الخدمة"
+                              value={newService.description}
+                              onChange={(e) => setNewService({...newService, description: e.target.value})}
+                              className="w-full px-2 py-1 text-[10px] border border-purple-300 rounded"
+                              autoFocus
                             />
-                            <button
-                              onClick={() => saveInvoiceDiscount(invoice.id)}
-                              className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 font-bold"
-                            >
-                              حفظ
-                            </button>
+                            <input
+                              type="text"
+                              placeholder="اسم العامل (اختياري)"
+                              value={newService.employeeName}
+                              onChange={(e) => setNewService({...newService, employeeName: e.target.value})}
+                              className="w-full px-2 py-1 text-[10px] border border-purple-300 rounded"
+                            />
+                            <input
+                              type="number"
+                              placeholder="المبلغ"
+                              value={newService.amount}
+                              onChange={(e) => setNewService({...newService, amount: e.target.value})}
+                              className="w-full px-2 py-1 text-[10px] border border-purple-300 rounded"
+                            />
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => addServiceToInvoice(invoice)}
+                                className="flex-1 px-2 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded text-[10px] font-bold"
+                              >
+                                ✓ إضافة الخدمة
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setAddingService(null);
+                                  setNewService({ description: '', amount: 0, employeeName: '' });
+                                }}
+                                className="px-2 py-1 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded text-[10px] font-bold"
+                              >
+                                ✕
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <button
-                            onClick={() => setEditingInvoiceDiscount({ 
-                              invoiceId: invoice.id, 
-                              value: invoice.summary.invoiceDiscount || 0 
-                            })}
-                            className="font-bold text-orange-800 hover:bg-orange-100 px-2 py-1 rounded"
-                            title="اضغط للتعديل"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAddingService(invoice.id);
+                            }}
+                            className="w-full px-2 py-1.5 bg-purple-100 hover:bg-purple-200 border border-purple-300 text-purple-700 rounded text-[10px] font-bold transition-colors"
                           >
-                            - {formatPrice(invoice.summary.invoiceDiscount || 0)} ✏️
+                            + إضافة خدمة
                           </button>
                         )}
                       </div>
+                      </div>
 
-                      {/* Profit breakdown - Enhanced */}
-                      {(invoice.summary?.totalProfit > 0 || invoice.summary?.productsProfit > 0) && (
-                        <>
-                          <div className="col-span-full h-px bg-gradient-to-r from-transparent via-green-300 to-transparent my-1"></div>
-                          
-                          {invoice.summary?.productsProfit > 0 && (
-                            <div className="flex justify-between items-center bg-green-50 rounded-md px-2 py-1.5 border border-green-200">
-                              <span className="text-green-700 font-medium">💰 ربح</span>
-                              <span className="font-bold text-green-800">+ {formatPrice(invoice.summary.productsProfit)}</span>
-                            </div>
-                          )}
-
-                          {invoice.summary?.discountOnProducts > 0 && (
-                            <div className="flex justify-between items-center bg-orange-50 rounded-md px-2 py-1.5 border border-orange-200">
-                              <span className="text-orange-700 font-medium">➖ خصم</span>
-                              <span className="font-bold text-orange-800">- {formatPrice(invoice.summary.discountOnProducts)}</span>
-                            </div>
-                          )}
-
-                          {invoice.summary?.finalProductsProfit !== undefined && invoice.summary?.finalProductsProfit !== invoice.summary?.productsProfit && (
-                            <div className="flex justify-between items-center bg-green-100 rounded-md px-2 py-1.5 border border-green-300">
-                              <span className="text-green-800 font-medium">📦 صافي</span>
-                              <span className="font-bold text-green-900">{formatPrice(invoice.summary.finalProductsProfit)}</span>
-                            </div>
-                          )}
-
-                          <div className="flex justify-between items-center bg-gradient-to-r from-green-500 to-emerald-600 rounded-md px-2 py-1.5">
-                            <span className="font-bold text-white text-xs">✅ إجمالي الربح</span>
-                            <span className="font-black text-white">{formatPrice(invoice.summary.totalProfit)}</span>
+                      {/* Delivery Info - Compact */}
+                      {invoice.delivery && (
+                        <div className="bg-cyan-50 rounded p-2 border border-cyan-200">
+                          <h5 className="text-[10px] font-bold text-cyan-900 mb-1">🚚 بيانات التوصيل</h5>
+                          <div className="text-[10px] text-gray-700 space-y-0.5">
+                            {invoice.delivery.customer?.name && (
+                              <div>👤 {invoice.delivery.customer.name}</div>
+                            )}
+                            {invoice.delivery.customer?.phone && (
+                              <div>📱 {invoice.delivery.customer.phone}</div>
+                            )}
+                            {invoice.delivery.customer?.address && (
+                              <div>📍 {invoice.delivery.customer.address.city}, {invoice.delivery.customer.address.district}</div>
+                            )}
+                            {invoice.delivery.notes && (
+                              <div className="bg-yellow-50 border border-yellow-200 rounded px-1 py-0.5 mt-1">
+                                📝 {invoice.delivery.notes}
+                              </div>
+                            )}
                           </div>
-                        </>
+                        </div>
                       )}
 
-                      {/* Warning for items without purchase price - Enhanced */}
+                      {/* Customer Info - if available */}
+                      {invoice.customerInfo && !invoice.delivery && (
+                        <div className="bg-indigo-50 rounded p-2 border border-indigo-200">
+                          <h5 className="text-[10px] font-bold text-indigo-900 mb-1">👤 بيانات العميل</h5>
+                          <div className="text-[10px] text-gray-700 space-y-0.5">
+                            {invoice.customerInfo.name && <div>الاسم: {invoice.customerInfo.name}</div>}
+                            {invoice.customerInfo.phone && <div>الهاتف: {invoice.customerInfo.phone}</div>}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Payment Status Details */}
+                      {invoice.deliveryPayment && (
+                        <div className={`rounded p-2 border ${
+                          invoice.deliveryPayment.status === 'fully_paid' || invoice.deliveryPayment.status === 'fully_paid_no_delivery'
+                            ? 'bg-green-50 border-green-300'
+                            : invoice.deliveryPayment.status === 'half_paid'
+                            ? 'bg-yellow-50 border-yellow-300'
+                            : 'bg-orange-50 border-orange-300'
+                        }`}>
+                          <div className="text-[10px] font-bold text-gray-900 mb-1">
+                            {invoice.deliveryPayment.status === 'cash_on_delivery' && '💵 دفع عند الاستلام'}
+                            {invoice.deliveryPayment.status === 'half_paid' && '💰 نصف المبلغ مدفوع'}
+                            {invoice.deliveryPayment.status === 'fully_paid' && '✅ مدفوع كاملاً'}
+                            {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && '💳 مدفوع كاملاً (بدون توصيل)'}
+                          </div>
+                          {invoice.deliveryPayment.status === 'half_paid' && (
+                            <div className="grid grid-cols-2 gap-1 text-[9px]">
+                              <div className="bg-white rounded px-1.5 py-1">
+                                <span className="text-green-700">✓ مدفوع: </span>
+                                <span className="font-bold text-green-900">{formatPrice(invoice.deliveryPayment.paidAmount)}</span>
+                              </div>
+                              <div className="bg-white rounded px-1.5 py-1">
+                                <span className="text-red-700">⏳ متبقي: </span>
+                                <span className="font-bold text-red-900">{formatPrice(invoice.deliveryPayment.remainingAmount)}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Warning for items without purchase price */}
                       {(invoice.itemsWithoutProfit?.length > 0 || invoice.summary?.itemsWithoutPurchasePrice > 0) && (
-                        <div className="col-span-full bg-yellow-50 border border-yellow-300 rounded-lg p-2 flex items-start gap-2">
-                          <div className="flex-shrink-0 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center">
-                            <svg className="w-4 h-4 text-yellow-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                          </div>
+                        <div className="bg-yellow-50 border border-yellow-300 rounded p-1.5 flex items-start gap-1">
+                          <span className="text-yellow-600 text-[10px]">⚠️</span>
                           <div className="flex-1">
-                            <p className="text-xs font-bold text-yellow-900">⚠️ تحذير: أرباح غير دقيقة</p>
-                            <p className="text-xs text-yellow-800">
-                              {invoice.itemsWithoutProfit?.length || invoice.summary?.itemsWithoutPurchasePrice || 0} من {invoice.items?.length || invoice.summary?.totalItemsCount || 0} منتج ليس له سعر شراء
+                            <p className="text-[9px] font-bold text-yellow-900">تحذير: أرباح غير دقيقة</p>
+                            <p className="text-[9px] text-yellow-800">
+                              {invoice.itemsWithoutProfit?.length || invoice.summary?.itemsWithoutPurchasePrice || 0} من {invoice.items?.length || 0} منتج بدون سعر شراء
                             </p>
                           </div>
                         </div>
                       )}
-
-                    </div>
-                  </div>
-
-                  {/* Delivery Details - if available */}
-                  {invoice.delivery && (
-                    <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-lg p-3 mb-3 border border-cyan-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-7 h-7 bg-cyan-500 rounded-full flex items-center justify-center">
-                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                          </svg>
-                        </div>
-                        <h4 className="text-sm font-bold text-cyan-900">🚚 توصيل</h4>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="bg-white rounded-md p-2">
-                          <div className="flex items-center gap-1 mb-1">
-                            <span>👤</span>
-                            <span className="font-semibold text-gray-700">العميل</span>
-                          </div>
-                          <p className="text-gray-900 font-medium">{invoice.delivery.customer?.name || 'غير محدد'}</p>
-                          {invoice.delivery.customer?.phone && (
-                            <p className="text-gray-600 mt-1">📱 {invoice.delivery.customer.phone}</p>
-                          )}
-                        </div>
-                        {invoice.delivery.customer?.address && (
-                          <div className="bg-white rounded-md p-2">
-                            <div className="flex items-center gap-1 mb-1">
-                              <span>📍</span>
-                              <span className="font-semibold text-gray-700">العنوان</span>
-                            </div>
-                            <p className="text-gray-900">
-                              {invoice.delivery.customer.address.city && `${invoice.delivery.customer.address.city}, `}
-                              {invoice.delivery.customer.address.district && `${invoice.delivery.customer.address.district}`}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      {invoice.delivery.notes && (
-                        <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-md p-2">
-                          <p className="text-xs text-yellow-800">📝 {invoice.delivery.notes}</p>
-                        </div>
-                      )}
                     </div>
                   )}
 
-                  {/* Order Notes - if available */}
-                  {invoice.orderNotes && (
-                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-3 mb-3 border-2 border-purple-300">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-7 h-7 bg-purple-500 rounded-full flex items-center justify-center">
-                          <span className="text-white text-sm">📝</span>
-                        </div>
-                        <h4 className="text-sm font-bold text-purple-900">ملاحظات على الطلب</h4>
-                      </div>
-                      <div className="bg-white rounded-md p-2 border border-purple-200">
-                        <p className="text-xs text-purple-900 whitespace-pre-wrap leading-relaxed">{invoice.orderNotes}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 🆕 Payment Status for Delivery Orders */}
-                  {invoice.deliveryPayment && (
-                    <div className={`rounded-lg p-3 mb-3 border-2 ${
-                      invoice.deliveryPayment.status === 'fully_paid' || invoice.deliveryPayment.status === 'fully_paid_no_delivery'
-                        ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300'
-                        : invoice.deliveryPayment.status === 'half_paid'
-                        ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-300'
-                        : 'bg-gradient-to-br from-orange-50 to-yellow-50 border-orange-300'
-                    }`}>
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                          invoice.deliveryPayment.status === 'fully_paid' || invoice.deliveryPayment.status === 'fully_paid_no_delivery'
-                            ? 'bg-green-500'
-                            : invoice.deliveryPayment.status === 'half_paid'
-                            ? 'bg-yellow-500'
-                            : 'bg-orange-500'
-                        }`}>
-                          <span className="text-sm">
-                            {invoice.deliveryPayment.status === 'fully_paid' && '✅'}
-                            {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && '💳'}
-                            {invoice.deliveryPayment.status === 'half_paid' && '💰'}
-                            {invoice.deliveryPayment.status === 'cash_on_delivery' && '💵'}
-                          </span>
-                        </div>
-                        <h4 className={`text-sm font-bold ${
-                          invoice.deliveryPayment.status === 'fully_paid' || invoice.deliveryPayment.status === 'fully_paid_no_delivery'
-                            ? 'text-green-900'
-                            : invoice.deliveryPayment.status === 'half_paid'
-                            ? 'text-yellow-900'
-                            : 'text-orange-900'
-                        }`}>
-                          {invoice.deliveryPayment.status === 'cash_on_delivery' && 'دفع عند الاستلام'}
-                          {invoice.deliveryPayment.status === 'half_paid' && 'نصف المبلغ مدفوع'}
-                          {invoice.deliveryPayment.status === 'fully_paid' && 'مدفوع كاملاً'}
-                          {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && 'مدفوع كاملاً (بدون توصيل)'}
-                        </h4>
-                      </div>
-                      
-                      {invoice.deliveryPayment.status === 'half_paid' && (
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div className="bg-white rounded-md p-2 border border-green-200">
-                            <p className="font-semibold text-green-700 mb-1">✓ المبلغ المدفوع</p>
-                            <p className="text-green-900 font-bold">{formatPrice(invoice.deliveryPayment.paidAmount)} ج.م</p>
-                          </div>
-                          <div className="bg-white rounded-md p-2 border border-red-200">
-                            <p className="font-semibold text-red-700 mb-1">⏳ المتبقي</p>
-                            <p className="text-red-900 font-bold">{formatPrice(invoice.deliveryPayment.remainingAmount)} ج.م</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {invoice.deliveryPayment.status === 'half_paid' && invoice.deliveryPayment.note && (
-                        <div className="mt-2 bg-white border border-yellow-200 rounded-md p-2">
-                          <p className="text-xs text-gray-700">📝 {invoice.deliveryPayment.note}</p>
-                        </div>
-                      )}
-
-                      {invoice.deliveryPayment.status === 'cash_on_delivery' && (
-                        <div className="bg-white rounded-md p-2 text-xs border border-orange-200">
-                          <p className="font-semibold text-orange-900 text-center">💰 المبلغ المطلوب: {formatPrice(invoice.summary.total)} ج.م</p>
-                        </div>
-                      )}
-
-                      {(invoice.deliveryPayment.status === 'fully_paid' || invoice.deliveryPayment.status === 'fully_paid_no_delivery') && (
-                        <div className="bg-white rounded-md p-2 text-xs border border-green-200">
-                          <p className="font-semibold text-green-900 text-center">✓ تم الدفع بالكامل - {formatPrice(invoice.summary.total)} ج.م</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Customer Info from Order - if available */}
-                  {invoice.customerInfo && !invoice.delivery && (
-                    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-3 mb-3 border border-indigo-200">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-7 h-7 bg-indigo-500 rounded-full flex items-center justify-center">
-                          <span className="text-sm">👤</span>
-                        </div>
-                        <h4 className="text-sm font-bold text-indigo-900">بيانات العميل</h4>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        {invoice.customerInfo.name && (
-                          <div className="bg-white rounded-md p-2">
-                            <p className="font-semibold text-gray-700 mb-1">الاسم</p>
-                            <p className="text-gray-900">{invoice.customerInfo.name}</p>
-                          </div>
-                        )}
-                        {invoice.customerInfo.phone && (
-                          <div className="bg-white rounded-md p-2">
-                            <p className="font-semibold text-gray-700 mb-1">الهاتف</p>
-                            <p className="text-gray-900">{invoice.customerInfo.phone}</p>
-                          </div>
-                        )}
-                        {/* {invoice.customerInfo.email && (
-                          <div className="bg-white rounded-md p-2 col-span-2">
-                            <p className="font-semibold text-gray-700 mb-1">البريد</p>
-                            <p className="text-gray-900 text-xs">{invoice.customerInfo.email}</p>
-                          </div>
-                        )} */}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Products List - Redesigned */}
-                  {invoice.items?.length > 0 && (
-                    <div className="mb-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-1 h-4 bg-blue-600 rounded-full"></div>
-                        <h4 className="text-xs font-bold text-gray-800">المنتجات ({invoice.items.length})</h4>
-                      </div>
-                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                        {invoice.items.map((item, idx) => (
-                          <div key={item.id} className="group flex items-center justify-between text-xs bg-gradient-to-r from-gray-50 to-blue-50 hover:from-blue-50 hover:to-indigo-50 rounded-lg p-2 border border-gray-200 hover:border-blue-300 transition-all">
-                            <div className="flex items-center gap-2 flex-1">
-                              <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-md flex items-center justify-center text-xs font-bold">
-                                {item.quantity}
-                              </div>
-                              <div className="flex-1">
-                                <span className="font-semibold text-gray-900 block text-xs">{item.name}</span>
-                                <span className="text-xs text-gray-600">{formatPrice(item.price)} × {item.quantity}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-blue-700 text-xs">
-                                {formatPrice(Number(item.price) * item.quantity)}
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (window.confirm(`هل تريد حذف "${item.name}" من الفاتورة؟`)) {
-                                    deleteProductFromInvoice(invoice, item.id);
-                                  }
-                                }}
-                                className="opacity-0 group-hover:opacity-100 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-md flex items-center justify-center transition-all text-xs font-bold"
-                                title="حذف المنتج"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Services List - Redesigned */}
-                  {invoice.services?.length > 0 && (
-                    <div className="mb-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-1 h-4 bg-purple-600 rounded-full"></div>
-                        <h4 className="text-xs font-bold text-gray-800">الخدمات ({invoice.services.length})</h4>
-                      </div>
-                      <div className="space-y-1.5">
-                        {invoice.services.map((service, index) => (
-                          <div key={index} className="group flex items-center justify-between text-xs bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-2 border border-purple-200 hover:border-purple-400 transition-all">
-                            <div className="flex items-center gap-2 flex-1">
-                              <span className="text-lg">🔧</span>
-                              <div className="flex-1">
-                                <span className="font-semibold text-gray-900 block">{service.description}</span>
-                                {service.employeeName && (
-                                  <span className="text-[10px] text-purple-600 font-medium">👤 {service.employeeName}</span>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-purple-700">
-                                {formatPrice(service.amount)}
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (window.confirm(`هل تريد حذف خدمة "${service.description}" من الفاتورة؟`)) {
-                                    deleteServiceFromInvoice(invoice, index);
-                                  }
-                                }}
-                                className="opacity-0 group-hover:opacity-100 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-md flex items-center justify-center transition-all text-xs font-bold"
-                                title="حذف الخدمة"
-                              >
-                                ×
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Actions - Enhanced */}
-                  <div className="flex gap-2 pt-3 border-t border-gray-100">
+                  {/* Compact Actions */}
+                  <div className="flex gap-1.5 pt-2 border-t border-gray-100">
                     <button
-                      onClick={() => printInvoice(invoice)}
-                      className="flex-1 px-3 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 shadow-md hover:shadow-lg"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        printInvoice(invoice);
+                      }}
+                      className="flex-1 px-2 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded text-[11px] font-bold transition-all flex items-center justify-center gap-1"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                       </svg>
                       طباعة
                     </button>
                     
-                    {/* 🔥 إخفاء زر المزامنة للفواتير بدون منتجات أو المزامنة */}
                     {!invoice.synced && invoice.items?.length > 0 && (
                       <button
-                        onClick={() => syncInvoice(invoice)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          syncInvoice(invoice);
+                        }}
                         disabled={syncingId === invoice.id}
-                        className={`flex-1 px-3 py-2 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-1.5 shadow-md ${
+                        className={`flex-1 px-2 py-1.5 rounded text-[11px] font-bold transition-all flex items-center justify-center gap-1 ${
                           syncingId === invoice.id
                             ? 'bg-gray-300 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white hover:shadow-lg'
+                            : 'bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white'
                         }`}
                       >
-                        <svg className={`w-4 h-4 ${syncingId === invoice.id ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className={`w-3 h-3 ${syncingId === invoice.id ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
-                        {syncingId === invoice.id ? 'مزامنة...' : 'مزامنة'}
+                        {syncingId === invoice.id ? '...' : 'مزامنة'}
                       </button>
                     )}
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedInvoice(selectedInvoice?.id === invoice.id ? null : invoice);
+                      }}
+                      className="px-2 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[11px] font-bold transition-all"
+                      title={selectedInvoice?.id === invoice.id ? 'إخفاء' : 'عرض التفاصيل'}
+                    >
+                      {selectedInvoice?.id === invoice.id ? '▲' : '▼'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1651,11 +2177,31 @@ export default function InvoicesPage() {
         />
       )}
 
+      {/* VariationSelector */}
+      {variationSelectorProduct && variationSelectorVariations && showProductSelector && (
+        <VariationSelector
+          product={variationSelectorProduct}
+          variations={variationSelectorVariations}
+          onClose={() => {
+            setVariationSelectorProduct(null);
+            setVariationSelectorVariations(null);
+          }}
+          onSelect={(product, selectedVariation) => {
+            // Get the invoice we're adding to
+            const invoice = invoices.find(inv => inv.id === showProductSelector);
+            if (invoice) {
+              handleAddVariationToInvoice(invoice, product, selectedVariation);
+            }
+          }}
+        />
+      )}
+
       {/* Toast */}
       {toast && (
         <Toast
           message={toast.message}
           type={toast.type}
+          isVisible={true}
           onClose={() => setToast(null)}
         />
       )}

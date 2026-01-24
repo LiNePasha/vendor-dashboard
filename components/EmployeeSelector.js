@@ -35,7 +35,7 @@ export default function EmployeeSelector({ employees, selectedEmployee, onChange
               const emp = employees.find(employee => employee.id === e.target.value);
               onChange(emp || null);
             }}
-            className="w-full px-2 py-1 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-400 focus:border-blue-400 text-sm font-medium bg-white"
+            className="w-full px-2 py-1 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-400 focus:border-blue-400 text-sm font-medium text-black bg-white"
             required={required}
           >
             <option value="">-- اختر الموظف البائع --</option>

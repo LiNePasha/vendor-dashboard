@@ -153,12 +153,12 @@ export default function CustomerSelector({ selectedCustomer, onSelect, onClear }
                         onClick={() => handleSelectCustomer(customer)}
                         className="w-full px-4 py-3 text-right hover:bg-blue-50 transition-all border-b last:border-b-0"
                       >
-                        <div className="font-semibold text-white">{customer.name}</div>
+                        <div className="font-semibold text-black">{customer.name}</div>
                         {customer.phone && (
-                          <div className="text-sm text-white">📱 {customer.phone}</div>
+                          <div className="text-sm text-black">📱 {customer.phone}</div>
                         )}
                         {customer.address?.city && (
-                          <div className="text-xs text-white">📍 {customer.address.city}</div>
+                          <div className="text-xs text-black">📍 {customer.address.city}</div>
                         )}
                       </button>
                     ))
