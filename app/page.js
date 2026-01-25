@@ -536,15 +536,21 @@ export default function DashboardPage() {
   );
 }
 
-// Professional Chart Component using Recharts
+// Professional Chart Component using Recharts - Mobile Optimized
 function SalesChart({ data }) {
   if (!data || data.length === 0) return null;
 
+  // Detect mobile
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+
   // Format data for Recharts
-  const chartData = data.map((day) => ({
+  const chartData = data.map((day, index) => ({
     date: new Date(day.date).toLocaleDateString("ar-EG", {
       day: "numeric",
-      month: "short",
+      month: isMobile ? "numeric" : "short",
+    }),
+    shortDate: new Date(day.date).toLocaleDateString("ar-EG", {
+      day: "numeric",
     }),
     fullDate: day.date,
     revenue: day.revenue,
@@ -555,25 +561,21 @@ function SalesChart({ data }) {
   const maxRevenue = Math.max(...data.map((d) => d.revenue));
   const avgRevenue = data.reduce((sum, d) => sum + d.revenue, 0) / data.length;
 
-  // Custom Tooltip
+  // Custom Tooltip - Mobile Optimized
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-gray-900 text-white p-4 rounded-xl shadow-2xl border border-gray-700">
-          <p className="font-bold text-sm mb-2 text-blue-300">{data.date}</p>
-          <div className="space-y-1 text-xs">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-gray-300">💰 الإيرادات:</span>
-              <span className="font-bold text-green-400">{formatCurrency(data.revenue)}</span>
+        <div className="bg-gray-900 text-white p-2 sm:p-3 rounded-lg shadow-2xl border border-gray-700 max-w-[200px]">
+          <p className="font-bold text-xs sm:text-sm mb-1 text-blue-300">{data.date}</p>
+          <div className="space-y-0.5 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-300">💰</span>
+              <span className="font-bold text-green-400 text-xs">{formatCurrency(data.revenue)}</span>
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-gray-300">📦 الطلبات:</span>
-              <span className="font-bold text-blue-400">{data.orders}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-gray-300">🛍️ المنتجات:</span>
-              <span className="font-bold text-purple-400">{data.items}</span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-300">📦 {data.orders}</span>
+              <span className="text-gray-300">🛍️ {data.items}</span>
             </div>
           </div>
         </div>
@@ -583,109 +585,133 @@ function SalesChart({ data }) {
   };
 
   return (
-    <div className="space-y-4">
-      {/* Chart Type Tabs - Mobile/Desktop */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs sm:text-sm">
+    <div className="space-y-3">
+      {/* Legend - Compact for Mobile */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 text-xs">
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-600"></div>
+            <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-gradient-to-r from-blue-500 to-purple-600"></div>
             <span className="text-gray-600">الإيرادات</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+            <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-green-500"></div>
             <span className="text-gray-600">الطلبات</span>
           </div>
         </div>
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-gray-500 hidden sm:block">
           متوسط: {formatCurrency(avgRevenue)}
         </div>
       </div>
 
-      {/* Area Chart */}
-      <ResponsiveContainer width="100%" height={350}>
-        <AreaChart
-          data={chartData}
-          margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-        >
-          <defs>
-            <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
-              <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1} />
-            </linearGradient>
-            <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#10b981" stopOpacity={0.6} />
-              <stop offset="95%" stopColor="#10b981" stopOpacity={0.05} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
-          <XAxis
-            dataKey="date"
-            stroke="#6b7280"
-            style={{ fontSize: '11px', fontWeight: 500 }}
-            tick={{ fill: '#6b7280' }}
-          />
-          <YAxis
-            yAxisId="revenue"
-            stroke="#3b82f6"
-            style={{ fontSize: '11px', fontWeight: 500 }}
-            tick={{ fill: '#6b7280' }}
-            tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
-          />
-          <YAxis
-            yAxisId="orders"
-            orientation="left"
-            stroke="#10b981"
-            style={{ fontSize: '11px', fontWeight: 500 }}
-            tick={{ fill: '#6b7280' }}
-          />
-          <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#3b82f6', strokeWidth: 2, strokeDasharray: '5 5' }} />
-          
-          {/* Revenue Area */}
-          <Area
-            yAxisId="revenue"
-            type="monotone"
-            dataKey="revenue"
-            stroke="#3b82f6"
-            strokeWidth={3}
-            fill="url(#colorRevenue)"
-            animationDuration={1000}
-            dot={{ r: 4, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
-            activeDot={{ r: 6, fill: '#8b5cf6', stroke: '#fff', strokeWidth: 2 }}
-          />
-          
-          {/* Orders Area (smaller) */}
-          <Area
-            yAxisId="orders"
-            type="monotone"
-            dataKey="orders"
-            stroke="#10b981"
-            strokeWidth={2}
-            fill="url(#colorOrders)"
-            animationDuration={1200}
-            dot={{ r: 3, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }}
-            activeDot={{ r: 5, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+      {/* Area Chart - Responsive Height */}
+      <div className="w-full overflow-x-auto" style={{ height: isMobile ? '280px' : '350px' }}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={isMobile ? 300 : undefined}>
+          <AreaChart
+            data={chartData}
+            margin={{ 
+              top: 10, 
+              right: isMobile ? 5 : 10, 
+              left: isMobile ? -25 : 0, 
+              bottom: isMobile ? 5 : 5 
+            }}
+          >
+            <defs>
+              <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.1} />
+              </linearGradient>
+              <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#10b981" stopOpacity={0.6} />
+                <stop offset="95%" stopColor="#10b981" stopOpacity={0.05} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
+            <XAxis
+              dataKey={isMobile ? "shortDate" : "date"}
+              stroke="#6b7280"
+              style={{ fontSize: isMobile ? '8px' : '11px', fontWeight: 400 }}
+              tick={{ fill: '#6b7280' }}
+              interval={isMobile ? Math.floor(chartData.length / 6) : 0}
+              angle={0}
+              textAnchor="middle"
+              height={30}
+              tickMargin={8}
+            />
+            <YAxis
+              yAxisId="revenue"
+              stroke="#3b82f6"
+              style={{ fontSize: isMobile ? '8px' : '11px', fontWeight: 400 }}
+              tick={{ fill: '#6b7280' }}
+              tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+              width={isMobile ? 30 : 50}
+              tickMargin={5}
+            />
+            <YAxis
+              yAxisId="orders"
+              orientation="left"
+              stroke="#10b981"
+              style={{ fontSize: isMobile ? '8px' : '11px', fontWeight: 400 }}
+              tick={{ fill: '#6b7280' }}
+              width={isMobile ? 25 : 40}
+              hide={isMobile}
+            />
+            <Tooltip 
+              content={<CustomTooltip />} 
+              cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '5 5' }} 
+            />
+            
+            {/* Revenue Area */}
+            <Area
+              yAxisId="revenue"
+              type="monotone"
+              dataKey="revenue"
+              stroke="#3b82f6"
+              strokeWidth={isMobile ? 2 : 3}
+              fill="url(#colorRevenue)"
+              animationDuration={1000}
+              dot={isMobile ? false : { r: 3, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
+              activeDot={{ r: isMobile ? 4 : 6, fill: '#8b5cf6', stroke: '#fff', strokeWidth: 2 }}
+            />
+            
+            {/* Orders Area (smaller) */}
+            <Area
+              yAxisId={isMobile ? "revenue" : "orders"}
+              type="monotone"
+              dataKey="orders"
+              stroke="#10b981"
+              strokeWidth={isMobile ? 1.5 : 2}
+              fill="url(#colorOrders)"
+              animationDuration={1200}
+              dot={false}
+              activeDot={{ r: isMobile ? 3 : 5, fill: '#10b981', stroke: '#fff', strokeWidth: 2 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
 
-      {/* Stats Summary Below Chart */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-4 pt-4 border-t border-gray-200">
-        <div className="text-center p-3 bg-blue-50 rounded-lg">
-          <p className="text-xs text-blue-600 mb-1">أعلى مبيعات</p>
-          <p className="text-sm sm:text-base font-bold text-gray-900">{formatCurrency(maxRevenue)}</p>
+      {/* Stats Summary Below Chart - Compact Mobile */}
+      <div className="grid grid-cols-3 gap-2 pt-3 border-t border-gray-200">
+        <div className="text-center p-2 sm:p-3 bg-blue-50 rounded-lg">
+          <p className="text-xs text-blue-600 mb-1">أعلى</p>
+          <p className="text-xs sm:text-sm font-bold text-gray-900 truncate">{formatCurrency(maxRevenue)}</p>
         </div>
-        <div className="text-center p-3 bg-green-50 rounded-lg">
-          <p className="text-xs text-green-600 mb-1">إجمالي الطلبات</p>
-          <p className="text-sm sm:text-base font-bold text-gray-900">
+        <div className="text-center p-2 sm:p-3 bg-green-50 rounded-lg">
+          <p className="text-xs text-green-600 mb-1">الطلبات</p>
+          <p className="text-xs sm:text-sm font-bold text-gray-900">
             {data.reduce((sum, d) => sum + d.orders, 0)}
           </p>
         </div>
-        <div className="text-center p-3 bg-purple-50 rounded-lg">
-          <p className="text-xs text-purple-600 mb-1">إجمالي المنتجات</p>
-          <p className="text-sm sm:text-base font-bold text-gray-900">
+        <div className="text-center p-2 sm:p-3 bg-purple-50 rounded-lg">
+          <p className="text-xs text-purple-600 mb-1">المنتجات</p>
+          <p className="text-xs sm:text-sm font-bold text-gray-900">
             {data.reduce((sum, d) => sum + d.items, 0)}
           </p>
         </div>
+      </div>
+      
+      {/* Mobile Average - Show below stats */}
+      <div className="block sm:hidden text-center">
+        <span className="text-xs text-gray-500">متوسط: {formatCurrency(avgRevenue)}</span>
       </div>
     </div>
   );
