@@ -34,52 +34,65 @@ export async function GET(req) {
       return NextResponse.json({ error: 'Vendor ID not found' }, { status: 400 });
     }
 
-    // جلب التصنيفات من الـ API المخصص
-    const categoriesRes = await fetch(
-      `${API_BASE}/wp-json/spare2app/v2/store/${vendorId}/categories?consumer_key=${process.env.WC_CONSUMER_KEY}&consumer_secret=${process.env.WC_CONSUMER_SECRET}`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    if (!categoriesRes.ok) {
-      const errorText = await categoriesRes.text();
-      return NextResponse.json(
-        { error: `Categories API Error: ${categoriesRes.status} - ${errorText}` }, 
-        { status: categoriesRes.status }
+    // 🆕 جلب كل التصنيفات من الموقع (مش فقط الخاصة بالتاجر)
+    // استخدام WooCommerce API مباشرة للحصول على كل الفئات
+    let allCategories = [];
+    let page = 1;
+    let hasMore = true;
+    
+    // جلب كل الصفحات
+    while (hasMore) {
+      const categoriesRes = await fetch(
+        `${API_BASE}/wp-json/wc/v3/products/categories?per_page=100&page=${page}&consumer_key=${process.env.WC_CONSUMER_KEY}&consumer_secret=${process.env.WC_CONSUMER_SECRET}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
       );
+
+      if (!categoriesRes.ok) {
+        if (page === 1) {
+          // لو أول صفحة فشلت، نرجع error
+          const errorText = await categoriesRes.text();
+          return NextResponse.json(
+            { error: `Categories API Error: ${categoriesRes.status} - ${errorText}` }, 
+            { status: categoriesRes.status }
+          );
+        }
+        // لو مش أول صفحة، يبقى خلصنا
+        break;
+      }
+
+      const pageData = await categoriesRes.json();
+      
+      if (Array.isArray(pageData) && pageData.length > 0) {
+        allCategories = [...allCategories, ...pageData];
+        page++;
+        
+        // لو جابنا أقل من 100، يبقى دي آخر صفحة
+        if (pageData.length < 100) {
+          hasMore = false;
+        }
+      } else {
+        hasMore = false;
+      }
     }
 
-    const rawData = await categoriesRes.json();
-    
-    // التحقق من نوع الـ response
-    let categories = [];
-    
-    if (Array.isArray(rawData)) {
-      // لو array مباشرة
-      categories = rawData;
-    } else if (rawData.categories && Array.isArray(rawData.categories)) {
-      // لو object فيه categories
-      categories = rawData.categories;
-    } else if (rawData.data && Array.isArray(rawData.data)) {
-      // لو object فيه data
-      categories = rawData.data;
-    } else {
-      // الـ response مش معروف
+    if (allCategories.length === 0) {
       return NextResponse.json({ 
-        error: 'Invalid categories response format',
-        received: typeof rawData,
-        data: rawData
-      }, { status: 500 });
+        success: true,
+        categories: [],
+        total: 0
+      });
     }
     
     // Debug: شوف أول item
-    console.log('📦 Sample Category:', JSON.stringify(categories[0], null, 2));
+    console.log('📦 Total Categories Loaded:', allCategories.length);
+    console.log('📦 Sample Category:', JSON.stringify(allCategories[0], null, 2));
     
     // 🆕 إرجاع كل الـ data بدون filtering
-    const formattedCategories = categories.map(cat => ({
+    const formattedCategories = allCategories.map(cat => ({
       id: cat.id,
       name: cat.name,
       slug: cat.slug,
@@ -98,7 +111,7 @@ export async function GET(req) {
       categories: formattedCategories,
       total: formattedCategories.length,
       // 🆕 إرجاع أول category كاملة للمعاينة
-      sample: categories[0] || null
+      sample: allCategories[0] || null
     });
   } catch (error) {
     return NextResponse.json(

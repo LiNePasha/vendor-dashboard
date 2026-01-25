@@ -40,6 +40,8 @@ function OrdersContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [hasMore, setHasMore] = useState(false); // 🔥 NEW
+  const [loadingMore, setLoadingMore] = useState(false); // 🔥 NEW
   const perPage = 100;
   
   // 🆕 Tabs State - تقسيم الطلبات
@@ -168,7 +170,7 @@ function OrdersContent() {
   // 🔥 Auto-refresh orders - معطّل حالياً
   useEffect(() => {
     // جلب الطلبات أول مرة
-    loadOrders();
+    loadOrders(1, false);
     
     // تحميل إعدادات Bosta
     loadBostaSettings();
@@ -196,13 +198,14 @@ function OrdersContent() {
   }, [fetchOrders]);
   
   // 🆕 دالة جلب الطلبات مع Pagination والفلاتر
-  const loadOrders = async (page = currentPage) => {
+  const loadOrders = async (page = currentPage, append = false) => {
     const filters = {
-      per_page: perPage,
+      per_page: perPage, // 100 طلب في كل مرة
       page: page,
+      append: append, // 🔥 NEW: دعم append mode
     };
     
-    // إضافة الفلاتر إذا كانت موجودة
+    // إضافة الفلاتر إذا كانت موجودة - الـ API هيفلترها
     if (statusFilter) filters.status = statusFilter;
     if (searchTerm) filters.search = searchTerm;
     if (dateFrom) filters.after = dateFrom;
@@ -211,25 +214,32 @@ function OrdersContent() {
     const result = await fetchOrders(filters);
     
     // تحديث معلومات الـ pagination من الـ response
-    if (result && result.total !== undefined) {
-      setTotalOrders(result.total);
-      setTotalPages(Math.ceil(result.total / perPage));
+    if (result) {
+      setTotalOrders(result.total || 0);
+      setTotalPages(result.total_pages || 1);
+      setHasMore(result.has_more || false);
     }
+    
+    return result;
   };
   
-  // 🆕 useEffect لتحميل الطلبات عند تغيير الفلاتر
-  useEffect(() => {
-    // عند تغيير أي فلتر، ارجع للصفحة الأولى
-    setCurrentPage(1);
-    loadOrders(1);
-  }, [statusFilter, searchTerm, dateFrom, dateTo]);
+  // 🔥 دالة تحميل المزيد من الطلبات
+  const loadMoreOrders = async () => {
+    if (loadingMore || !hasMore) return;
+    
+    setLoadingMore(true);
+    const nextPage = currentPage + 1;
+    await loadOrders(nextPage, true); // append = true
+    setCurrentPage(nextPage);
+    setLoadingMore(false);
+  };
   
-  // 🆕 useEffect لتحميل الطلبات عند تغيير رقم الصفحة
+  // 🔥 useEffect لمراقبة تغيير الفلاتر وإعادة التحميل
   useEffect(() => {
-    if (currentPage > 1) {
-      loadOrders(currentPage);
-    }
-  }, [currentPage]);
+    // عند تغيير أي فلتر، ارجع للصفحة الأولى وأعد التحميل
+    setCurrentPage(1);
+    loadOrders(1, false);
+  }, [statusFilter, searchTerm, dateFrom, dateTo]);
   
   // 🆕 تحميل إعدادات Bosta
   const loadBostaSettings = async () => {
@@ -499,23 +509,6 @@ function OrdersContent() {
           };
         }
       }
-      
-      // 🔍 Debug: طباعة البيانات قبل الـ validation
-      console.log('📦 Order data before validation:', {
-        orderType: order.orderType,
-        hasDelivery: !!order.delivery,
-        hasCustomer: !!order.delivery?.customer,
-        customerName: order.delivery?.customer?.name,
-        customerPhone: order.delivery?.customer?.phone,
-        hasAddress: !!order.delivery?.customer?.address,
-        city: order.delivery?.customer?.address?.city,
-        district: order.delivery?.customer?.address?.district,
-        districtId: order.delivery?.customer?.address?.districtId,
-        hasItems: !!order.items,
-        itemsCount: order.items?.length,
-        hasSummary: !!order.summary,
-        total: order.summary?.total
-      });
       
       // 1. التحقق من صحة البيانات
       const validation = validateInvoiceForBosta(order);
@@ -861,6 +854,7 @@ function OrdersContent() {
   };
 
   // 🆕 Filter orders based on active tab with useMemo for reactivity
+  // 🔥 نستخدم orders مباشرة (الفلترة بتحصل في الـ API)
   const currentOrders = activeTab === 'website' ? orders : posInvoices;
   
   const filteredOrders = useMemo(() => {
@@ -869,9 +863,9 @@ function OrdersContent() {
       if (activeTab === 'website') {
         const fullName = `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.toLowerCase();
         const matchesSearch = fullName.includes(searchTerm.toLowerCase()) || order.id.toString().includes(searchTerm);
-        const matchesStatus = statusFilter ? order.status === statusFilter : true;
+        // ✅ مش محتاجين نفلتر status هنا لأن API بيفلتره
         
-        // Date filtering
+        // Date filtering - للفلترة المحلية الإضافية فقط
         let matchesDate = true;
         if (dateFrom || dateTo) {
           const orderDate = new Date(order.date_created);
@@ -887,7 +881,7 @@ function OrdersContent() {
           }
         }
         
-        return matchesSearch && matchesStatus && matchesDate;
+        return matchesSearch && matchesDate;
       } 
       // للطلبات من السيستم (POS)
       else {
@@ -939,10 +933,10 @@ function OrdersContent() {
             <>
               {activeTab === 'website' ? (
                 <>
-                  {filteredOrders.length} طلب في الصفحة
-                  {totalOrders > 0 && ` (${totalOrders} إجمالي)`}
+                  {filteredOrders.length} طلب
+                  {hasMore && <span className="text-blue-600 font-medium"> • يوجد المزيد</span>}
                   {(searchTerm || statusFilter || dateFrom || dateTo) && (
-                    <span className="text-blue-600 font-medium"> (مفلتر)</span>
+                    <span className="text-orange-600 font-medium"> (مفلتر)</span>
                   )}
                 </>
               ) : (
@@ -3404,64 +3398,42 @@ function OrdersContent() {
         </div>
       )}
 
-      {/* 🆕 Pagination Controls - فقط لطلبات الموقع */}
-      {activeTab === 'website' && totalPages > 1 && (
-        <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-          <div className="flex items-center justify-between">
-            {/* Previous Button */}
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className={`px-6 py-2.5 rounded-lg font-medium transition-all ${
-                currentPage === 1
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg'
-              }`}
-            >
-              ← السابق
-            </button>
-
-            {/* Page Info */}
-            <div className="flex items-center gap-4">
-              <div className="text-sm text-gray-600">
-                صفحة <span className="font-bold text-gray-900">{currentPage}</span> من{' '}
-                <span className="font-bold text-gray-900">{totalPages}</span>
+      {/* 🔥 Load More Button - فقط لطلبات الموقع */}
+      {activeTab === 'website' && hasMore && !ordersLoading && (
+        <div className="mt-6 flex justify-center">
+          <button
+            onClick={loadMoreOrders}
+            disabled={loadingMore}
+            className={`px-8 py-4 rounded-xl font-bold text-lg transition-all shadow-lg ${
+              loadingMore
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white hover:shadow-2xl transform hover:-translate-y-1'
+            }`}
+          >
+            {loadingMore ? (
+              <div className="flex items-center gap-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                <span>جاري التحميل...</span>
               </div>
-              <div className="text-xs text-gray-500">
-                ({totalOrders} طلب إجمالي)
-              </div>
-              
-              {/* Page Number Input */}
+            ) : (
               <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600">الذهاب إلى:</label>
-                <input
-                  type="number"
-                  min="1"
-                  max={totalPages}
-                  value={currentPage}
-                  onChange={(e) => {
-                    const page = parseInt(e.target.value);
-                    if (page >= 1 && page <= totalPages) {
-                      setCurrentPage(page);
-                    }
-                  }}
-                  className="w-16 px-2 py-1 border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <span>📦</span>
+                <span>تحميل المزيد من الطلبات</span>
               </div>
-            </div>
+            )}
+          </button>
+        </div>
+      )}
 
-            {/* Next Button */}
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className={`px-6 py-2.5 rounded-lg font-medium transition-all ${
-                currentPage === totalPages
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg'
-              }`}
-            >
-              التالي →
-            </button>
+      {/* 🆕 Pagination Info - معلومات فقط بدون navigation */}
+      {activeTab === 'website' && orders.length > 0 && (
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+          <div className="flex items-center justify-center gap-4 text-sm text-gray-600">
+            <div>
+              عرض <span className="font-bold text-gray-900">{orders.length}</span> طلب
+              {hasMore && <span className="text-blue-600 font-medium"> • اضغط "تحميل المزيد" لعرض باقي الطلبات</span>}
+              {!hasMore && <span className="text-green-600 font-medium"> ✅</span>}
+            </div>
           </div>
         </div>
       )}

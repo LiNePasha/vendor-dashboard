@@ -44,11 +44,13 @@ export async function GET(req) {
       return new Response(JSON.stringify(order), { status: 200 });
     }
     
-    // 🔥 استخدام WCFM API - بيدعم الـ parameters بشكل أفضل
-    let apiUrl = `${API_BASE}/wp-json/wcfmmp/v1/orders?per_page=${perPage}&page=${page}`;
+    // 🔥 استخدام Spare2App Enhanced API - بيدعم الفلاتر بشكل كامل ✅
+    let apiUrl = `${API_BASE}/wp-json/spare2app/v1/vendor-orders?per_page=${perPage}&page=${page}`;
     
-    // ملحوظة: WCFM مبيدعمش status filter في orders endpoint
-    // لكن بيرجع كل الـ orders ونفلترها client-side
+    // ✅ إضافة status filter
+    if (status && status !== 'all') {
+      apiUrl += `&status=${encodeURIComponent(status)}`;
+    }
     
     // 🆕 إضافة فلتر التاريخ (ISO 8601 format)
     if (after) {
@@ -80,21 +82,32 @@ export async function GET(req) {
 
     const data = await res.json();
     
-    // محاولة الحصول على total من الـ headers
-    const totalCount = res.headers.get('X-WP-Total') || res.headers.get('X-Total-Count');
+    // ✅ الـ API الجديد بيرجع {success, orders, pagination}
+    const orders = data.orders || (Array.isArray(data) ? data : []);
+    const paginationInfo = data.pagination || {};
     
-    // 🔥 تطبيق فلتر الـ status على client-side (لأن WCFM API مش بيدعمه)
-    let filteredOrders = Array.isArray(data) ? data : [];
-    if (status && status !== 'all') {
-      filteredOrders = filteredOrders.filter(order => order.status === status);
-    }
+    console.log('📦 Orders returned from Spare2App API:', {
+      count: orders.length,
+      requestedStatus: status,
+      pagination: paginationInfo,
+      firstOrderId: orders[0]?.id,
+      firstOrderStatus: orders[0]?.status
+    });
     
-    // إضافة معلومات إضافية للـ response
+    // ✅ الـ API بيفلتر كل حاجة صح، مفيش حاجة نعملها هنا
+    
+    // 🔥 استخدام pagination من الـ API response
+    const total = paginationInfo.total || orders.length;
+    const totalPages = paginationInfo.total_pages || 1;
+    const hasMore = paginationInfo.has_more || false;
+    
     const response = {
-      orders: filteredOrders,
-      total: status && status !== 'all' ? filteredOrders.length : (totalCount ? parseInt(totalCount) : filteredOrders.length),
+      orders: orders,
+      total: total,
       page: parseInt(page),
       per_page: parseInt(perPage),
+      total_pages: totalPages,
+      has_more: hasMore,
       status: status || 'all'
     };
 

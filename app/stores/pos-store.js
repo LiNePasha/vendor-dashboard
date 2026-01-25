@@ -994,6 +994,14 @@ const usePOSStore = create(persist((set, get) => ({
       const data = await res.json();
       let fetchedOrders = data.orders || data || [];
       
+      // 🆕 إرجاع معلومات pagination
+      const paginationInfo = {
+        total: data.total || fetchedOrders.length,
+        page: data.page || 1,
+        totalPages: data.total_pages || 1,
+        hasMore: data.has_more || false
+      };
+      
       // 🆕 بناء bosta object من meta_data لكل order
       fetchedOrders = fetchedOrders.map(order => {
         if (order.meta_data) {
@@ -1035,7 +1043,14 @@ const usePOSStore = create(persist((set, get) => ({
       
       // 🔥 فقط حدّث orders لو فيه تغيير فعلي
       if (ordersChanged) {
-        set({ orders: fetchedOrders });
+        // 🆕 دعم append mode للـ Load More
+        if (filters.append && filters.page > 1) {
+          const existingIds = new Set(state.orders.map(o => o.id));
+          const newOrders = fetchedOrders.filter(o => !existingIds.has(o.id));
+          set({ orders: [...state.orders, ...newOrders] });
+        } else {
+          set({ orders: fetchedOrders });
+        }
       }
       
       // 🔥 استخراج processing orders بشكل آمن
@@ -1073,7 +1088,9 @@ const usePOSStore = create(persist((set, get) => ({
         orders: fetchedOrders,
         total: data.total || fetchedOrders.length,
         page: data.page || 1,
-        per_page: data.per_page || fetchedOrders.length
+        per_page: data.per_page || fetchedOrders.length,
+        total_pages: data.total_pages || 1,
+        has_more: data.has_more || false
       };
     } catch (error) {
       console.error('Error fetching orders:', error);
