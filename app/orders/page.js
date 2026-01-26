@@ -1407,7 +1407,7 @@ function OrdersContent() {
                     {activeTab === 'website' ? 'رقم الطلب' : 'رقم الفاتورة'}
                   </th>
                   <th className="px-2 py-3 text-right text-sm font-bold">العميل</th>
-                  <th className="px-2 py-3 text-right text-sm font-bold">الهاتف</th>
+                  {/* <th className="px-2 py-3 text-right text-sm font-bold">الهاتف</th> */}
                   <th className="px-2 py-3 text-right text-sm font-bold">المنتجات</th>
                   <th className="px-2 py-3 text-right text-sm font-bold">الإجمالي</th>
                   {activeTab === 'website' && (
@@ -1506,19 +1506,15 @@ function OrdersContent() {
                         </div>
                       </td>
 
-                      {/* Customer */}
+                  {/* Customer */}
                       <td className="px-2 py-3">
-                        <div className="font-medium text-gray-900">
-                          {order.delivery?.customer?.name || 'غير متاح'}
-                        </div>
-                      </td>
-
-                      {/* Phone */}
-                      <td className="px-2 py-3">
-                        <div className="text-sm text-gray-700">
-                          {order.delivery?.customer?.phone || '-'}
-                        </div>
-                      </td>
+                            <div className="text-xs">
+                              <div className="font-semibold text-gray-900 mb-0.5">
+                                👤 {order.delivery?.customer?.name || 'غير متاح'}
+                              </div>
+                              {order.delivery?.customer?.phone || '-'}
+                            </div>
+                          </td>
 
                       {/* Products */}
                       <td className="px-2 py-3">
@@ -1754,21 +1750,12 @@ function OrdersContent() {
                               <div className="font-semibold text-gray-900 mb-0.5">
                                 👤 {order.billing?.first_name} {order.billing?.last_name}
                               </div>
-                              {order.billing?.phone && (
-                                <div className="text-gray-600 mb-0.5">📱 {order.billing.phone}</div>
-                              )}
+                              
                               {order.customer_note && order.customer_note.trim() && (
                                 <div className="bg-yellow-100 border border-yellow-300 rounded px-1 py-0.5 mt-1">
                                   <span className="text-yellow-700 text-[10px]">📝 {order.customer_note.substring(0, 30)}{order.customer_note.length > 30 ? '...' : ''}</span>
                                 </div>
                               )}
-                            </div>
-                          </td>
-
-                          {/* Phone */}
-                          <td className="px-2 py-3">
-                            <div className="text-xs text-gray-700">
-                              {order.billing?.phone || '-'}
                             </div>
                           </td>
 
