@@ -1202,7 +1202,88 @@ const usePOSStore = create(persist((set, get) => ({
         : 0,
       top_customers: customers.slice(0, 5),
     };
-  }
+  },
+
+  // 🆕 Fetch customers from API
+  fetchCustomersFromAPI: async (filters = {}) => {
+    try {
+      const params = new URLSearchParams();
+      if (filters.search) params.append('search', filters.search);
+      if (filters.per_page) params.append('per_page', filters.per_page);
+      if (filters.page) params.append('page', filters.page);
+
+      const res = await fetch(`/api/customers?${params}`, {
+        credentials: 'include',
+      });
+
+      if (!res.ok) throw new Error('Failed to fetch customers');
+
+      const data = await res.json();
+      return {
+        success: true,
+        customers: data.customers || [],
+        pagination: {
+          total: data.total || 0,
+          page: data.page || 1,
+          totalPages: data.total_pages || 1,
+          hasMore: data.has_more || false,
+        },
+      };
+    } catch (error) {
+      console.error('Error fetching customers from API:', error);
+      return {
+        success: false,
+        error: error.message,
+        customers: [],
+      };
+    }
+  },
+
+  // 🆕 Fetch customers stats from API
+  fetchCustomersStatsFromAPI: async () => {
+    try {
+      const res = await fetch('/api/customers/stats', {
+        credentials: 'include',
+      });
+
+      if (!res.ok) throw new Error('Failed to fetch customer stats');
+
+      const data = await res.json();
+      return {
+        success: true,
+        stats: data.stats || {},
+      };
+    } catch (error) {
+      console.error('Error fetching customer stats from API:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  },
+
+  // 🆕 Fetch single customer from API
+  fetchCustomerFromAPI: async (customerId) => {
+    try {
+      const res = await fetch(`/api/customers?id=${encodeURIComponent(customerId)}`, {
+        credentials: 'include',
+      });
+
+      if (!res.ok) throw new Error('Failed to fetch customer');
+
+      const data = await res.json();
+      return {
+        success: true,
+        customer: data.customer || null,
+      };
+    } catch (error) {
+      console.error('Error fetching customer from API:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  },
 }), {
   name: 'pos-store',
   // Persist only vendorInfo so print page can read it instantly in a new tab

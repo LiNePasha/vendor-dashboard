@@ -8,11 +8,8 @@ import CustomerModal from "@/components/CustomerModal";
 
 export default function CustomersPage() {
   const router = useRouter();
-  const orders = usePOSStore((state) => state.orders);
-  const fetchOrders = usePOSStore((state) => state.fetchOrders);
-  const getCustomers = usePOSStore((state) => state.getCustomers);
-  const getCustomersStats = usePOSStore((state) => state.getCustomersStats);
-  const ordersLoading = usePOSStore((state) => state.ordersLoading);
+  const fetchCustomersFromAPI = usePOSStore((state) => state.fetchCustomersFromAPI);
+  const fetchCustomersStatsFromAPI = usePOSStore((state) => state.fetchCustomersStatsFromAPI);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState(""); // all, active, inactive
@@ -20,21 +17,112 @@ export default function CustomersPage() {
   const [sortBy, setSortBy] = useState("total_spent"); // total_spent, orders_count, last_order_date
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [offlineCustomers, setOfflineCustomers] = useState([]);
+  const [onlineCustomers, setOnlineCustomers] = useState([]); // 🆕 من الـ API
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    total: 0,
+    online: 0,
+    offline: 0,
+    active: 0,
+    total_revenue: 0,
+    average_order_value: 0
+  });
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [customerInvoices, setCustomerInvoices] = useState([]);
+  
+  // 🆕 Pagination state for online customers
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  // Fetch orders if not loaded
-  useEffect(() => {
-    if (orders.length === 0) {
-      fetchOrders();
+  // 🆕 Fetch online customers from API
+  const loadOnlineCustomers = async (page = 1, append = false) => {
+    try {
+      const result = await fetchCustomersFromAPI({
+        search: searchTerm,
+        per_page: 50,
+        page: page,
+      });
+      
+      if (result.success) {
+        const customers = result.customers.map(c => ({
+          ...c,
+          type: 'online',
+          source: 'الموقع'
+        }));
+        
+        if (append) {
+          setOnlineCustomers(prev => [...prev, ...customers]);
+        } else {
+          setOnlineCustomers(customers);
+        }
+        
+        setTotalPages(result.pagination.totalPages);
+        setHasMore(result.pagination.hasMore);
+        setCurrentPage(page);
+      }
+    } catch (error) {
+      console.error('Error loading online customers:', error);
     }
-    loadOfflineCustomers();
+  };
+  
+  // 🆕 Load stats from API
+  const loadStats = async () => {
+    try {
+      const result = await fetchCustomersStatsFromAPI();
+      if (result.success) {
+        const apiStats = result.stats;
+        
+        // Combine with offline customers
+        const offlineActive = offlineCustomers.filter(c => c.totalOrders > 0).length;
+        const offlineRevenue = offlineCustomers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+        
+        setStats({
+          total: apiStats.total_customers + offlineCustomers.length,
+          online: apiStats.total_customers,
+          offline: offlineCustomers.length,
+          active: apiStats.active_customers + offlineActive,
+          total_revenue: apiStats.total_revenue + offlineRevenue,
+          average_order_value: apiStats.average_order_value,
+        });
+      }
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  };
+
+  // Load data on mount
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      await loadOfflineCustomers();
+      await loadOnlineCustomers(1, false);
+      await loadStats();
+      setLoading(false);
+    };
+    loadData();
   }, []);
+  
+  // Reload when search changes
+  useEffect(() => {
+    if (!loading) {
+      loadOnlineCustomers(1, false);
+    }
+  }, [searchTerm]);
 
   const loadOfflineCustomers = async () => {
     const customers = await offlineCustomersStorage.getAllOfflineCustomers();
     setOfflineCustomers(customers);
+  };
+  
+  // 🆕 Load more online customers
+  const loadMoreCustomers = async () => {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    await loadOnlineCustomers(currentPage + 1, true);
+    setLoadingMore(false);
   };
 
   // 🆕 جلب طلبات العميل الأوفلاين من LocalForage
@@ -67,11 +155,12 @@ export default function CustomersPage() {
     loadCustomerInvoices();
   }, [selectedCustomer]);
 
-  // Get online customers from orders
-  const onlineCustomers = useMemo(() => getCustomers(), [orders]);
+  // Get online customers from orders - REMOVED, now using API
+  // const onlineCustomers = useMemo(() => getCustomers(), [orders]);
+  
   // دمج العملاء الأونلاين والأوفلاين
   const allCustomers = useMemo(() => {
-    const online = onlineCustomers.map(c => ({ ...c, type: 'online', source: 'الموقع' }));
+    const online = onlineCustomers; // Already formatted from API
     const offline = offlineCustomers.map(c => { 
       const totalSpent = c.totalSpent || 0;
       const ordersCount = c.totalOrders || 0;
@@ -90,27 +179,7 @@ export default function CustomersPage() {
     return [...online, ...offline];
   }, [onlineCustomers, offlineCustomers]);
 
-  const stats = useMemo(() => {
-    const onlineStats = getCustomersStats();
-    
-    // حساب إجمالي الإيرادات من كل العملاء
-    const totalRevenue = allCustomers.reduce((sum, c) => sum + (c.total_spent || 0), 0);
-    
-    // حساب إجمالي الطلبات
-    const totalOrders = allCustomers.reduce((sum, c) => sum + (c.orders_count || 0), 0);
-    
-    // حساب متوسط الطلب
-    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-    
-    return {
-      total: allCustomers.length,
-      online: onlineCustomers.length,
-      offline: offlineCustomers.length,
-      active: onlineStats.active + offlineCustomers.filter(c => c.totalOrders > 0).length,
-      total_revenue: totalRevenue,
-      average_order_value: averageOrderValue
-    };
-  }, [allCustomers, onlineCustomers, offlineCustomers, orders]);
+  // Stats are now loaded from API - removed calculation from useMemo
 
   // Filter and sort customers
   const filteredCustomers = useMemo(() => {
@@ -210,7 +279,7 @@ export default function CustomersPage() {
               العملاء
             </h1>
             <p className="text-gray-600">
-              {ordersLoading
+              {loading
                 ? "جاري التحميل..."
                 : `${allCustomers.length} عميل - ${stats.online} أونلاين، ${stats.offline} أوفلاين`}
             </p>
@@ -298,7 +367,7 @@ export default function CustomersPage() {
         </div>
 
         {/* Customers Table */}
-        {ordersLoading ? (
+        {loading ? (
           <div className="bg-white rounded-xl shadow-sm p-12 text-center">
             <div className="animate-spin text-6xl mb-4">⏳</div>
             <p className="text-gray-600">جاري تحميل البيانات...</p>
@@ -480,6 +549,30 @@ export default function CustomersPage() {
           </div>
         )}
       </div>
+      
+      {/* 🆕 Load More Button for Online Customers */}
+      {typeFilter !== 'offline' && hasMore && !loading && (
+        <div className="mt-6 text-center">
+          <button
+            onClick={loadMoreCustomers}
+            disabled={loadingMore}
+            className="bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 
+              text-white px-8 py-3 rounded-lg font-bold transition-all shadow-lg hover:shadow-xl
+              disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loadingMore ? (
+              <>
+                <span className="animate-spin inline-block mr-2">⏳</span>
+                جاري التحميل...
+              </>
+            ) : (
+              <>
+                📥 تحميل المزيد ({currentPage} / {totalPages})
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Customer Details Modal */}
       {selectedCustomer && (

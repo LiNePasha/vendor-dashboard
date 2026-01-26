@@ -49,11 +49,13 @@ if (!$wcfm_active) {
 // Include the endpoint classes
 require_once SPARE2APP_VENDOR_ORDERS_PLUGIN_DIR . 'includes/class-vendor-orders-endpoint.php';
 require_once SPARE2APP_VENDOR_ORDERS_PLUGIN_DIR . 'includes/class-vendor-analytics-endpoint.php';
+require_once SPARE2APP_VENDOR_ORDERS_PLUGIN_DIR . 'includes/class-vendor-customers-endpoint.php';
 
 // Initialize the plugin
 function spare2app_vendor_orders_init() {
     new Spare2App_Vendor_Orders_Endpoint();
     new Spare2App_Vendor_Analytics_Endpoint();
+    new Spare2App_Vendor_Customers_Endpoint();
 }
 add_action('plugins_loaded', 'spare2app_vendor_orders_init');
 
