@@ -1750,7 +1750,9 @@ function OrdersContent() {
                               <div className="font-semibold text-gray-900 mb-0.5">
                                 👤 {order.billing?.first_name} {order.billing?.last_name}
                               </div>
-                              
+                              {order.billing?.phone && (
+                                <div className="text-gray-600 mb-0.5">📱 {order.billing.phone}</div>
+                              )}
                               {order.customer_note && order.customer_note.trim() && (
                                 <div className="bg-yellow-100 border border-yellow-300 rounded px-1 py-0.5 mt-1">
                                   <span className="text-yellow-700 text-[10px]">📝 {order.customer_note.substring(0, 30)}{order.customer_note.length > 30 ? '...' : ''}</span>
