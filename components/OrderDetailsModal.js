@@ -506,35 +506,42 @@ export default function OrderDetailsModal({
               <span>📦</span> المنتجات ({order.line_items?.length || 0})
             </h3>
             <div className="space-y-2 sm:space-y-3">
-              {order.line_items?.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-2 sm:gap-3 bg-gray-50 rounded-lg sm:rounded-xl p-2 sm:p-3"
-                >
-                  {item.image_url && (
+              {order.line_items?.map((item) => {
+                // Get image URL with fallback
+                const imageUrl = item.image_url || item.image?.src || '/icons/placeholder.webp';
+                const unitPrice = item.price || (item.quantity > 0 ? (parseFloat(item.total) / item.quantity) : 0);
+                
+                return (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-2 sm:gap-3 bg-gray-50 rounded-lg sm:rounded-xl p-2 sm:p-3"
+                  >
                     <img
-                      src={item.image_url}
+                      src={imageUrl}
                       alt={item.name}
                       className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg border border-gray-200 flex-shrink-0"
                       onError={(e) => {
                         e.target.src = '/icons/placeholder.webp';
                       }}
                     />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-xs sm:text-sm text-gray-800 truncate">{item.name}</p>
-                    <p className="text-xs text-gray-600 mt-0.5">
-                      {item.quantity} × {item.price} {order.currency}
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-xs sm:text-sm text-gray-800 truncate">{item.name}</p>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {item.quantity} × {parseFloat(unitPrice).toFixed(2)} {order.currency}
+                      </p>
+                      {item.sku && (
+                        <p className="text-xs text-gray-400 mt-0.5">كود: {item.sku}</p>
+                      )}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="font-bold text-sm sm:text-base text-gray-900">
+                        {parseFloat(item.total).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-gray-500">{order.currency}</p>
+                    </div>
                   </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-bold text-sm sm:text-base text-gray-900">
-                      {(item.quantity * parseFloat(item.price))}
-                    </p>
-                    <p className="text-xs text-gray-500">{order.currency}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
 

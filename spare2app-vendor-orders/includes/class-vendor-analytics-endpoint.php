@@ -128,7 +128,9 @@ class Spare2App_Vendor_Analytics_Endpoint {
         $payment_methods = array();
         
         foreach ($paid_orders as $order) {
-            $total_revenue += floatval($order->get_total());
+            // Calculate order total without shipping
+            $order_subtotal = floatval($order->get_subtotal());
+            $total_revenue += $order_subtotal;
             $total_items_sold += $order->get_item_count();
             
             // Count by status
@@ -144,7 +146,7 @@ class Spare2App_Vendor_Analytics_Endpoint {
                 $payment_methods[$payment_method] = array('count' => 0, 'total' => 0);
             }
             $payment_methods[$payment_method]['count']++;
-            $payment_methods[$payment_method]['total'] += floatval($order->get_total());
+            $payment_methods[$payment_method]['total'] += $order_subtotal;
         }
         
         // Get comparison with previous period
@@ -152,7 +154,7 @@ class Spare2App_Vendor_Analytics_Endpoint {
         $previous_orders = $this->get_paid_orders($vendor_order_ids, $previous_period['start'], $previous_period['end']);
         $previous_revenue = 0;
         foreach ($previous_orders as $order) {
-            $previous_revenue += floatval($order->get_total());
+            $previous_revenue += floatval($order->get_subtotal());
         }
         
         $revenue_growth = $previous_revenue > 0 ? (($total_revenue - $previous_revenue) / $previous_revenue) * 100 : 0;
@@ -308,7 +310,7 @@ class Spare2App_Vendor_Analytics_Endpoint {
         foreach ($orders as $order) {
             $date_key = $order->get_date_created()->date('Y-m-d');
             if (isset($daily_data[$date_key])) {
-                $daily_data[$date_key]['revenue'] += floatval($order->get_total());
+                $daily_data[$date_key]['revenue'] += floatval($order->get_subtotal());
                 $daily_data[$date_key]['orders']++;
                 $daily_data[$date_key]['items'] += $order->get_item_count();
             }

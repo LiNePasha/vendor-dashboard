@@ -338,9 +338,24 @@ class Spare2App_Vendor_Orders_Endpoint {
             'meta_data' => array(),
         );
         
-        // Add line items
+        // Add line items with product images
         foreach ($order->get_items() as $item) {
             $product = $item->get_product();
+            $product_id = $item->get_variation_id() ? $item->get_variation_id() : $item->get_product_id();
+            
+            // Get product image
+            $image_id = null;
+            $image_url = '';
+            if ($product) {
+                $image_id = $product->get_image_id();
+                if ($image_id) {
+                    $image_url = wp_get_attachment_image_url($image_id, 'thumbnail');
+                }
+            }
+            
+            // Calculate unit price
+            $unit_price = $item->get_quantity() > 0 ? ($item->get_total() / $item->get_quantity()) : 0;
+            
             $data['line_items'][] = array(
                 'id' => $item->get_id(),
                 'name' => $item->get_name(),
@@ -349,7 +364,9 @@ class Spare2App_Vendor_Orders_Endpoint {
                 'quantity' => $item->get_quantity(),
                 'subtotal' => $item->get_subtotal(),
                 'total' => $item->get_total(),
+                'price' => number_format($unit_price, 2, '.', ''),
                 'sku' => $product ? $product->get_sku() : '',
+                'image_url' => $image_url ?: '', // Product image URL
             );
         }
         
