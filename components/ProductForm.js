@@ -238,6 +238,10 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     
     existingVariations.forEach(v => {
       const comboKey = v.attributes.map(a => `${a.name}:${a.option}`).sort().join('|');
+      // 🔥 تحذير: إذا كان الـ key موجود بالفعل، يعني في duplicate!
+      if (existingCombosMap.has(comboKey)) {
+        console.warn('⚠️ Duplicate variation detected:', comboKey, v);
+      }
       existingCombosMap.set(comboKey, v);
     });
 
@@ -294,8 +298,41 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     // 🆕 إذا كان variation موجود في API (له ID حقيقي)، أضفه لقائمة المحذوفات
     if (variation.id && !variation.id.toString().startsWith('temp_')) {
       setDeletedVariationIds(prev => [...prev, variation.id]);
+      console.log('🗑️ Marked variation for deletion:', variation.id);
     }
-    setVariations(variations.filter((_, i) => i !== index));
+    const newVariations = variations.filter((_, i) => i !== index);
+    setVariations(newVariations);
+    console.log(`✅ Removed variation at index ${index}. Remaining: ${newVariations.length}`);
+  };
+
+  // 🆕 دالة لإزالة المكررات
+  const removeDuplicateVariations = () => {
+    const seen = new Map();
+    const unique = [];
+    const duplicates = [];
+    
+    variations.forEach((v, index) => {
+      const comboKey = v.attributes.map(a => `${a.name}:${a.option}`).sort().join('|');
+      
+      if (seen.has(comboKey)) {
+        duplicates.push({ index, variation: v, comboKey });
+        // إذا كان له ID حقيقي، أضفه للحذف
+        if (v.id && !v.id.toString().startsWith('temp_')) {
+          setDeletedVariationIds(prev => [...prev, v.id]);
+        }
+      } else {
+        seen.set(comboKey, true);
+        unique.push(v);
+      }
+    });
+    
+    if (duplicates.length > 0) {
+      console.log('🗑️ Removed duplicates:', duplicates);
+      setVariations(unique);
+      alert(`✅ تم إزالة ${duplicates.length} نسخة مكررة`);
+    } else {
+      alert('✅ لا توجد نسخ مكررة');
+    }
   };
 
   const handleVariationImageUpload = (variation, imageUrl) => {
@@ -1091,9 +1128,18 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         {/* Variations Editor */}
         {form.productType === 'variable' && generatedVariations && variations.length > 0 && (
           <div className="md:col-span-2 border-2 border-green-300 rounded-xl p-6 bg-gradient-to-br from-green-50 to-emerald-50">
-            <h3 className="text-lg font-bold text-green-900 mb-4 flex items-center gap-2">
-              ✨ المتغيرات ({variations.length})
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-green-900 flex items-center gap-2">
+                ✨ المتغيرات ({variations.length})
+              </h3>
+              <button
+                type="button"
+                onClick={removeDuplicateVariations}
+                className="px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-sm font-medium flex items-center gap-1"
+              >
+                🧹 إزالة المكررات
+              </button>
+            </div>
             
             <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
               {variations.map((variation, index) => (

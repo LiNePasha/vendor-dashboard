@@ -73,15 +73,13 @@ export async function DELETE(req, { params }) {
 
     console.log(`🗑️ Attempting to delete variation ${variationId} from product ${id}`);
 
-    // Delete variation via WooCommerce API
-    const response = await fetch(`${API_BASE}/wp-json/wc/v3/products/${id}/variations/${variationId}`, {
+    // Delete variation via WooCommerce API (force=true for permanent deletion)
+    const response = await fetch(`${API_BASE}/wp-json/wc/v3/products/${id}/variations/${variationId}?force=true`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
-      },
-      // Add force=true to permanently delete
-      params: { force: true }
+      }
     });
 
     const responseText = await response.text();
