@@ -226,26 +226,45 @@ export class BostaAPI {
     let codAmount = 0;
     const deliveryPayment = invoice.deliveryPayment;
     const totalAmount = Math.round(invoice.summary?.total || 0);
+    const shippingFee = Math.round(invoice.delivery?.fee || invoice.summary?.shipping || 0);
+    
+    console.log('💰 Payment Calculation:', {
+      status: deliveryPayment?.status,
+      totalAmount,
+      shippingFee,
+      paidAmount: deliveryPayment?.paidAmount,
+      remainingAmount: deliveryPayment?.remainingAmount
+    });
     
     if (deliveryPayment) {
       if (deliveryPayment.status === 'cash_on_delivery') {
         // دفع عند الاستلام - كامل المبلغ
         codAmount = totalAmount;
+        console.log('💵 COD Mode: Cash on delivery - Total amount:', codAmount);
       } else if (deliveryPayment.status === 'half_paid') {
         // نصف المبلغ مدفوع - الباقي COD
         const paidAmount = Math.round(deliveryPayment.paidAmount || 0);
         codAmount = Math.max(0, totalAmount - paidAmount);
+        console.log('💵 COD Mode: Half paid - Remaining:', codAmount);
       } else if (deliveryPayment.status === 'fully_paid_no_delivery') {
-        // 🚧 مدفوع كامل بدون توصيل - المتبقي = رسوم التوصيل فقط
-        codAmount = Math.round(deliveryPayment.remainingAmount || invoice.delivery?.fee || 0);
+        // 🔥 مدفوع كامل بدون توصيل - فقط رسوم التوصيل
+        codAmount = shippingFee;
+        console.log('💵 COD Mode: Fully paid no delivery - Shipping fee only:', {
+          shippingFee,
+          codAmount
+        });
       } else if (deliveryPayment.status === 'fully_paid') {
         // ✅ مدفوع كامل - لا يوجد COD
         codAmount = 0;
+        console.log('💵 COD Mode: Fully paid - No COD');
       }
     } else {
       // لو مفيش deliveryPayment، افتراضي COD = 0
       codAmount = 0;
+      console.log('💵 COD Mode: No payment info - Default 0');
     }
+    
+    console.log('💰 Final COD Amount:', codAmount);
 
     const payload = {
       type: 10, // Fixed value

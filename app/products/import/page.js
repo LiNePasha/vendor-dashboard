@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-
+import { useRouter } from "next/navigation";import * as XLSX from 'xlsx';
 export default function ProductsImportPage() {
   const router = useRouter();
   const [file, setFile] = useState(null);
@@ -14,6 +13,7 @@ export default function ProductsImportPage() {
   const [showMappingModal, setShowMappingModal] = useState(false);
   const [manualMapping, setManualMapping] = useState({});
   const [previewData, setPreviewData] = useState([]);
+  const [groupByProduct, setGroupByProduct] = useState(true); // Group variations by product name
 
   // 🆕 Auto-detect column mapping
   const detectColumnMapping = (headers) => {
@@ -49,82 +49,100 @@ export default function ProductsImportPage() {
 
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0];
-    if (selectedFile && selectedFile.type === "text/csv") {
+    if (selectedFile) {
+      const fileExt = selectedFile.name.split('.').pop().toLowerCase();
+      const validExts = ['csv', 'xls', 'xlsx'];
+      
+      if (!validExts.includes(fileExt)) {
+        alert("الرجاء اختيار ملف CSV أو Excel (.xls, .xlsx)");
+        return;
+      }
+      
       setFile(selectedFile);
       setResults(null);
       setErrors([]);
       
-      // 🆕 Preview CSV and extract headers
+      // 🆕 Preview file and extract headers
       try {
-        // 🔧 Try to read with different encodings for Arabic support
-        const arrayBuffer = await selectedFile.arrayBuffer();
-        let text;
+        let headers = [];
+        let preview = [];
         
-        const encodings = ['utf-8', 'windows-1256', 'iso-8859-6', 'cp1256'];
-        
-        for (const encoding of encodings) {
-          try {
-            text = new TextDecoder(encoding).decode(arrayBuffer);
-            console.log(`🔍 Trying encoding: ${encoding}`);
-            // Check if it has replacement characters
-            if (!text.includes('�')) {
-              console.log(`✅ Success with encoding: ${encoding}`);
-              break;
-            }
-          } catch (e) {
-            console.log(`❌ Failed encoding: ${encoding}`, e.message);
-            continue;
-          }
-        }
-        
-        // Final fallback
-        if (!text || text.includes('�')) {
-          console.log("⚠️ Using fallback text reading");
-          text = await selectedFile.text();
-        }
-        
-        let lines = text.split(/\r?\n/).filter(line => line.trim()); // Handle both \n and \r\n
-        
-        // 🔧 Fix: Remove outer quotes from entire lines if wrapped
-        lines = lines.map(line => {
-          // If entire line is wrapped in quotes, remove them
-          if (line.startsWith('"') && line.endsWith('"')) {
-            return line.slice(1, -1);
-          }
-          return line;
-        });
-        
-        const parseCSVLine = (line) => {
-          const result = [];
-          let current = '';
-          let inQuotes = false;
+        if (fileExt === 'csv') {
+          // CSV Processing
+          const arrayBuffer = await selectedFile.arrayBuffer();
+          let text;
           
-          for (let i = 0; i < line.length; i++) {
-            const char = line[i];
-            if (char === '"') {
-              if (inQuotes && line[i + 1] === '"') {
-                // Double quote escape ""
-                current += '"';
-                i++;
-              } else {
-                // Toggle quote state
-                inQuotes = !inQuotes;
+          const encodings = ['utf-8', 'windows-1256', 'iso-8859-6', 'cp1256'];
+          
+          for (const encoding of encodings) {
+            try {
+              text = new TextDecoder(encoding).decode(arrayBuffer);
+              console.log(`🔍 Trying encoding: ${encoding}`);
+              if (!text.includes('�')) {
+                console.log(`✅ Success with encoding: ${encoding}`);
+                break;
               }
-            } else if (char === ',' && !inQuotes) {
-              // Field separator - push and clean
-              result.push(current.replace(/^"+|"+$/g, '').trim());
-              current = '';
-            } else {
-              current += char;
+            } catch (e) {
+              console.log(`❌ Failed encoding: ${encoding}`, e.message);
+              continue;
             }
           }
-          // Add last field and clean
-          result.push(current.replace(/^"+|"+$/g, '').trim());
-          return result;
-        };
-        
-        const headers = parseCSVLine(lines[0]);
-        const preview = lines.slice(1, 4).map(parseCSVLine); // First 3 rows
+          
+          if (!text || text.includes('�')) {
+            console.log("⚠️ Using fallback text reading");
+            text = await selectedFile.text();
+          }
+          
+          let lines = text.split(/\r?\n/).filter(line => line.trim());
+          
+          lines = lines.map(line => {
+            if (line.startsWith('"') && line.endsWith('"')) {
+              return line.slice(1, -1);
+            }
+            return line;
+          });
+          
+          const parseCSVLine = (line) => {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+              const char = line[i];
+              if (char === '"') {
+                if (inQuotes && line[i + 1] === '"') {
+                  current += '"';
+                  i++;
+                } else {
+                  inQuotes = !inQuotes;
+                }
+              } else if (char === ',' && !inQuotes) {
+                result.push(current.replace(/^"+|"+$/g, '').trim());
+                current = '';
+              } else {
+                current += char;
+              }
+            }
+            result.push(current.replace(/^"+|"+$/g, '').trim());
+            return result;
+          };
+          
+          headers = parseCSVLine(lines[0]);
+          preview = lines.slice(1, 4).map(parseCSVLine);
+          
+        } else {
+          // Excel Processing (.xls, .xlsx)
+          const arrayBuffer = await selectedFile.arrayBuffer();
+          const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+          
+          console.log(`📊 Excel file loaded: ${workbook.SheetNames[0]}`);
+          console.log(`📊 Total rows: ${jsonData.length}`);
+          
+          headers = jsonData[0] || [];
+          preview = jsonData.slice(1, 4);
+        }
         
         console.log("📋 Parsed Headers:", headers);
         console.log("📋 Headers count:", headers.length);
@@ -136,7 +154,7 @@ export default function ProductsImportPage() {
         
         // Check if auto-detection will work
         const detectedCount = headers.filter(h => {
-          const lower = h.toLowerCase().trim();
+          const lower = String(h).toLowerCase().trim();
           return lower.includes('name') || lower.includes('اسم') || 
                  lower.includes('price') || lower.includes('سعر') ||
                  lower.includes('sku') || lower.includes('كود');
@@ -150,18 +168,208 @@ export default function ProductsImportPage() {
         }
       } catch (error) {
         console.error("Error previewing file:", error);
+        alert("خطأ في قراءة الملف: " + error.message);
       }
     } else {
-      alert("الرجاء اختيار ملف CSV");
+      alert("الرجاء اختيار ملف CSV أو Excel");
     }
   };
 
-  const parseCSV = (text, useManualMapping = false) => {
+  const parseFile = async (file, useManualMapping = false) => {
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    
+    if (fileExt === 'csv') {
+      return parseCSV(file, useManualMapping);
+    } else {
+      return parseExcel(file, useManualMapping);
+    }
+  };
+  
+  const parseExcel = async (file, useManualMapping = false) => {
+    const arrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+    
+    const headers = jsonData[0] || [];
+    const rows = jsonData.slice(1);
+    const products = [];
+    
+    console.log("📊 Parsing Excel - Headers:", headers);
+    console.log("📊 Parsing Excel - Total rows:", rows.length);
+    
+    // Use manual mapping if provided, otherwise auto-detect
+    let headerMapping = {};
+    
+    if (useManualMapping && Object.keys(manualMapping).length > 0) {
+      Object.entries(manualMapping).forEach(([field, headerName]) => {
+        const index = headers.indexOf(headerName);
+        if (index !== -1) {
+          headerMapping[field] = index;
+        }
+      });
+    } else {
+      // Auto-detect
+      headers.forEach((header, index) => {
+        const lowerHeader = String(header).toLowerCase().trim();
+        
+        if (lowerHeader.includes('name') || lowerHeader.includes('اسم')) {
+          headerMapping.name = index;
+        } else if (lowerHeader.includes('sku') || lowerHeader.includes('كود') || lowerHeader.includes('رمز') || lowerHeader.includes('باركود')) {
+          headerMapping.sku = index;
+        } else if (lowerHeader.includes('regular') && lowerHeader.includes('price')) {
+          headerMapping.regular_price = index;
+        } else if (lowerHeader.includes('price') && !lowerHeader.includes('sale') && !headerMapping.regular_price) {
+          headerMapping.regular_price = index;
+        } else if (lowerHeader.includes('سعر')) {
+          headerMapping.regular_price = index;
+        } else if (lowerHeader.includes('sale') && lowerHeader.includes('price')) {
+          headerMapping.sale_price = index;
+        } else if (lowerHeader.includes('stock') || lowerHeader.includes('quantity') || lowerHeader.includes('كمية')) {
+          headerMapping.stock = index;
+        } else if (lowerHeader.includes('in stock') || lowerHeader.includes('available') || lowerHeader.includes('متوفر')) {
+          headerMapping.in_stock = index;
+        } else if (lowerHeader.includes('categor') || lowerHeader.includes('فئة') || lowerHeader.includes('شركة')) {
+          headerMapping.categories = index;
+        } else if (lowerHeader.includes('image') || lowerHeader.includes('photo') || lowerHeader.includes('صورة')) {
+          headerMapping.images = index;
+        } else if (lowerHeader.includes('short') && lowerHeader.includes('desc')) {
+          headerMapping.short_description = index;
+        } else if (lowerHeader.includes('desc') || lowerHeader.includes('وصف')) {
+          headerMapping.description = index;
+        } else if (lowerHeader.includes('type') || lowerHeader.includes('نوع')) {
+          headerMapping.type = index;
+        } else if (lowerHeader.includes('color') || lowerHeader.includes('لون')) {
+          headerMapping.color = index;
+        } else if (lowerHeader.includes('size') || lowerHeader.includes('مقاس')) {
+          headerMapping.size = index;
+        }
+      });
+    }
+    
+    // 🆕 Check if we should group by product (for variations)
+    const hasColorOrSize = headerMapping.color !== undefined || headerMapping.size !== undefined;
+    const shouldGroup = groupByProduct && hasColorOrSize;
+    
+    console.log(`🎨 Color column: ${headerMapping.color !== undefined ? 'Found' : 'Not found'}`);
+    console.log(`📏 Size column: ${headerMapping.size !== undefined ? 'Found' : 'Not found'}`);
+    console.log(`🔀 Will group products: ${shouldGroup}`);
+    
+    if (shouldGroup) {
+      // Group products by name and create variable products
+      const productGroups = {};
+      
+      for (const values of rows) {
+        if (!values || values.length === 0) continue;
+        
+        const productName = headerMapping.name !== undefined ? String(values[headerMapping.name] || '') : String(values[0] || "");
+        if (!productName || productName.trim().length === 0) continue;
+        
+        const color = headerMapping.color !== undefined ? String(values[headerMapping.color] || '') : '';
+        const size = headerMapping.size !== undefined ? String(values[headerMapping.size] || '') : '';
+        
+        // Skip if "متنوع" (means variable, not a specific variation)
+        if (color === 'متنوع' || size === 'متنوع') continue;
+        
+        if (!productGroups[productName]) {
+          productGroups[productName] = {
+            name: productName,
+            sku: headerMapping.sku !== undefined ? String(values[headerMapping.sku] || '') : '',
+            categories: headerMapping.categories !== undefined ? String(values[headerMapping.categories] || '') : '',
+            images: headerMapping.images !== undefined ? String(values[headerMapping.images] || '') : '',
+            description: headerMapping.description !== undefined ? String(values[headerMapping.description] || '') : '',
+            short_description: headerMapping.short_description !== undefined ? String(values[headerMapping.short_description] || '') : '',
+            variations: []
+          };
+        }
+        
+        // Add variation
+        productGroups[productName].variations.push({
+          sku: headerMapping.sku !== undefined ? String(values[headerMapping.sku] || '') : '',
+          price: headerMapping.regular_price !== undefined ? String(values[headerMapping.regular_price] || '0') : '0',
+          sale_price: headerMapping.sale_price !== undefined ? String(values[headerMapping.sale_price] || '') : '',
+          stock: headerMapping.stock !== undefined ? String(values[headerMapping.stock] || '0') : '0',
+          color: color,
+          size: size
+        });
+      }
+      
+      // Convert groups to products array
+      Object.values(productGroups).forEach(group => {
+        products.push({
+          Name: group.name,
+          SKU: group.sku,
+          Type: 'variable',
+          Categories: group.categories,
+          Images: group.images,
+          Description: group.description,
+          'Short description': group.short_description,
+          'Regular price': '',
+          'Sale price': '',
+          Stock: '',
+          'In stock?': '1',
+          Variations: group.variations
+        });
+      });
+      
+    } else {
+      // Simple products (no grouping)
+      for (const values of rows) {
+        if (!values || values.length === 0) continue;
+        
+        const product = {};
+        product.Name = headerMapping.name !== undefined ? String(values[headerMapping.name] || '') : (String(values[headers.indexOf("Name")] || values[0] || ""));
+        product.SKU = headerMapping.sku !== undefined ? String(values[headerMapping.sku] || '') : (String(values[headers.indexOf("SKU")] || ""));
+        product["Regular price"] = headerMapping.regular_price !== undefined ? String(values[headerMapping.regular_price] || '0') : (String(values[headers.indexOf("Regular price")] || "0"));
+        product["Sale price"] = headerMapping.sale_price !== undefined ? String(values[headerMapping.sale_price] || '') : (String(values[headers.indexOf("Sale price")] || ""));
+        product.Stock = headerMapping.stock !== undefined ? String(values[headerMapping.stock] || '0') : (String(values[headers.indexOf("Stock")] || "0"));
+        product["In stock?"] = headerMapping.in_stock !== undefined ? String(values[headerMapping.in_stock] || '1') : (String(values[headers.indexOf("In stock?")] || "1"));
+        product.Categories = headerMapping.categories !== undefined ? String(values[headerMapping.categories] || '') : (String(values[headers.indexOf("Categories")] || ""));
+        product.Images = headerMapping.images !== undefined ? String(values[headerMapping.images] || '') : (String(values[headers.indexOf("Images")] || ""));
+        product["Short description"] = headerMapping.short_description !== undefined ? String(values[headerMapping.short_description] || '') : (String(values[headers.indexOf("Short description")] || ""));
+        product.Description = headerMapping.description !== undefined ? String(values[headerMapping.description] || '') : (String(values[headers.indexOf("Description")] || ""));
+        product.Type = headerMapping.type !== undefined ? String(values[headerMapping.type] || 'simple') : (String(values[headers.indexOf("Type")] || "simple"));
+        
+        if (product.Name && product.Name.trim().length > 0) {
+          products.push(product);
+        }
+      }
+    }
+    
+    return products;
+  };
+
+  const parseCSV = async (file, useManualMapping = false) => {
+    // قراءة الملف مع encoding صحيح للعربي
+    const arrayBuffer = await file.arrayBuffer();
+    let text;
+    
+    const encodings = ['utf-8', 'windows-1256', 'iso-8859-6', 'cp1256'];
+    
+    for (const encoding of encodings) {
+      try {
+        text = new TextDecoder(encoding).decode(arrayBuffer);
+        console.log(`🔍 Import - Trying encoding: ${encoding}`);
+        if (!text.includes('�')) {
+          console.log(`✅ Import - Success with encoding: ${encoding}`);
+          break;
+        }
+      } catch (e) {
+        console.log(`❌ Import - Failed encoding: ${encoding}`, e.message);
+        continue;
+      }
+    }
+    
+    if (!text || text.includes('�')) {
+      console.log("⚠️ Import - Using fallback text reading");
+      const blob = new Blob([arrayBuffer]);
+      text = await blob.text();
+    }
+    
     let lines = text.split(/\r?\n/).filter(line => line.trim());
     
     // 🔧 Fix: Remove outer quotes from entire lines if wrapped
     lines = lines.map(line => {
-      // If entire line is wrapped in quotes, remove them
       if (line.startsWith('"') && line.endsWith('"')) {
         return line.slice(1, -1);
       }
@@ -279,7 +487,7 @@ export default function ProductsImportPage() {
 
   const handleImport = async () => {
     if (!file) {
-      alert("الرجاء اختيار ملف CSV");
+      alert("الرجاء اختيار ملف");
       return;
     }
 
@@ -288,35 +496,8 @@ export default function ProductsImportPage() {
     setErrors([]);
 
     try {
-      // قراءة الملف مع encoding صحيح للعربي
-      const arrayBuffer = await file.arrayBuffer();
-      let text;
-      
-      const encodings = ['utf-8', 'windows-1256', 'iso-8859-6', 'cp1256'];
-      
-      for (const encoding of encodings) {
-        try {
-          text = new TextDecoder(encoding).decode(arrayBuffer);
-          console.log(`🔍 Import - Trying encoding: ${encoding}`);
-          // Check if it has replacement characters
-          if (!text.includes('�')) {
-            console.log(`✅ Import - Success with encoding: ${encoding}`);
-            break;
-          }
-        } catch (e) {
-          console.log(`❌ Import - Failed encoding: ${encoding}`, e.message);
-          continue;
-        }
-      }
-      
-      // Final fallback
-      if (!text || text.includes('�')) {
-        console.log("⚠️ Import - Using fallback text reading");
-        text = await file.text();
-      }
-      
-      const useManualMapping = Object.keys(manualMapping).length > 0;
-      const products = parseCSV(text, useManualMapping);
+      // قراءة الملف (CSV أو Excel)
+      const products = await parseFile(file, Object.keys(manualMapping).length > 0);
 
       console.log("📦 Products to import:", products.length);
 
@@ -403,10 +584,10 @@ export default function ProductsImportPage() {
           </button>
           <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-3">
             <span className="text-4xl">📥</span>
-            استيراد المنتجات من CSV
+            استيراد المنتجات
           </h1>
           <p className="text-gray-600 mt-2">
-            قم برفع ملف CSV يحتوي على بيانات المنتجات للاستيراد التلقائي
+            قم برفع ملف CSV أو Excel (.xls, .xlsx) يحتوي على بيانات المنتجات للاستيراد التلقائي
           </p>
         </div>
 
@@ -415,36 +596,68 @@ export default function ProductsImportPage() {
           {/* 🆕 Info Box */}
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6 mb-6 text-right">
             <h3 className="font-bold text-blue-900 text-lg mb-3 flex items-center gap-2 justify-end">
-              <span>🎯 النظام يتعرف تلقائياً على أي تنسيق CSV</span>
+              <span>🎯 النظام يتعرف تلقائياً على أي تنسيق (CSV أو Excel)</span>
             </h3>
             <div className="text-sm text-blue-800 space-y-2">
-              <p className="font-medium">الأعمدة المدعومة (بأي اسم من هذه الاختيارات):</p>
+              <p className="font-medium">📋 الصيغ المدعومة:</p>
               <ul className="mr-6 space-y-1">
-                <li>• <strong>اسم المنتج:</strong> Name, Product Name, Title, اسم, اسم المنتج</li>
-                <li>• <strong>السعر:</strong> Price, Regular Price, السعر</li>
-                <li>• <strong>الكود:</strong> SKU, Code, Product Code, كود, رمز</li>
-                <li>• <strong>الكمية:</strong> Stock, Quantity, Qty, كمية, مخزون</li>
-                <li>• <strong>الفئة:</strong> Categories, Category, Cat, فئة, فئات</li>
+                <li>• <strong>CSV:</strong> ملفات نصية منسقة بفواصل</li>
+                <li>• <strong>Excel:</strong> ملفات .xls و .xlsx</li>
+              </ul>
+              <p className="font-medium mt-3">الأعمدة المدعومة (بأي اسم من هذه الاختيارات):</p>
+              <ul className="mr-6 space-y-1">
+                <li>• <strong>اسم المنتج:</strong> Name, Product Name, Title, اسم, اسم الصنف, اسم المنتج</li>
+                <li>• <strong>السعر:</strong> Price, Regular Price, السعر, سعر البيع</li>
+                <li>• <strong>الكود:</strong> SKU, Code, Product Code, كود, رمز, الكود, الباركود</li>
+                <li>• <strong>الكمية:</strong> Stock, Quantity, Qty, كمية, مخزون, الكمية</li>
+                <li>• <strong>الفئة:</strong> Categories, Category, Cat, فئة, فئات, الشركة</li>
                 <li>• <strong>الصورة:</strong> Images, Image, Photo, صورة</li>
+                <li>• <strong>المقاس:</strong> Size, المقاس</li>
+                <li>• <strong>اللون:</strong> Color, اللون</li>
               </ul>
               <p className="text-xs text-blue-600 mt-3 bg-white rounded-lg p-2">
                 💡 <strong>مزايا:</strong> لا تحتاج لتغيير أسماء الأعمدة - النظام يفهمها تلقائياً سواء بالعربي أو الإنجليزي!
               </p>
+              <p className="text-xs text-green-600 mt-2 bg-green-50 rounded-lg p-2">
+                🎨 <strong>Variable Products:</strong> إذا كان الملف يحتوي على منتجات بألوان أو مقاسات مختلفة، سيتم دمجها تلقائياً!
+              </p>
             </div>
           </div>
+
+          {/* 🆕 Variations Grouping Option */}
+          {file && csvHeaders.length > 0 && (
+            <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 mb-4 text-right">
+              <label className="flex items-center gap-3 cursor-pointer justify-end">
+                <span className="text-sm text-purple-800 font-medium">
+                  دمج المنتجات المتشابهة كـ Variable Product (حسب اللون/المقاس)
+                </span>
+                <input
+                  type="checkbox"
+                  checked={groupByProduct}
+                  onChange={(e) => setGroupByProduct(e.target.checked)}
+                  className="w-5 h-5"
+                />
+              </label>
+              <p className="text-xs text-purple-600 mt-2">
+                {groupByProduct 
+                  ? "✅ سيتم دمج المنتجات بنفس الاسم ولكن ألوان/مقاسات مختلفة في منتج واحد متغير"
+                  : "❌ سيتم إنشاء منتج منفصل لكل صف في الملف"}
+              </p>
+            </div>
+          )}
 
           <div className="border-2 border-dashed border-blue-300 rounded-xl p-8 text-center hover:border-blue-500 transition-all">
             <div className="text-6xl mb-4">📄</div>
             <label className="cursor-pointer">
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xls,.xlsx"
                 onChange={handleFileChange}
                 className="hidden"
                 disabled={importing}
               />
               <span className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-all inline-block font-bold">
-                اختر ملف CSV
+                اختر ملف (CSV أو Excel)
               </span>
             </label>
             {file && (

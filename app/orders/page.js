@@ -508,6 +508,37 @@ function OrdersContent() {
             shipping: parseFloat(order.shipping_total || 0)
           };
         }
+        
+        // 🔥 بناء deliveryPayment (مهم لحساب COD صح!)
+        if (!order.deliveryPayment) {
+          const paymentMethod = order.payment_method?.toLowerCase() || '';
+          const isPaid = order.status === 'completed' || order.status === 'processing';
+          
+          if (paymentMethod === 'cod' || paymentMethod === 'cash_on_delivery') {
+            // دفع عند الاستلام - COD كامل
+            order.deliveryPayment = {
+              status: 'cash_on_delivery',
+              paidAmount: 0,
+              remainingAmount: parseFloat(order.total || 0) - parseFloat(order.shipping_total || 0)
+            };
+          } else if (isPaid) {
+            // مدفوع أونلاين - بدون توصيل
+            order.deliveryPayment = {
+              status: 'fully_paid_no_delivery',
+              paidAmount: parseFloat(order.total || 0) - parseFloat(order.shipping_total || 0),
+              remainingAmount: 0 // المبلغ المتبقي غير الشحن
+            };
+          } else {
+            // حالة افتراضية
+            order.deliveryPayment = {
+              status: 'cash_on_delivery',
+              paidAmount: 0,
+              remainingAmount: parseFloat(order.total || 0) - parseFloat(order.shipping_total || 0)
+            };
+          }
+          
+          console.log('💰 Built deliveryPayment for WooCommerce order:', order.deliveryPayment);
+        }
       }
       
       // 1. التحقق من صحة البيانات
