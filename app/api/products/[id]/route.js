@@ -173,13 +173,10 @@ export async function PATCH(req, { params }) {
         updatePayload.stock_quantity = Number(body.stock);
         updatePayload.manage_stock = true; // 🆕 تفعيل إدارة المخزون تلقائياً
       }
-      // Handle salePrice as string only if valid
-      if (
-        body.salePrice !== undefined &&
-        body.salePrice !== null &&
-        String(body.salePrice).trim() !== ''
-      ) {
-        updatePayload.sale_price = String(body.salePrice);
+      // Handle salePrice - allow empty string to clear it
+      if (body.salePrice !== undefined) {
+        const salePriceValue = String(body.salePrice || '').trim();
+        updatePayload.sale_price = salePriceValue;
       }
     }
 

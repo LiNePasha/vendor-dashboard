@@ -46,7 +46,7 @@ export async function POST(req) {
     const vendorId = decoded?.data?.user?.id;
 
     const body = await req.json();
-    const { name, sku, type = 'simple', sellingPrice, purchasePrice, stock, categories, images, attributes } = body;
+    const { name, sku, type = 'simple', sellingPrice, salePrice, purchasePrice, stock, categories, images, attributes } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -94,6 +94,10 @@ export async function POST(req) {
     // Settings specific to product type
     if (type === 'simple') {
       productPayload.regular_price = String(sellingPrice);
+      // Add sale price if provided
+      if (salePrice !== undefined && salePrice !== null && String(salePrice).trim() !== '') {
+        productPayload.sale_price = String(salePrice);
+      }
       productPayload.manage_stock = true;
       productPayload.stock_quantity = Number(stock) || 0;
     } else if (type === 'variable') {

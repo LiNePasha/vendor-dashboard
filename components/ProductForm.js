@@ -475,6 +475,12 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         alert('⚠️ الاسم وسعر البيع مطلوبان');
         return;
       }
+      
+      // 🔥 التحقق من سعر العرض
+      if (form.salePrice && parseFloat(form.salePrice) >= parseFloat(form.sellingPrice)) {
+        alert('⚠️ سعر العرض يجب أن يكون أقل من سعر البيع!\n\nسعر البيع: ' + form.sellingPrice + ' ج.م\nسعر العرض: ' + form.salePrice + ' ج.م');
+        return;
+      }
     } else if (form.productType === 'variable') {
       if (!form.name) {
         alert('⚠️ الاسم مطلوب');
@@ -558,16 +564,6 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     
     const method = mode === 'edit' ? 'PATCH' : 'POST';
 
-    // تجهيز salePrice كسلسلة نصية فقط إذا كانت قيمة رقمية وصحيحة
-    let salePriceToSend = undefined;
-    if (
-      form.salePrice !== undefined &&
-      form.salePrice !== null &&
-      String(form.salePrice).trim() !== '' &&
-      !isNaN(Number(form.salePrice))
-    ) {
-      salePriceToSend = String(form.salePrice);
-    }
     const response = await fetch(endpoint, {
       method,
       headers: { 'Content-Type': 'application/json' },
@@ -575,7 +571,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         name: form.name,
         sku: form.sku,
         sellingPrice: parseFloat(form.sellingPrice),
-        ...(salePriceToSend !== undefined ? { salePrice: salePriceToSend } : {}),
+        salePrice: form.salePrice || '',
         purchasePrice: parseFloat(form.purchasePrice) || 0,
         stock: parseInt(form.apiStock) || 0,
         categories: form.categories.length > 0 ? form.categories : null,
@@ -1289,9 +1285,19 @@ export default function ProductForm({ mode = 'create', productId = null, initial
                     setForm({ ...form, salePrice: val });
                   }
                 }}
-                className="w-full px-4 py-2 border rounded-lg bg-yellow-50"
+                className={`w-full px-4 py-2 border rounded-lg ${
+                  form.salePrice && form.sellingPrice && parseFloat(form.salePrice) >= parseFloat(form.sellingPrice)
+                    ? 'border-red-500 bg-red-50'
+                    : 'bg-yellow-50'
+                }`}
                 placeholder="اختياري - أقل من سعر البيع"
               />
+              {form.salePrice && form.sellingPrice && parseFloat(form.salePrice) >= parseFloat(form.sellingPrice) && (
+                <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                  <span>⚠️</span>
+                  <span>سعر العرض ({form.salePrice}) يجب أن يكون أقل من سعر البيع ({form.sellingPrice})</span>
+                </p>
+              )}
               <p className="text-xs text-gray-500 mt-1">💡 سعر العرض (إذا كان أقل من السعر الأساسي)</p>
             </div>
 
