@@ -7,6 +7,7 @@ import OrderDetailsModal from "@/components/OrderDetailsModal";
 import { BostaAPI } from "@/app/lib/bosta-api";
 import { getBostaSettings, validateInvoiceForBosta, formatBostaStatus, getBostaTrackingUrl } from "@/app/lib/bosta-helpers";
 import localforage from 'localforage';
+import { invoiceStorage } from '@/app/lib/localforage';
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "ترك الدفع", color: "bg-gray-400" },
@@ -87,6 +88,10 @@ function OrdersContent() {
   // 🆕 Refresh counter for forcing re-render
   const [refreshKey, setRefreshKey] = useState(0);
   const forceRefresh = () => setRefreshKey(prev => prev + 1);
+  
+  // 🔥 Bulk Selection State
+  const [selectedOrders, setSelectedOrders] = useState([]);
+  const [registeringBulk, setRegisteringBulk] = useState(false);
   
   // 🆕 Auto-hide toast
   useEffect(() => {
@@ -392,6 +397,302 @@ function OrdersContent() {
     } catch (error) {
       console.error('Error saving standalone note:', error);
       setToast({ message: '❌ فشل حفظ الملاحظة', type: 'error' });
+    }
+  };
+  
+  // 🔥 Bulk register invoices
+  const handleBulkRegisterInvoices = async () => {
+    if (selectedOrders.length === 0) {
+      setToast({ message: '⚠️ لم يتم تحديد أي طلبات', type: 'error' });
+      return;
+    }
+    
+    const confirmed = confirm(`هل تريد تسجيل ${selectedOrders.length} طلب كفواتير؟`);
+    if (!confirmed) return;
+    
+    setRegisteringBulk(true);
+    let successCount = 0;
+    let failCount = 0;
+    let alreadyRegisteredCount = 0;
+    
+    try {
+      const existingInvoices = await invoiceStorage.getAllInvoices();
+      
+      for (const orderId of selectedOrders) {
+        const order = orders.find(o => o.id === orderId);
+        if (!order) continue;
+        
+        // Check if already registered
+        const alreadyRegistered = existingInvoices.some(inv => inv.orderId === order.id);
+        if (alreadyRegistered) {
+          alreadyRegisteredCount++;
+          continue;
+        }
+        
+        try {
+          // Create invoice from order
+          const invoiceItems = order.line_items.map(item => ({
+            id: item.product_id || item.id,
+            name: item.name,
+            price: parseFloat(item.price),
+            quantity: item.quantity,
+            totalPrice: parseFloat(item.price) * item.quantity,
+            stock_quantity: null,
+            wholesalePrice: null,
+            profit: null
+          }));
+
+          const productsSubtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
+          const shippingFee = parseFloat(order.shipping_total || 0);
+          const discountAmount = parseFloat(order.discount_total || 0);
+          const orderTotal = parseFloat(order.total);
+          
+          const invoice = {
+            id: `order-${order.id}-${Date.now()}`,
+            orderId: order.id,
+            date: new Date().toISOString(),
+            items: invoiceItems,
+            services: [],
+            orderType: 'delivery',
+            orderNotes: orderNotes[order.id] || '',
+            customerNote: order.customer_note || '',
+            summary: {
+              productsSubtotal: productsSubtotal,
+              servicesTotal: 0,
+              subtotal: productsSubtotal,
+              discount: {
+                type: 'fixed',
+                value: discountAmount,
+                amount: discountAmount
+              },
+              extraFee: 0,
+              deliveryFee: shippingFee,
+              total: orderTotal,
+              totalProfit: 0,
+              profitItemsCount: 0
+            },
+            profitDetails: [],
+            paymentMethod: order.payment_method_title || 'غير محدد',
+            paymentStatus: 'partial',
+            customerInfo: {
+              name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
+              phone: order.billing?.phone || '',
+              email: order.billing?.email || '',
+              address: order.billing?.address_1 || ''
+            },
+            deliveryPayment: {
+              status: 'fully_paid_no_delivery',
+              paidAmount: productsSubtotal - discountAmount,
+              remainingAmount: shippingFee,
+              note: 'تم الدفع في الستور (ثمن المنتجات فقط) - رسوم التوصيل للتحصيل'
+            },
+            delivery: {
+              type: 'delivery',
+              address: order.billing?.address_1 || '',
+              customer: {
+                name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
+                phone: order.billing?.phone || '',
+                email: order.billing?.email || '',
+                address: {}
+              },
+              fee: shippingFee,
+              notes: ''
+            },
+            deliveryStatus: 'pending',
+            synced: true,
+            source: 'order'
+          };
+
+          await invoiceStorage.saveInvoice(invoice);
+          successCount++;
+        } catch (error) {
+          console.error(`Error registering order ${order.id}:`, error);
+          failCount++;
+        }
+      }
+      
+      // Show result
+      let message = '';
+      if (successCount > 0) message += `✅ تم تسجيل ${successCount} فاتورة`;
+      if (alreadyRegisteredCount > 0) message += ` | ⚠️ ${alreadyRegisteredCount} مسجل مسبقاً`;
+      if (failCount > 0) message += ` | ❌ ${failCount} فشل`;
+      
+      setToast({ 
+        message: message || '✅ تمت العملية', 
+        type: failCount === 0 ? 'success' : 'warning' 
+      });
+      
+      // Clear selection
+      setSelectedOrders([]);
+    } catch (error) {
+      console.error('Bulk register error:', error);
+      setToast({ message: '❌ فشل تسجيل الفواتير', type: 'error' });
+    } finally {
+      setRegisteringBulk(false);
+    }
+  };
+  
+  // Toggle order selection
+  const toggleOrderSelection = (orderId) => {
+    setSelectedOrders(prev => 
+      prev.includes(orderId) 
+        ? prev.filter(id => id !== orderId)
+        : [...prev, orderId]
+    );
+  };
+  
+  // Select all orders
+  const selectAllOrders = () => {
+    const currentOrders = filteredOrders.map(o => o.id);
+    setSelectedOrders(currentOrders);
+  };
+  
+  // Deselect all orders
+  const deselectAllOrders = () => {
+    setSelectedOrders([]);
+  };
+  
+  // 🔥 Bulk Print & Register
+  const handleBulkPrintOrders = async () => {
+    if (selectedOrders.length === 0) {
+      setToast({ message: '⚠️ لم يتم تحديد أي طلبات', type: 'error' });
+      return;
+    }
+    
+    const confirmed = confirm(`هل تريد طباعة وتسجيل ${selectedOrders.length} طلب؟\n\nسيتم تسجيلهم كفواتير تلقائياً وفتح صفحات الطباعة.`);
+    if (!confirmed) return;
+    
+    setRegisteringBulk(true);
+    let successCount = 0;
+    let failCount = 0;
+    let alreadyRegisteredCount = 0;
+    const invoiceIdsToShow = [];
+    
+    try {
+      const existingInvoices = await invoiceStorage.getAllInvoices();
+      
+      for (const orderId of selectedOrders) {
+        const order = orders.find(o => o.id === orderId);
+        if (!order) continue;
+        
+        // Check if already registered
+        const existingInvoice = existingInvoices.find(inv => inv.orderId === order.id);
+        if (existingInvoice) {
+          alreadyRegisteredCount++;
+          invoiceIdsToShow.push(existingInvoice.id);
+          continue;
+        }
+        
+        try {
+          // Create invoice from order (same structure as handleBulkRegisterInvoices)
+          const invoiceItems = order.line_items.map(item => ({
+            id: item.product_id || item.id,
+            name: item.name,
+            price: parseFloat(item.price),
+            quantity: item.quantity,
+            totalPrice: parseFloat(item.price) * item.quantity,
+            stock_quantity: null,
+            wholesalePrice: null,
+            profit: null
+          }));
+
+          const productsSubtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
+          const shippingFee = parseFloat(order.shipping_total || 0);
+          const discountAmount = parseFloat(order.discount_total || 0);
+          const orderTotal = parseFloat(order.total);
+          
+          const invoiceId = `order-${order.id}-${Date.now()}`;
+          const invoice = {
+            id: invoiceId,
+            orderId: order.id,
+            date: new Date().toISOString(),
+            items: invoiceItems,
+            services: [],
+            orderType: 'delivery',
+            orderNotes: orderNotes[order.id] || '',
+            customerNote: order.customer_note || '',
+            summary: {
+              productsSubtotal: productsSubtotal,
+              servicesTotal: 0,
+              subtotal: productsSubtotal,
+              discount: {
+                type: 'fixed',
+                value: discountAmount,
+                amount: discountAmount
+              },
+              extraFee: 0,
+              deliveryFee: shippingFee,
+              total: orderTotal,
+              totalProfit: 0,
+              profitItemsCount: 0
+            },
+            profitDetails: [],
+            paymentMethod: order.payment_method_title || 'غير محدد',
+            paymentStatus: 'partial',
+            customerInfo: {
+              name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
+              phone: order.billing?.phone || '',
+              email: order.billing?.email || '',
+              address: order.billing?.address_1 || ''
+            },
+            deliveryPayment: {
+              status: 'fully_paid_no_delivery',
+              paidAmount: productsSubtotal - discountAmount,
+              remainingAmount: shippingFee,
+              note: 'تم الدفع في الستور (ثمن المنتجات فقط) - رسوم التوصيل للتحصيل'
+            },
+            delivery: {
+              type: 'delivery',
+              address: order.billing?.address_1 || '',
+              customer: {
+                name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
+                phone: order.billing?.phone || '',
+                email: order.billing?.email || '',
+                address: {}
+              },
+              fee: shippingFee,
+              notes: ''
+            },
+            deliveryStatus: 'pending',
+            synced: true,
+            source: 'order'
+          };
+
+          await invoiceStorage.saveInvoice(invoice);
+          successCount++;
+          invoiceIdsToShow.push(invoiceId);
+        } catch (error) {
+          console.error(`Error registering order ${order.id}:`, error);
+          failCount++;
+        }
+      }
+      
+      // Show result
+      let message = '';
+      if (successCount > 0) message += `✅ تم تسجيل ${successCount} فاتورة`;
+      if (alreadyRegisteredCount > 0) message += ` | ⚠️ ${alreadyRegisteredCount} مسجل مسبقاً`;
+      if (failCount > 0) message += ` | ❌ ${failCount} فشل`;
+      
+      setToast({ 
+        message: message + ' | 🖨️ جاري فتح صفحة الطباعة...', 
+        type: failCount === 0 ? 'success' : 'warning' 
+      });
+      
+      // Open ONE print page with all invoice IDs
+      if (invoiceIdsToShow.length > 0) {
+        setTimeout(() => {
+          const idsParam = invoiceIdsToShow.join(',');
+          window.open(`/pos/invoices/print?ids=${idsParam}`, '_blank');
+        }, 500);
+      }
+      
+      // Clear selection
+      setSelectedOrders([]);
+    } catch (error) {
+      console.error('Bulk print & register error:', error);
+      setToast({ message: '❌ فشل تسجيل الفواتير', type: 'error' });
+    } finally {
+      setRegisteringBulk(false);
     }
   };
   
@@ -1430,10 +1731,79 @@ function OrdersContent() {
       {/* Table View - لكل الطلبات */}
       {activeTab !== 'notes' && viewMode === 'table' && (
         <div key={refreshKey} className="bg-white rounded-xl shadow-sm overflow-hidden">
+          {/* 🔥 Bulk Actions Bar */}
+          {selectedOrders.length > 0 && (
+            <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <span className="font-bold">تم تحديد {selectedOrders.length} طلب</span>
+                <button
+                  onClick={deselectAllOrders}
+                  className="text-sm hover:underline"
+                >
+                  إلغاء التحديد
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleBulkRegisterInvoices}
+                  disabled={registeringBulk}
+                  className="px-4 py-2 bg-white text-purple-600 rounded-lg font-bold hover:bg-purple-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {registeringBulk ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      <span>جاري المعالجة...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🧾</span>
+                      <span>تسجيل كفواتير ({selectedOrders.length})</span>
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  onClick={handleBulkPrintOrders}
+                  disabled={registeringBulk}
+                  className="px-4 py-2 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {registeringBulk ? (
+                    <>
+                      <span className="animate-spin">⏳</span>
+                      <span>جاري المعالجة...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🖨️</span>
+                      <span>طباعة ({selectedOrders.length})</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+          
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className={`${activeTab === 'website' ? 'bg-gradient-to-r from-blue-500 to-blue-600' : 'bg-gradient-to-r from-green-500 to-green-600'} text-white`}>
                 <tr>
+                  {/* 🔥 Select All Checkbox */}
+                  {activeTab === 'website' && (
+                    <th className="px-2 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={filteredOrders.length > 0 && selectedOrders.length === filteredOrders.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            selectAllOrders();
+                          } else {
+                            deselectAllOrders();
+                          }
+                        }}
+                        className="w-5 h-5 rounded cursor-pointer"
+                      />
+                    </th>
+                  )}
                   <th className="px-2 py-3 text-right text-sm font-bold">
                     {activeTab === 'website' ? 'رقم الطلب' : 'رقم الفاتورة'}
                   </th>
@@ -1442,7 +1812,10 @@ function OrdersContent() {
                   <th className="px-2 py-3 text-right text-sm font-bold">المنتجات</th>
                   <th className="px-2 py-3 text-right text-sm font-bold">الإجمالي</th>
                   {activeTab === 'website' && (
-                    <th className="px-2 py-3 text-right text-sm font-bold">طريقة الدفع</th>
+                    <>
+                      <th className="px-2 py-3 text-right text-sm font-bold">طريقة الدفع</th>
+                      <th className="px-2 py-3 text-right text-sm font-bold">الملاحظات</th>
+                    </>
                   )}
                   {activeTab === 'system' && (
                     <th className="px-2 py-3 text-right text-sm font-bold">تفاصيل الدفع</th>
@@ -1464,6 +1837,11 @@ function OrdersContent() {
                   // Loading State
                   Array(5).fill(0).map((_, i) => (
                     <tr key={i} className="border-b border-gray-100 animate-pulse">
+                      {activeTab === 'website' && (
+                        <td className="px-2 py-3">
+                          <div className="h-4 w-4 bg-gray-200 rounded"></div>
+                        </td>
+                      )}
                       <td className="px-2 py-3">
                         <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
                         <div className="h-3 bg-gray-100 rounded w-20"></div>
@@ -1483,6 +1861,11 @@ function OrdersContent() {
                       <td className="px-2 py-3">
                         <div className="h-4 bg-gray-200 rounded w-24"></div>
                       </td>
+                      {activeTab === 'website' && (
+                        <td className="px-2 py-3">
+                          <div className="h-4 bg-gray-200 rounded w-32"></div>
+                        </td>
+                      )}
                       <td className="px-2 py-3">
                         <div className="h-6 bg-gray-200 rounded-full w-20"></div>
                       </td>
@@ -1506,7 +1889,7 @@ function OrdersContent() {
                   ))
                 ) : filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="px-4 py-12 text-center text-gray-500">
+                    <td colSpan={activeTab === 'website' ? (bostaEnabled ? "9" : "8") : "10"} className="px-4 py-12 text-center text-gray-500">
                       <div className="text-4xl mb-2">📦</div>
                       <p>لا توجد طلبات</p>
                     </td>
@@ -1749,6 +2132,17 @@ function OrdersContent() {
                                 : 'bg-gray-50 hover:bg-blue-50 border-gray-100'
                           }`}
                         >
+                          {/* Checkbox */}
+                          <td className="px-2 py-3 text-center">
+                            <input 
+                              type="checkbox"
+                              checked={selectedOrders.includes(order.id)}
+                              onChange={() => toggleOrderSelection(order.id)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+                            />
+                          </td>
+
                           {/* Order ID + Badges */}
                           <td className="px-2 py-3">
                             <div className="flex items-center gap-1 mb-1">
@@ -1783,11 +2177,6 @@ function OrdersContent() {
                               </div>
                               {order.billing?.phone && (
                                 <div className="text-gray-600 mb-0.5">📱 {order.billing.phone}</div>
-                              )}
-                              {order.customer_note && order.customer_note.trim() && (
-                                <div className="bg-yellow-100 border border-yellow-300 rounded px-1 py-0.5 mt-1">
-                                  <span className="text-yellow-700 text-[10px]">📝 {order.customer_note.substring(0, 30)}{order.customer_note.length > 30 ? '...' : ''}</span>
-                                </div>
                               )}
                             </div>
                           </td>
@@ -1842,6 +2231,27 @@ function OrdersContent() {
                                   <div className="text-purple-700 text-[9px] font-bold mb-0.5">🔖 كاشير:</div>
                                   <div className="text-purple-900 text-[9px] font-mono">{kashierTxId}</div>
                                 </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Notes - Customer Note & Order Notes */}
+                          <td className="px-2 py-3">
+                            <div className="text-xs space-y-1">
+                              {order.customer_note && order.customer_note.trim() && (
+                                <div className="bg-yellow-50 border border-yellow-300 rounded px-1.5 py-1">
+                                  <div className="text-yellow-700 text-[9px] font-bold mb-0.5">📝 ملاحظة العميل:</div>
+                                  <div className="text-yellow-900 text-[10px] leading-tight">{order.customer_note}</div>
+                                </div>
+                              )}
+                              {orderNotes[order.id] && orderNotes[order.id].trim() && (
+                                <div className="bg-blue-50 border border-blue-300 rounded px-1.5 py-1">
+                                  <div className="text-blue-700 text-[9px] font-bold mb-0.5">💼 ملاحظاتنا:</div>
+                                  <div className="text-blue-900 text-[10px] leading-tight">{orderNotes[order.id]}</div>
+                                </div>
+                              )}
+                              {!order.customer_note && !orderNotes[order.id] && (
+                                <span className="text-gray-400 text-[10px]">-</span>
                               )}
                             </div>
                           </td>

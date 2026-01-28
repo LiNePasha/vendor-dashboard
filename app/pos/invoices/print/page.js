@@ -9,9 +9,20 @@ import usePOSStore from '@/app/stores/pos-store';
 function PrintInvoiceContent() {
   const searchParams = useSearchParams();
   const idParam = searchParams.get('id');
-  const invoiceId = useMemo(() => (idParam ? String(idParam) : ''), [idParam]);
+  const idsParam = searchParams.get('ids'); // 🔥 Support multiple IDs
+  
+  const invoiceIds = useMemo(() => {
+    if (idsParam) {
+      // Multiple IDs separated by comma
+      return idsParam.split(',').map(id => String(id).trim()).filter(Boolean);
+    } else if (idParam) {
+      // Single ID
+      return [String(idParam)];
+    }
+    return [];
+  }, [idParam, idsParam]);
 
-  const [invoice, setInvoice] = useState(null);
+  const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const vendorInfo = usePOSStore((state) => state.vendorInfo);
   const getVendorInfo = usePOSStore((state) => state.getVendorInfo);
@@ -26,27 +37,23 @@ function PrintInvoiceContent() {
   useEffect(() => {
     async function load() {
       try {
-        let inv = null;
-        if (invoiceStorage?.getInvoice) {
-          inv = await invoiceStorage.getInvoice(invoiceId);
-        }
-        if (!inv) {
-          const all = await invoiceStorage.getAllInvoices();
-          inv = all.find((i) => String(i.id) === String(invoiceId)) || null;
-        }
-        setInvoice(inv || null);
+        const allInvoices = await invoiceStorage.getAllInvoices();
+        const loadedInvoices = invoiceIds
+          .map(id => allInvoices.find(i => String(i.id) === String(id)))
+          .filter(Boolean);
+        setInvoices(loadedInvoices);
       } catch (err) {
-        console.error('❌ Error loading invoice:', err);
-        setInvoice(null);
+        console.error('❌ Error loading invoices:', err);
+        setInvoices([]);
       } finally {
         setLoading(false);
       }
     }
-    if (invoiceId) load();
-  }, [invoiceId]);
+    if (invoiceIds.length > 0) load();
+  }, [invoiceIds]);
 
   useEffect(() => {
-  if (!invoice) return;
+  if (invoices.length === 0) return;
     
     const t = setTimeout(() => {
       window.print();
@@ -60,19 +67,19 @@ function PrintInvoiceContent() {
       clearTimeout(t);
       window.removeEventListener('afterprint', after);
     };
-  }, [invoice, vendorInfo]);
+  }, [invoices, vendorInfo]);
 
-  if (!invoiceId) {
-    console.log('❌ No invoice ID');
+  if (invoiceIds.length === 0) {
+    console.log('❌ No invoice IDs');
     return <div style={{ padding: 16 }}>لا يوجد معرف فاتورة للطباعة</div>;
   }
-  if (loading || !invoice || !vendorInfo) {
-    console.log('⏳ Loading state:', { loading, hasInvoice: !!invoice, hasVendor: !!vendorInfo });
+  if (loading || invoices.length === 0 || !vendorInfo) {
+    console.log('⏳ Loading state:', { loading, invoicesCount: invoices.length, hasVendor: !!vendorInfo });
     return (
       <div style={{ padding: 16, textAlign: 'center' }}>
         <div style={{ marginBottom: 8 }}>جاري التحميل...</div>
         <div style={{ fontSize: 12, color: '#666' }}>
-          {!invoice && 'تحميل الفاتورة...'}
+          {invoices.length === 0 && 'تحميل الفواتير...'}
           {!vendorInfo && 'تحميل بيانات المتجر...'}
         </div>
       </div>
@@ -85,11 +92,13 @@ function PrintInvoiceContent() {
   // Get store link based on vendor ID
   const storeLink = getVendorStoreLink(vendorInfo?.id);
   
-  // التحقق من نوع الطلب
-  const isDelivery = invoice.orderType === 'delivery';
-  const customer = invoice.delivery?.customer;
-  const address = customer?.address || {};
-  const deliveryNotes = invoice.delivery?.notes;
+  // 🔥 Render single invoice component
+  const renderInvoice = (invoice, index) => {
+    // التحقق من نوع الطلب
+    const isDelivery = invoice.orderType === 'delivery';
+    const customer = invoice.delivery?.customer;
+    const address = customer?.address || {};
+    const deliveryNotes = invoice.delivery?.notes;
   
   // 🔍 Console Debug للطلبات الأونلاين
   console.log('🔍 Invoice Debug Info:', {
@@ -156,70 +165,7 @@ function PrintInvoiceContent() {
   }[invoice.paymentMethod] || invoice.paymentMethod;
 
   return (
-    <>
-      <style jsx global>{`
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        /* Force hide all layout elements on print page */
-        body > div > aside,
-        body > div > div[class*="fixed"],
-        nav, header {
-          display: none !important;
-        }
-        
-        body {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        
-        @media print {
-          @page { 
-            size: 72mm auto;
-            margin: 0mm;
-          }
-          
-          html, body { 
-            margin: 0 !important; 
-            padding: 0 !important; 
-            width: 72mm !important;
-            background: white !important;
-          }
-          
-          body {
-            display: flex !important;
-            align-items: flex-start !important;
-            justify-content: flex-start !important;
-          }
-          
-          img { 
-            max-width: 100% !important; 
-            height: auto !important; 
-            display: block;
-          }
-          
-          .receipt-print { 
-            width: 72mm !important;
-            margin: 0 !important;
-            padding: 3mm !important;
-            background: white !important;
-            display: block !important;
-          }
-        }
-        
-        @media screen {
-          body { 
-            background: #f5f7fa;
-            padding: 16px;
-          }
-          .receipt-print { 
-            margin: 0 auto;
-            max-width: 72mm;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.08); 
-          }
-        }
-      `}</style>
-
-      <div className="receipt-print" style={{
+    <div key={invoice.id} className="receipt-print" style={{
         width: '72mm',
         fontFamily: 'Arial, sans-serif',
         fontSize: '11px',
@@ -653,6 +599,21 @@ function PrintInvoiceContent() {
           </div>
         )}
 
+        {/* Customer Note - ملاحظة العميل */}
+        {invoice.customerNote && invoice.customerNote.trim() && (
+          <div style={{ 
+            marginBottom: '2mm', 
+            padding: '2mm',
+            border: '2px solid #f59e0b',
+            fontSize: '9px',
+            color: '#000',
+            backgroundColor: '#fef3c7'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '10px', color: '#d97706' }}>📝 ملاحظة العميل:</div>
+            <div style={{ lineHeight: '1.4', whiteSpace: 'pre-wrap', color: '#92400e' }}>{invoice.customerNote}</div>
+          </div>
+        )}
+
         {/* Order Notes - ملاحظات على الطلب */}
         {invoice.orderNotes && (
           <div style={{ 
@@ -663,7 +624,7 @@ function PrintInvoiceContent() {
             color: '#000',
             backgroundColor: '#f5f5f5'
           }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '10px' }}>📝 ملاحظات على الطلب:</div>
+            <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '10px' }}>💼 ملاحظاتنا على الطلب:</div>
             <div style={{ lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>{invoice.orderNotes}</div>
           </div>
         )}
@@ -675,6 +636,80 @@ function PrintInvoiceContent() {
           <div style={{ fontSize: '10px', marginTop: '2mm', color: '#222', fontWeight: 'bold' }}>شكراً لزيارتكم ونتمنى لكم يوماً سعيداً!</div>
         </div>
       </div>
+  );
+  }; // End of renderInvoice function
+
+  return (
+    <>
+      <style jsx global>{`
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        /* Force hide all layout elements on print page */
+        body > div > aside,
+        body > div > div[class*="fixed"],
+        nav, header {
+          display: none !important;
+        }
+        
+        body {
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+        
+        @media print {
+          @page { 
+            size: 72mm auto;
+            margin: 0mm;
+          }
+          
+          html, body { 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            width: 72mm !important;
+            background: white !important;
+          }
+          
+          body {
+            display: flex !important;
+            align-items: flex-start !important;
+            justify-content: flex-start !important;
+          }
+          
+          img { 
+            max-width: 100% !important; 
+            height: auto !important; 
+            display: block;
+          }
+          
+          .receipt-print { 
+            width: 72mm !important;
+            margin: 0 !important;
+            padding: 3mm !important;
+            background: white !important;
+            display: block !important;
+            page-break-after: always !important;
+            page-break-inside: avoid !important;
+          }
+          
+          .receipt-print:last-child {
+            page-break-after: auto !important;
+          }
+        }
+        
+        @media screen {
+          body { 
+            background: #f5f7fa;
+            padding: 16px;
+          }
+          .receipt-print { 
+            margin: 0 auto;
+            max-width: 72mm;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08); 
+          }
+        }
+      `}</style>
+      
+      {invoices.map((invoice, index) => renderInvoice(invoice, index))}
     </>
   );
 }
