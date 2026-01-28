@@ -61,6 +61,7 @@ export default function BulkUploadModal({ isOpen, onClose, onSuccess, setToast }
           id: `temp-${Date.now()}-${index}`,
           preview,
           imageUrl,
+          fileName: file.name,
           name: '',
           price: '',
           stock: 0,
@@ -173,6 +174,63 @@ export default function BulkUploadModal({ isOpen, onClose, onSuccess, setToast }
 
   const removeProduct = (id) => {
     setProducts(prev => prev.filter(p => p.id !== id));
+  };
+
+  // 🔥 Batch operations for file uploads
+  const fillAllNamesFromFiles = () => {
+    let filled = 0;
+    setProducts(prev => {
+      console.log('Products before filling:', prev.map(p => ({ id: p.id, fileName: p.fileName, name: p.name })));
+      
+      const updated = prev.map(p => {
+        if (!p.fileName) {
+          console.log('❌ No fileName for product:', p.id);
+          return p;
+        }
+        if (p.name && p.name.trim()) {
+          console.log('⏭️ Already has name:', p.id, p.name);
+          return p;
+        }
+        
+        let productName = p.fileName.replace(/\.[^/.]+$/, ""); // Remove extension
+        productName = productName
+          .replace(/^\d+[\.\-_\s]*/, "")           // Remove leading numbers
+          .replace(/[\(\)\[\]\{\}]/g, ' ')          // Remove brackets
+          .replace(/[\-_]+/g, ' ')                  // Replace - _ with space
+          .replace(/\s+/g, ' ')                     // Clean multiple spaces
+          .trim();
+        
+        console.log('✅ Filled:', p.fileName, '→', productName);
+        filled++;
+        return { ...p, name: productName };
+      });
+      
+      return updated;
+    });
+    
+    if (filled > 0) {
+      setToast({ message: `✅ تم ملء ${filled} اسم من الملفات`, type: 'success' });
+      setTimeout(() => setToast(null), 2000);
+    } else {
+      setToast({ message: '⚠️ لم يتم ملء أي أسماء (تحقق من Console)', type: 'warning' });
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  const applyPriceToAll = () => {
+    const price = prompt('أدخل السعر المراد تطبيقه على جميع المنتجات:', '0');
+    if (price === null) return;
+    
+    const priceValue = parseFloat(price);
+    if (isNaN(priceValue) || priceValue < 0) {
+      setToast({ message: '⚠️ السعر غير صحيح', type: 'error' });
+      setTimeout(() => setToast(null), 2000);
+      return;
+    }
+    
+    setProducts(prev => prev.map(p => ({ ...p, price: String(priceValue) })));
+    setToast({ message: `✅ تم تطبيق السعر ${priceValue} على ${products.length} منتج`, type: 'success' });
+    setTimeout(() => setToast(null), 2000);
   };
 
   // 🆕 Manual products functions
@@ -564,6 +622,27 @@ export default function BulkUploadModal({ isOpen, onClose, onSuccess, setToast }
           ) : (
             // Products Grid
             <div>
+              {/* Batch Operations */}
+              <div className="mb-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 space-y-3">
+                <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">⚡ عمليات سريعة</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={fillAllNamesFromFiles}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center gap-2 font-medium"
+                  >
+                    <span>📝</span>
+                    <span>ملء كل الأسماء من الملفات</span>
+                  </button>
+                  <button
+                    onClick={applyPriceToAll}
+                    className="px-3 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm flex items-center gap-2 font-medium"
+                  >
+                    <span>💰</span>
+                    <span>تطبيق سعر موحد</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Bulk Actions */}
               <div className="mb-4 flex gap-2 items-center justify-between bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
                 <div className="flex gap-2">

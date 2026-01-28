@@ -49,7 +49,7 @@ export async function POST(req) {
     const createPromises = products.map(async (product) => {
       const { name, sellingPrice, purchasePrice, stock, sku, imageUrl } = product;
 
-      if (!name || !sellingPrice) {
+      if (!name || sellingPrice === undefined || sellingPrice === null) {
         return { success: false, error: 'Name and price required', product: { name } };
       }
 
