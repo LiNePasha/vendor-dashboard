@@ -210,10 +210,15 @@ export default function InvoicesPage() {
         return;
       }
 
-      // Update invoice items - لا نعرف المخزون النهائي، نحفظ null ونحدثه لاحقاً
+      // Update invoice items - recalculate totalPrice for each item
       const updatedItems = invoice.items.map(item => {
         if (item.id === productId) {
-          return { ...item, quantity }; // فقط نحدث الكمية
+          const newTotalPrice = Number(item.price) * quantity;
+          return { 
+            ...item, 
+            quantity,
+            totalPrice: newTotalPrice // 🔥 إعادة حساب totalPrice
+          };
         }
         return item;
       });
