@@ -238,30 +238,31 @@ export class BostaAPI {
     
     if (deliveryPayment) {
       if (deliveryPayment.status === 'cash_on_delivery') {
-        // دفع عند الاستلام - كامل المبلغ
-        codAmount = totalAmount;
-        console.log('💵 COD Mode: Cash on delivery - Total amount:', codAmount);
+        // دفع عند الاستلام - كامل المبلغ + 10 جنيه
+        codAmount = totalAmount + 10;
+        console.log('💵 COD Mode: Cash on delivery - Total amount + 10:', codAmount);
       } else if (deliveryPayment.status === 'half_paid') {
-        // نصف المبلغ مدفوع - الباقي COD
+        // نصف المبلغ مدفوع - الباقي COD + 10 جنيه
         const paidAmount = Math.round(deliveryPayment.paidAmount || 0);
-        codAmount = Math.max(0, totalAmount - paidAmount);
-        console.log('💵 COD Mode: Half paid - Remaining:', codAmount);
+        codAmount = Math.max(0, totalAmount - paidAmount) + 10;
+        console.log('💵 COD Mode: Half paid - Remaining + 10:', codAmount);
       } else if (deliveryPayment.status === 'fully_paid_no_delivery') {
-        // 🔥 مدفوع كامل بدون توصيل - فقط رسوم التوصيل
-        codAmount = shippingFee;
-        console.log('💵 COD Mode: Fully paid no delivery - Shipping fee only:', {
+        // 🔥 مدفوع كامل بدون توصيل - فقط رسوم التوصيل + 10 جنيه
+        codAmount = shippingFee + 10;
+        console.log('💵 COD Mode: Fully paid no delivery - Shipping fee + 10:', {
           shippingFee,
+          extraFee: 10,
           codAmount
         });
       } else if (deliveryPayment.status === 'fully_paid') {
-        // ✅ مدفوع كامل - لا يوجد COD
-        codAmount = 0;
-        console.log('💵 COD Mode: Fully paid - No COD');
+        // ✅ مدفوع كامل - فقط 10 جنيه
+        codAmount = 10;
+        console.log('💵 COD Mode: Fully paid - Extra 10 EGP only');
       }
     } else {
-      // لو مفيش deliveryPayment، افتراضي COD = 0
-      codAmount = 0;
-      console.log('💵 COD Mode: No payment info - Default 0');
+      // لو مفيش deliveryPayment، افتراضي COD = 10
+      codAmount = 10;
+      console.log('💵 COD Mode: No payment info - Default 10');
     }
     
     console.log('💰 Final COD Amount:', codAmount);
