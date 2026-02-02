@@ -1013,6 +1013,8 @@ const usePOSStore = create(persist((set, get) => ({
           const bostaStatusCode = order.meta_data.find(m => m.key === '_bosta_status_code' || m.key === 'bosta_status_code')?.value;
           const bostaSentAt = order.meta_data.find(m => m.key === '_bosta_sent_at' || m.key === 'bosta_sent_at')?.value;
           const bostaLastUpdated = order.meta_data.find(m => m.key === '_bosta_last_updated' || m.key === 'bosta_last_updated')?.value;
+          const bostaPickedUp = order.meta_data.find(m => m.key === '_bosta_picked_up' || m.key === 'bosta_picked_up')?.value;
+          const bostaPickedUpAt = order.meta_data.find(m => m.key === '_bosta_picked_up_at' || m.key === 'bosta_picked_up_at')?.value;
           
           // إنشاء bosta object لو فيه tracking number
           if (bostaTrackingNumber) {
@@ -1023,7 +1025,9 @@ const usePOSStore = create(persist((set, get) => ({
               status: bostaStatus || '',
               statusCode: bostaStatusCode ? parseInt(bostaStatusCode) : 0,
               sentAt: bostaSentAt || '',
-              lastUpdated: bostaLastUpdated || ''
+              lastUpdated: bostaLastUpdated || '',
+              pickedUp: bostaPickedUp === 'yes' || bostaPickedUp === true,
+              pickedUpAt: bostaPickedUpAt || ''
             };
           }
         }

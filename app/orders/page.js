@@ -93,6 +93,9 @@ function OrdersContent() {
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [registeringBulk, setRegisteringBulk] = useState(false);
   
+  // 🆕 Sync Progress State
+  const [syncProgress, setSyncProgress] = useState(null); // { current: 0, total: 0 }
+  
   // 🆕 Auto-hide toast
   useEffect(() => {
     if (toast) {
@@ -1063,6 +1066,214 @@ function OrdersContent() {
     }
   };
 
+  // 🔥 مزامنة شاملة لكل الأوردرات
+  const syncAllOrdersFromBosta = async () => {
+    try {
+      const settings = await getBostaSettings();
+      if (!settings.enabled || !settings.apiKey) {
+        setToast({ message: 'يجب تفعيل Bosta من صفحة الإعدادات', type: 'error' });
+        return;
+      }
+
+      const bostaAPI = new BostaAPI(settings.apiKey, settings.businessLocationId);
+      
+      // جمع كل الأوردرات اللي ليها tracking number
+      const ordersToSync = orders.filter(order => {
+        // Website orders with tracking
+        const hasBostaMeta = order.meta_data?.some(m => 
+          m.key === '_bosta_tracking_number' && m.value
+        );
+        // System orders with tracking
+        const hasBostaTracking = order.bosta?.trackingNumber;
+        
+        return hasBostaMeta || hasBostaTracking;
+      });
+
+      if (ordersToSync.length === 0) {
+        setToast({ message: '⚠️ لا توجد أوردرات للمزامنة', type: 'warning' });
+        return;
+      }
+
+      // 🔥 Initialize progress
+      setSyncProgress({ current: 0, total: ordersToSync.length });
+
+      let syncedCount = 0;
+      let deliveredCount = 0;
+      let pickedUpCount = 0;
+      let failedCount = 0;
+
+      for (let i = 0; i < ordersToSync.length; i++) {
+        const order = ordersToSync[i];
+        
+        try {
+          // 🔥 Update progress
+          setSyncProgress({ current: i + 1, total: ordersToSync.length });
+          
+          // الحصول على tracking number
+          let trackingNumber;
+          if (order.bosta?.trackingNumber) {
+            trackingNumber = order.bosta.trackingNumber;
+          } else {
+            const meta = order.meta_data?.find(m => m.key === '_bosta_tracking_number');
+            trackingNumber = meta?.value;
+          }
+
+          if (!trackingNumber) continue;
+
+          // جلب حالة الشحنة من بوسطة
+          const result = await bostaAPI.getTrackingDetails(trackingNumber);
+          
+          if (!result.data) {
+            // 🔥 لو الشحنة مش موجودة في بوسطة (اتمسحت) - احذف بيانات بوسطة
+            if (result.error?.status === 404 || result.error?.message?.includes('not found')) {
+              if (typeof order.id === 'number') {
+                await fetch('/api/orders/update-bosta', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    orderId: order.id,
+                    bostaData: null // حذف بيانات بوسطة
+                  })
+                });
+              }
+            }
+            failedCount++;
+            continue;
+          }
+
+          const bostaStatus = result.data.state?.value?.toLowerCase() || '';
+          const bostaStatusLabel = result.data.state?.value || ''; // 🔥 للحفظ في meta
+          
+          // تحديث حسب الحالة
+          if (bostaStatus.includes('delivered')) {
+            // تم التوصيل → تغيير الحالة لـ completed
+            deliveredCount++;
+            
+            if (typeof order.id === 'number') {
+              // Website order - update via API
+              await fetch(`/api/orders/update-status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  orderId: order.id,
+                  status: 'completed'
+                })
+              });
+              
+              // Update local state
+              await updateOrderStatus(order.id, 'completed');
+            } else {
+              // System order
+              await updatePOSInvoice(order.id, {
+                deliveryStatus: 'delivered',
+                bosta: {
+                  ...order.bosta,
+                  status: bostaStatusLabel,
+                  statusCode: result.data.state?.code,
+                  lastUpdated: new Date().toISOString()
+                }
+              });
+            }
+          } else if (bostaStatus.includes('picked_up') || bostaStatus.includes('picked up')) {
+            // تم الاستلام من بوسطة → حفظ meta data
+            pickedUpCount++;
+            
+            if (typeof order.id === 'number') {
+              // Website order - add meta data
+              await fetch('/api/orders/update-bosta', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  orderId: order.id,
+                  bostaData: {
+                    sent: true,
+                    trackingNumber: trackingNumber,
+                    orderId: result.data._id,
+                    status: bostaStatusLabel, // 🔥 حفظ النص الكامل
+                    statusCode: result.data.state?.code,
+                    pickedUp: true,
+                    pickedUpAt: new Date().toISOString(),
+                    lastUpdated: new Date().toISOString()
+                  }
+                })
+              });
+            } else {
+              // System order
+              await updatePOSInvoice(order.id, {
+                deliveryStatus: 'picked_up',
+                bosta: {
+                  ...order.bosta,
+                  status: bostaStatusLabel,
+                  statusCode: result.data.state?.code,
+                  pickedUp: true,
+                  pickedUpAt: new Date().toISOString(),
+                  lastUpdated: new Date().toISOString()
+                }
+              });
+            }
+          } else {
+            // أي حالة أخرى (in_transit, out_for_delivery, etc)
+            // حفظ الحالة فقط بدون تعديل order status
+            if (typeof order.id === 'number') {
+              await fetch('/api/orders/update-bosta', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  orderId: order.id,
+                  bostaData: {
+                    sent: true,
+                    trackingNumber: trackingNumber,
+                    orderId: result.data._id,
+                    status: bostaStatusLabel, // 🔥 حفظ آخر حالة
+                    statusCode: result.data.state?.code,
+                    lastUpdated: new Date().toISOString()
+                  }
+                })
+              });
+            } else {
+              await updatePOSInvoice(order.id, {
+                bosta: {
+                  ...order.bosta,
+                  status: bostaStatusLabel,
+                  statusCode: result.data.state?.code,
+                  lastUpdated: new Date().toISOString()
+                }
+              });
+            }
+          }
+          
+          syncedCount++;
+          
+          // Small delay to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+        } catch (error) {
+          console.error(`Error syncing order ${order.id}:`, error);
+          failedCount++;
+        }
+      }
+
+      // 🔥 Clear progress
+      setSyncProgress(null);
+
+      // مش محتاجين reload - الـ local state اتحدث بالفعل من updateOrderStatus
+      // الأوردرات اللي بقت completed هتختفي من الفلتر تلقائياً
+
+      // رسالة النتيجة
+      let message = `✅ تمت المزامنة: ${syncedCount} طلب`;
+      if (deliveredCount > 0) message += ` | 🎉 ${deliveredCount} تم توصيلهم`;
+      if (pickedUpCount > 0) message += ` | ✅ ${pickedUpCount} تم استلامهم`;
+      if (failedCount > 0) message += ` | ❌ ${failedCount} فشل`;
+      
+      setToast({ message, type: 'success' });
+      
+    } catch (error) {
+      console.error('Bulk Sync Error:', error);
+      setSyncProgress(null);
+      setToast({ message: '❌ فشل المزامنة: ' + error.message, type: 'error' });
+    }
+  };
+
   // 🆕 إرسال أوردر الموقع لبوسطة
   const sendWebsiteOrderToBosta = async (order) => {
     // Check if already sent
@@ -1256,6 +1467,29 @@ function OrdersContent() {
           {toast.message}
         </div>
       )}
+      
+      {/* 🔥 Sync Progress Indicator */}
+      {syncProgress && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-4 rounded-2xl shadow-2xl z-[100000000000] min-w-[300px]">
+          <div className="text-center mb-2">
+            <span className="text-lg font-bold">🔄 جاري المزامنة...</span>
+          </div>
+          <div className="text-center mb-3">
+            <span className="text-2xl font-black">{syncProgress.current}</span>
+            <span className="text-sm mx-2">/</span>
+            <span className="text-lg">{syncProgress.total}</span>
+          </div>
+          <div className="w-full bg-purple-800 rounded-full h-3 overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-green-400 to-blue-400 h-full transition-all duration-300 rounded-full"
+              style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }}
+            />
+          </div>
+          <div className="text-center mt-2 text-xs opacity-90">
+            {Math.round((syncProgress.current / syncProgress.total) * 100)}% مكتمل
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="mb-6">
@@ -1409,6 +1643,18 @@ function OrdersContent() {
                 className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium whitespace-nowrap"
               >
                 🔄 مسح الفلاتر
+              </button>
+            )}
+            
+            {/* 🔥 Bosta Sync All Button */}
+            {bostaEnabled && activeTab === 'website' && (
+              <button
+                onClick={syncAllOrdersFromBosta}
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-2"
+                title="مزامنة جميع الأوردرات من بوسطة"
+              >
+                <span>🔄</span>
+                <span>مزامنة Bosta</span>
               </button>
             )}
           </div>
@@ -2115,6 +2361,8 @@ function OrdersContent() {
                       ) ? 'pickup' : 'delivery';
                       const kashierTxId = order.meta_data?.find(m => m.key === '_kashier_transaction_id')?.value;
                       const bostaTracking = order.bosta?.trackingNumber || order.meta_data?.find(m => m.key === '_bosta_tracking_number')?.value;
+                      const bostaStatus = order.bosta?.status || order.meta_data?.find(m => m.key === '_bosta_status')?.value;
+                      const showBostaBadge = bostaTracking && bostaStatus && order.status !== 'completed'; // 🔥 عرض كل الأوردرات مع tracking
                       const productTotal = parseFloat(order.total) - parseFloat(order.shipping_total || 0);
                       const isPaid = order.payment_method_title && order.payment_method_title !== 'الدفع نقدًا عند الاستلام';
                       
@@ -2153,7 +2401,38 @@ function OrdersContent() {
                               {isNew && order.status !== 'pending' && (
                                 <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full animate-pulse">🔔 جديد</span>
                               )}
+                              {showBostaBadge && (
+                                <span className="bg-purple-600 text-white text-[9px] px-1.5 py-0.5 rounded-full">
+                                  📦 بوسطة
+                                </span>
+                              )}
                             </div>
+                            {/* 🔥 عرض آخر حالة بوسطة + تاريخ آخر تحديث */}
+                            {showBostaBadge && (
+                              <div className="space-y-0.5">
+                                <div className="text-[9px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded inline-block">
+                                  📍 {formatBostaStatus(bostaStatus)}
+                                </div>
+                                {(() => {
+                                  const lastUpdated = order.bosta?.lastUpdated || order.meta_data?.find(m => m.key === '_bosta_last_updated')?.value;
+                                  if (lastUpdated) {
+                                    const updateDate = new Date(lastUpdated);
+                                    const formatted = updateDate.toLocaleString('ar-EG', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    });
+                                    return (
+                                      <div className="text-[8px] text-gray-500">
+                                        🕐 {formatted}
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                            )}
                             <div className="flex items-center gap-1 mb-1">
                               {deliveryType === 'pickup' ? (
                                 <span className="bg-purple-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">🏪 استلام</span>
@@ -2796,37 +3075,82 @@ function OrdersContent() {
                 <div className="p-4">
                   {/* Header - Order Number & Status */}
                   <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-gray-800 text-lg">#{order.id}</span>
-                      {order.status === 'pending' && (
-                        <span className="inline-flex items-center gap-1 bg-gray-400 text-white text-xs px-2 py-1 rounded-full">
-                          💳 لم يدفع
-                        </span>
-                      )}
-                      {isNew && order.status !== 'pending' && (
-                        <span className="inline-flex items-center gap-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">
-                          <span className="relative">🔔 جديد</span>
-                        </span>
-                      )}
-                      {/* 🆕 بادج للملاحظات */}
-                      {orderNotes[order.id] && (
-                        <span className="inline-flex items-center gap-1 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full" title="يوجد ملاحظات">
-                          📝
-                        </span>
-                      )}
-                      {/* 🆕 بادج نوع التوصيل */}
-                      {order.meta_data?.some(m => 
-                        (m.key === '_is_store_pickup' && m.value === 'yes') || 
-                        (m.key === '_delivery_type' && m.value === 'store_pickup')
-                      ) ? (
-                        <span className="inline-flex items-center gap-1 bg-purple-500 text-white text-xs px-2 py-1 rounded-full">
-                          🏪 استلام
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
-                          🚚 توصيل
-                        </span>
-                      )}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-800 text-lg">#{order.id}</span>
+                        {order.status === 'pending' && (
+                          <span className="inline-flex items-center gap-1 bg-gray-400 text-white text-xs px-2 py-1 rounded-full">
+                            💳 لم يدفع
+                          </span>
+                        )}
+                        {isNew && order.status !== 'pending' && (
+                          <span className="inline-flex items-center gap-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">
+                            <span className="relative">🔔 جديد</span>
+                          </span>
+                        )}
+                        {(() => {
+                          const bostaTracking = order.bosta?.trackingNumber || order.meta_data?.find(m => m.key === '_bosta_tracking_number')?.value;
+                          const bostaStatus = order.bosta?.status || order.meta_data?.find(m => m.key === '_bosta_status')?.value;
+                          const showBostaBadge = bostaTracking && bostaStatus && order.status !== 'completed';
+                          return showBostaBadge && (
+                            <span className="inline-flex items-center gap-1 bg-purple-600 text-white text-xs px-2 py-1 rounded-full">
+                              📦 بوسطة
+                            </span>
+                          );
+                        })()}
+                        {/* 🆕 بادج للملاحظات */}
+                        {orderNotes[order.id] && (
+                          <span className="inline-flex items-center gap-1 bg-yellow-500 text-white text-xs px-2 py-1 rounded-full" title="يوجد ملاحظات">
+                            📝
+                          </span>
+                        )}
+                        {/* 🆕 بادج نوع التوصيل */}
+                        {order.meta_data?.some(m => 
+                          (m.key === '_is_store_pickup' && m.value === 'yes') || 
+                          (m.key === '_delivery_type' && m.value === 'store_pickup')
+                        ) ? (
+                          <span className="inline-flex items-center gap-1 bg-purple-500 text-white text-xs px-2 py-1 rounded-full">
+                            🏪 استلام
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                            🚚 توصيل
+                          </span>
+                        )}
+                      </div>
+                      {/* 🔥 عرض آخر حالة بوسطة في الكارد + تاريخ التحديث */}
+                      {(() => {
+                        const bostaTracking = order.bosta?.trackingNumber || order.meta_data?.find(m => m.key === '_bosta_tracking_number')?.value;
+                        const bostaStatus = order.bosta?.status || order.meta_data?.find(m => m.key === '_bosta_status')?.value;
+                        const showBostaBadge = bostaTracking && bostaStatus && order.status !== 'completed';
+                        
+                        if (!showBostaBadge) return null;
+                        
+                        const lastUpdated = order.bosta?.lastUpdated || order.meta_data?.find(m => m.key === '_bosta_last_updated')?.value;
+                        let formattedDate = '';
+                        if (lastUpdated) {
+                          const updateDate = new Date(lastUpdated);
+                          formattedDate = updateDate.toLocaleString('ar-EG', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          });
+                        }
+                        
+                        return (
+                          <div className="text-[10px] bg-purple-50 px-2 py-1 rounded space-y-0.5">
+                            <div className="text-purple-700 font-semibold">
+                              📍 {formatBostaStatus(bostaStatus)}
+                            </div>
+                            {formattedDate && (
+                              <div className="text-gray-600 text-[9px]">
+                                🕐 {formattedDate}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="text-right">
                       <span

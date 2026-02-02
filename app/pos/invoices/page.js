@@ -32,6 +32,7 @@ export default function InvoicesPage() {
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const [variationSelectorProduct, setVariationSelectorProduct] = useState(null);
   const [variationSelectorVariations, setVariationSelectorVariations] = useState([]);
+  const [productQuantities, setProductQuantities] = useState({}); // {productId: quantity}
 
   // Helper function to format numbers nicely (removes decimals, adds thousands separator)
   const formatPrice = (price) => {
@@ -365,22 +366,30 @@ export default function InvoicesPage() {
   };
 
   // Add product to invoice (from API with stock update)
-  const addProductToInvoice = async (invoice, product) => {
+  const addProductToInvoice = async (invoice, product, specifiedQuantity = null) => {
     try {
+      // الحصول على الكمية المطلوبة
+      const quantity = specifiedQuantity || productQuantities[product.id] || 1;
+      
       // التحقق من المخزون
       if (product.stock_quantity <= 0) {
         setToast({ message: '❌ المنتج غير متوفر في المخزون', type: 'error' });
         return;
       }
+      
+      if (product.stock_quantity < quantity) {
+        setToast({ message: `❌ المخزون المتاح: ${product.stock_quantity} فقط`, type: 'error' });
+        return;
+      }
 
-      // خصم 1 من المخزون في API - check if variation
+      // خصم الكمية من المخزون في API - check if variation
       const updatePayload = product.variation_id ? {
         productId: product.parent_id || product.parentId || product.product_id,
         variationId: product.variation_id,
-        adjustment: -1
+        adjustment: -quantity
       } : {
         productId: product.id,
-        adjustment: -1
+        adjustment: -quantity
       };
 
       console.log('🔄 خصم من المخزون:', updatePayload);
@@ -404,10 +413,10 @@ export default function InvoicesPage() {
         id: product.id,
         name: product.name,
         price: product.price,
-        quantity: 1,
-        totalPrice: product.price,
+        quantity: quantity,
+        totalPrice: product.price * quantity,
         purchase_price: product.purchase_price || null,
-        profit: product.purchase_price ? (product.price - product.purchase_price) : null,
+        profit: product.purchase_price ? ((product.price - product.purchase_price) * quantity) : null,
         hasPurchasePrice: !!product.purchase_price,
         // حفظ معلومات المتغير إذا كان متغير
         ...(product.variation_id && {
@@ -453,8 +462,15 @@ export default function InvoicesPage() {
       await invoiceStorage.updateInvoice(invoice.id, updatedInvoice);
       await loadInvoices();
       
+      // إعادة تعيين الكمية
+      setProductQuantities(prev => {
+        const newQuantities = { ...prev };
+        delete newQuantities[product.id];
+        return newQuantities;
+      });
+      
       setShowProductSelector(null);
-      setToast({ message: '✅ تمت إضافة المنتج للفاتورة وخصم من المخزون', type: 'success' });
+      setToast({ message: `✅ تمت إضافة ${quantity} من المنتج للفاتورة`, type: 'success' });
     } catch (error) {
       setToast({ message: '❌ فشل إضافة المنتج', type: 'error' });
     }
@@ -1824,16 +1840,21 @@ export default function InvoicesPage() {
                               </div>
                             ))}
 
-                            {/* Product Selector Modal */}
+                            {/* Product Selector Modal - Enhanced UI */}
                             {showProductSelector === invoice.id && (
-                              <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={() => setShowProductSelector(null)}>
-                                <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+                              <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowProductSelector(null)}>
+                                <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl" onClick={(e) => e.stopPropagation()}>
                                   {/* Header */}
-                                  <div className="p-4 border-b border-gray-200 flex items-center justify-between bg-white">
-                                    <h3 className="text-lg font-bold text-gray-900">اختر منتج للإضافة</h3>
+                                  <div className="p-6 bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-between">
+                                    <div>
+                                      <h3 className="text-2xl font-bold text-white flex items-center gap-2">
+                                        🛒 اختر منتج للإضافة
+                                      </h3>
+                                      <p className="text-blue-100 text-sm mt-1">اختر المنتج وحدد الكمية المطلوبة</p>
+                                    </div>
                                     <button
                                       onClick={() => setShowProductSelector(null)}
-                                      className="w-8 h-8 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded flex items-center justify-center font-bold"
+                                      className="w-10 h-10 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-full flex items-center justify-center font-bold transition-all"
                                     >
                                       ✕
                                     </button>
@@ -1841,56 +1862,155 @@ export default function InvoicesPage() {
                                   
                                   {/* Search */}
                                   <div className="p-4 border-b border-gray-200 bg-gray-50">
-                                    <input
-                                      type="text"
-                                      placeholder="ابحث عن منتج..."
-                                      value={productSearchTerm}
-                                      onChange={(e) => setProductSearchTerm(e.target.value)}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500"
-                                    />
+                                    <div className="relative">
+                                      <input
+                                        type="text"
+                                        placeholder="🔍 ابحث عن منتج بالاسم..."
+                                        value={productSearchTerm}
+                                        onChange={(e) => setProductSearchTerm(e.target.value)}
+                                        className="w-full px-4 py-3 pr-10 border-2 border-gray-300 focus:border-blue-500 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all"
+                                      />
+                                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                                        🔍
+                                      </span>
+                                    </div>
                                   </div>
 
                                   {/* Products List */}
-                                  <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+                                  <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-b from-gray-50 to-white">
                                     {productsLoading ? (
-                                      <div className="text-center py-8 text-gray-600">جاري التحميل...</div>
+                                      <div className="text-center py-16">
+                                        <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+                                        <p className="text-gray-600 mt-4 font-semibold">جاري تحميل المنتجات...</p>
+                                      </div>
                                     ) : (
-                                      <div className="grid grid-cols-1 gap-2">
+                                      <div className="grid grid-cols-1 gap-4">
                                         {availableProducts
                                           .filter(p => p.name.toLowerCase().includes(productSearchTerm.toLowerCase()))
-                                          .map((product) => (
-                                          <div
-                                            key={product.id}
-                                            onClick={() => {
-                                              if (product.type === 'variable') {
-                                                handleSelectVariation(product);
-                                              } else {
-                                                addProductToInvoice(invoice, product);
-                                              }
-                                            }}
-                                            className="p-3 border border-gray-300 bg-white rounded-lg hover:bg-blue-50 hover:border-blue-300 cursor-pointer flex items-center justify-between transition-colors"
-                                          >
-                                            <div className="flex-1">
-                                              <h4 className="font-bold text-sm text-gray-900">{product.name}</h4>
-                                              <div className="flex items-center gap-4 text-xs text-gray-600 mt-1">
-                                                <span className="text-gray-700">السعر: {formatPrice(product.price)}</span>
-                                                {product.type === 'variable' ? (
-                                                  <span className="text-blue-600 font-semibold">منتج متغير - اختر المواصفات</span>
-                                                ) : (
-                                                  <span className={product.stock_quantity <= 0 ? 'text-red-600 font-bold' : 'text-green-600 font-semibold'}>
-                                                    المخزون: {product.stock_quantity}
-                                                  </span>
-                                                )}
+                                          .map((product) => {
+                                            const quantity = productQuantities[product.id] || 1;
+                                            const productImage = product.images && product.images.length > 0 
+                                              ? product.images[0].src 
+                                              : '/placeholder-product.png';
+                                            
+                                            return (
+                                              <div
+                                                key={product.id}
+                                                className="border-2 border-gray-200 bg-white rounded-xl hover:border-blue-400 hover:shadow-lg transition-all duration-200 overflow-hidden"
+                                              >
+                                                <div className="flex items-center gap-4 p-4">
+                                                  {/* Product Image */}
+                                                  <div className="flex-shrink-0">
+                                                    <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-200">
+                                                      <img 
+                                                        src={productImage} 
+                                                        alt={product.name}
+                                                        className="w-full h-full object-cover"
+                                                        onError={(e) => {
+                                                          e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23f3f4f6" width="100" height="100"/%3E%3Ctext x="50%25" y="50%25" font-size="40" text-anchor="middle" dy=".3em" fill="%239ca3af"%3E📦%3C/text%3E%3C/svg%3E';
+                                                        }}
+                                                      />
+                                                    </div>
+                                                  </div>
+
+                                                  {/* Product Info */}
+                                                  <div className="flex-1 min-w-0">
+                                                    <h4 className="font-bold text-lg text-gray-900 mb-2 truncate">{product.name}</h4>
+                                                    <div className="flex items-center gap-4 flex-wrap">
+                                                      <span className="px-3 py-1 bg-green-100 text-green-800 font-bold text-sm rounded-full">
+                                                        💰 {formatPrice(product.price)} جنيه
+                                                      </span>
+                                                      {product.type === 'variable' ? (
+                                                        <span className="px-3 py-1 bg-purple-100 text-purple-700 font-semibold text-sm rounded-full">
+                                                          🎨 منتج متغير
+                                                        </span>
+                                                      ) : (
+                                                        <span className={`px-3 py-1 font-bold text-sm rounded-full ${
+                                                          product.stock_quantity <= 0 
+                                                            ? 'bg-red-100 text-red-700' 
+                                                            : product.stock_quantity < 10
+                                                            ? 'bg-yellow-100 text-yellow-700'
+                                                            : 'bg-blue-100 text-blue-700'
+                                                        }`}>
+                                                          📦 المخزون: {product.stock_quantity}
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                  </div>
+
+                                                  {/* Quantity & Add Button */}
+                                                  <div className="flex items-center gap-3">
+                                                    {product.type !== 'variable' && product.stock_quantity > 0 && (
+                                                      <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => {
+                                                            const newQty = Math.max(1, quantity - 1);
+                                                            setProductQuantities(prev => ({
+                                                              ...prev,
+                                                              [product.id]: newQty
+                                                            }));
+                                                          }}
+                                                          className="w-8 h-8 bg-white hover:bg-red-100 text-red-600 rounded font-bold text-xl flex items-center justify-center"
+                                                        >
+                                                          −
+                                                        </button>
+                                                        <span className="w-14 text-center font-bold text-xl text-gray-900">
+                                                          {quantity}
+                                                        </span>
+                                                        <button
+                                                          type="button"
+                                                          onClick={() => {
+                                                            const newQty = Math.min(quantity + 1, product.stock_quantity);
+                                                            setProductQuantities(prev => ({
+                                                              ...prev,
+                                                              [product.id]: newQty
+                                                            }));
+                                                          }}
+                                                          className="w-8 h-8 bg-white hover:bg-green-100 text-green-600 rounded font-bold text-xl flex items-center justify-center"
+                                                        >
+                                                          +
+                                                        </button>
+                                                      </div>
+                                                    )}
+                                                    
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        if (product.type === 'variable') {
+                                                          handleSelectVariation(product);
+                                                        } else {
+                                                          addProductToInvoice(invoice, product);
+                                                        }
+                                                      }}
+                                                      disabled={product.type !== 'variable' && product.stock_quantity <= 0}
+                                                      className={`px-6 py-3 rounded-lg font-bold text-sm transition-all shadow-md hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed ${
+                                                        product.type === 'variable'
+                                                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white'
+                                                          : product.stock_quantity <= 0
+                                                          ? 'bg-gray-400 text-white'
+                                                          : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white'
+                                                      }`}
+                                                    >
+                                                      {product.type === 'variable' 
+                                                        ? '🎨 اختر المواصفات' 
+                                                        : product.stock_quantity <= 0 
+                                                        ? '❌ غير متوفر' 
+                                                        : `➕ إضافة${quantity > 1 ? ` (${quantity})` : ''}`}
+                                                    </button>
+                                                  </div>
+                                                </div>
                                               </div>
-                                            </div>
-                                            <button 
-                                              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-bold text-sm disabled:bg-gray-400 disabled:cursor-not-allowed"
-                                              disabled={product.type !== 'variable' && product.stock_quantity <= 0}
-                                            >
-                                              {product.type === 'variable' ? 'اختيارات' : product.stock_quantity <= 0 ? 'غير متوفر' : 'إضافة'}
-                                            </button>
+                                            );
+                                          })}
+                                        
+                                        {availableProducts.filter(p => p.name.toLowerCase().includes(productSearchTerm.toLowerCase())).length === 0 && (
+                                          <div className="text-center py-16">
+                                            <div className="text-6xl mb-4">🔍</div>
+                                            <p className="text-gray-600 font-semibold text-lg">لا توجد منتجات مطابقة للبحث</p>
+                                            <p className="text-gray-500 text-sm mt-2">حاول البحث بكلمات أخرى</p>
                                           </div>
-                                        ))}
+                                        )}
                                       </div>
                                     )}
                                   </div>

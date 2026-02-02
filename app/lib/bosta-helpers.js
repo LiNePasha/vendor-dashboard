@@ -121,19 +121,35 @@ export function buildFirstLine(address) {
  * تنسيق حالة الشحنة للعرض بالعربي
  */
 export function formatBostaStatus(status) {
+  if (!status) return '';
+  
+  // تحويل للصغيرة للمقارنة
+  const lowerStatus = status.toLowerCase();
+  
   const statusMap = {
-    'created': '📦 تم الإنشاء',
+    // English status from Bosta API
+    'pickup requested': '🆕 جديد - بانتظار الاستلام',
     'pending': '⏳ قيد الانتظار',
-    'picked_up': '🚚 تم الاستلام',
-    'in_transit': '🚗 في الطريق',
-    'out_for_delivery': '🏃 خارج للتوصيل',
+    'received at warehouse': '📦 تم الاستلام في المخزن',
+    'picked up': '🚚 تم الاستلام من المندوب',
+    'in transit': '🚗 في الطريق',
+    'out for delivery': '🏃 خارج للتوصيل',
     'delivered': '✅ تم التوصيل',
     'cancelled': '❌ ملغي',
-    'failed_delivery': '⚠️ فشل التوصيل',
-    'returned': '🔙 مرتجع'
+    'failed delivery': '⚠️ فشل التوصيل',
+    'returned': '🔙 مرتجع',
+    'created': '📦 تم الإنشاء',
+    'exception': '⚠️ استثناء',
+    'lost': '❓ مفقود',
+    // Underscore versions
+    'pickup_requested': '🆕 جديد - بانتظار الاستلام',
+    'picked_up': '🚚 تم الاستلام من المندوب',
+    'in_transit': '🚗 في الطريق',
+    'out_for_delivery': '🏃 خارج للتوصيل',
+    'failed_delivery': '⚠️ فشل التوصيل'
   };
 
-  return statusMap[status] || status;
+  return statusMap[lowerStatus] || status;
 }
 
 /**
