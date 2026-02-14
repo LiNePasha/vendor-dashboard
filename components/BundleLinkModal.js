@@ -9,6 +9,7 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
   const [selectedItems, setSelectedItems] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [showOnlyPublished, setShowOnlyPublished] = useState(true); // ✅ فلتر المنتجات المنشورة فقط
   const [generatedLink, setGeneratedLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
@@ -22,6 +23,7 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
       setSelectedItems([]);
       setSearch('');
       setSelectedCategory('all');
+      setShowOnlyPublished(true); // ✅ إعادة تعيين للمنشورة فقط
       setGeneratedLink('');
       setCopied(false);
       setExpandedProduct(null);
@@ -74,7 +76,10 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
       const matchesCategory = selectedCategory === 'all' || 
         (product.categories && product.categories.some(cat => cat.id === parseInt(selectedCategory)));
       
-      return matchesSearch && matchesCategory;
+      // ✅ Published filter
+      const matchesPublished = !showOnlyPublished || product.status === 'publish';
+      
+      return matchesSearch && matchesCategory && matchesPublished;
     });
     
     // ثالثاً: إضافة uniqueKey مع timestamp لضمان uniqueness تام
@@ -87,7 +92,7 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
     console.log(`🎯 Final filtered products: ${result.length}`);
     
     return result;
-  }, [allProducts, search, selectedCategory]);
+  }, [allProducts, search, selectedCategory, showOnlyPublished]);
 
   // Toggle product selection
   const toggleProduct = (product) => {
@@ -245,11 +250,32 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
               })}
             </select>
           </div>
+          
+          {/* ✅ Published Filter Toggle */}
+          <div className="mb-4 flex items-center justify-center">
+            <button
+              onClick={() => setShowOnlyPublished(!showOnlyPublished)}
+              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 ${
+                showOnlyPublished
+                  ? 'bg-green-100 text-green-800 border-2 border-green-300'
+                  : 'bg-gray-100 text-gray-600 border-2 border-gray-300'
+              }`}
+            >
+              <span className="text-lg">{showOnlyPublished ? '✓' : '○'}</span>
+              <span>عرض المنتجات المنشورة فقط</span>
+            </button>
+          </div>
 
           {/* Selected Count */}
-          <div className="mb-4 text-center">
+          <div className="mb-4 flex items-center justify-center gap-4 flex-wrap">
             <span className="bg-orange-100 text-orange-800 px-4 py-2 rounded-full font-bold">
               {selectedItems.length} عنصر محدد
+            </span>
+            <span className="bg-green-100 text-green-800 px-3 py-1.5 rounded-full text-sm font-semibold">
+              ✓ {allProducts.filter(p => p.status === 'publish').length} منشور
+            </span>
+            <span className="bg-yellow-100 text-yellow-800 px-3 py-1.5 rounded-full text-sm font-semibold">
+              ✎ {allProducts.filter(p => p.status !== 'publish').length} غير منشور
             </span>
           </div>
 
@@ -413,6 +439,10 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
               const isVariable = product.type === 'variable';
               const isExpanded = expandedProduct === product.id;
               
+              // ✅ تحقق من حالة المنتج
+              const isDraft = product.status !== 'publish';
+              const isDisabled = isDraft; // المنتجات غير المنشورة محظورة
+              
               // Count how many times this product appears (including variations)
               const productCount = selectedItems.filter(item => 
                 item.productId === product.id
@@ -420,7 +450,11 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
               
               return (
                 <div key={product.uniqueKey} className={`border-2 rounded-lg overflow-hidden transition-all relative ${
-                  productCount > 0 ? 'border-orange-500 shadow-lg ring-2 ring-orange-200' : 'border-gray-200 hover:border-orange-300'
+                  isDisabled 
+                    ? 'border-gray-300 opacity-60 cursor-not-allowed'
+                    : productCount > 0 
+                    ? 'border-orange-500 shadow-lg ring-2 ring-orange-200' 
+                    : 'border-gray-200 hover:border-orange-300'
                 }`}>
                   {/* علامة التحديد مع العدد */}
                   {productCount > 0 && (
@@ -429,13 +463,45 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                     </div>
                   )}
                   
+                  {/* ✅ Status Badge */}
+                  <div className="absolute top-2 left-2 z-10">
+                    {product.status === 'draft' && (
+                      <span className="bg-yellow-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-md">
+                        ✎ مسودة
+                      </span>
+                    )}
+                    {product.status === 'pending' && (
+                      <span className="bg-orange-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-md">
+                        ⏳ مراجعة
+                      </span>
+                    )}
+                    {product.status === 'private' && (
+                      <span className="bg-purple-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-md">
+                        🔒 خاص
+                      </span>
+                    )}
+                    {product.status === 'future' && (
+                      <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-bold shadow-md">
+                        📅 مجدول
+                      </span>
+                    )}
+                  </div>
+                  
                   {/* Main Product Card */}
                   <div
-                    onClick={() => toggleProduct(product)}
-                    className={`p-3 cursor-pointer transition-all ${
-                      productCount > 0
-                        ? 'bg-gradient-to-br from-orange-50 to-yellow-50'
-                        : 'bg-white hover:bg-orange-50'
+                    onClick={() => {
+                      if (isDisabled) {
+                        alert(`⚠️ لا يمكن إضافة منتج "${product.name}" للحزمة لأنه غير منشور.\n\nيجب نشر المنتج أولاً قبل إضافته للحزمة الأونلاين.`);
+                        return;
+                      }
+                      toggleProduct(product);
+                    }}
+                    className={`p-3 transition-all ${
+                      isDisabled
+                        ? 'cursor-not-allowed bg-gray-100'
+                        : productCount > 0
+                        ? 'bg-gradient-to-br from-orange-50 to-yellow-50 cursor-pointer'
+                        : 'bg-white hover:bg-orange-50 cursor-pointer'
                     }`}
                   >
                     <div className="flex gap-3">
@@ -489,12 +555,20 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
                             {product.price} ج.م
                           </div>
                         </div>
-                        {isVariable && productCount === 0 && (
+                        
+                        {/* ✅ رسالة تحذير للمنتجات غير المنشورة */}
+                        {isDisabled && (
+                          <div className="text-xs text-red-600 font-bold mt-1 bg-red-50 px-2 py-1 rounded border border-red-200">
+                            ⚠️ غير منشور - لا يمكن إضافته للحزمة
+                          </div>
+                        )}
+                        
+                        {!isDisabled && isVariable && productCount === 0 && (
                           <div className="text-xs text-blue-600 font-bold mt-1">
                             📦 اضغط لإضافة نوع محدد
                           </div>
                         )}
-                        {isVariable && productCount > 0 && (
+                        {!isDisabled && isVariable && productCount > 0 && (
                           <div className="text-xs text-green-600 font-bold mt-1">
                             ✓ تم إضافة {productCount} {productCount === 1 ? 'نوع' : 'أنواع'}
                           </div>
@@ -647,14 +721,14 @@ export default function BundleLinkModal({ isOpen, onClose, allProducts = [], ven
             <div className="flex gap-3 sm:flex-1 justify-end">
               <button
                 onClick={onClose}
-                className="flex-1 sm:flex-initial bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-bold transition-colors"
+                className="flex-1 text-sm sm:flex-initial bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-bold transition-colors"
               >
                 إغلاق
               </button>
               <button
                 onClick={generateLink}
                 disabled={selectedItems.length === 0}
-                className="flex-1 sm:flex-initial bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white px-8 py-3 rounded-lg font-bold transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+                className="flex-1 text-sm sm:flex-initial bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white px-8 py-3 rounded-lg font-bold transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
               >
                 🔗 إنشاء رابط الحزمة
               </button>

@@ -602,6 +602,8 @@ export default function ProductsPage() {
                 <option value="publish">✓ منشور</option>
                 <option value="draft">✎ مسودة</option>
                 <option value="pending">⏳ قيد المراجعة</option>
+                <option value="private">🔒 خاص</option>
+                <option value="future">📅 مجدول</option>
               </select>
               <select
                 className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white font-medium text-sm"
@@ -704,14 +706,26 @@ export default function ProductsPage() {
                         ? "bg-gradient-to-r from-green-500 to-green-600"
                         : product.status === "draft"
                         ? "bg-gradient-to-r from-yellow-500 to-yellow-600"
-                        : "bg-gradient-to-r from-blue-500 to-blue-600"
+                        : product.status === "pending"
+                        ? "bg-gradient-to-r from-orange-500 to-orange-600"
+                        : product.status === "private"
+                        ? "bg-gradient-to-r from-purple-500 to-purple-600"
+                        : product.status === "future"
+                        ? "bg-gradient-to-r from-blue-500 to-blue-600"
+                        : "bg-gradient-to-r from-gray-500 to-gray-600"
                     }`}
                   >
                     {product.status === "publish"
                       ? "✓ منشور"
                       : product.status === "draft"
                       ? "✎ مسودة"
-                      : "⏳ مراجعة"}
+                      : product.status === "pending"
+                      ? "⏳ مراجعة"
+                      : product.status === "private"
+                      ? "🔒 خاص"
+                      : product.status === "future"
+                      ? "📅 مجدول"
+                      : product.status}
                   </span>
 
                   {/* Stock Badge - Top Right */}

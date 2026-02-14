@@ -193,20 +193,20 @@ class Spare2App_POS_Sync {
             'posts_per_page' => $per_page,
             'paged' => $page,
             'author' => $vendor_id,
-            'post_status' => 'publish',
+            'post_status' => array('publish', 'draft', 'pending', 'private', 'future'),
             'orderby' => 'modified',
             'order' => 'DESC',
         );
         
         $query = new WP_Query($args);
         $products = array();
-        
+
         if ($query->have_posts()) {
             while ($query->have_posts()) {
                 $query->the_post();
                 $product_id = get_the_ID();
                 $product_obj = wc_get_product($product_id);
-                
+
                 if (!$product_obj) {
                     continue;
                 }
@@ -368,7 +368,7 @@ class Spare2App_POS_Sync {
             "SELECT ID FROM {$wpdb->posts} 
              WHERE post_author = %d 
              AND post_type = 'product' 
-             AND post_status = 'publish'",
+             AND post_status IN ('publish', 'draft', 'pending', 'private', 'future')",
             $vendor_id
         ));
         
@@ -393,7 +393,7 @@ class Spare2App_POS_Sync {
                      INNER JOIN {$wpdb->term_taxonomy} tt ON tr.term_taxonomy_id = tt.term_taxonomy_id
                      WHERE p.post_author = %d 
                      AND p.post_type = 'product' 
-                     AND p.post_status = 'publish'
+                     AND p.post_status IN ('publish', 'draft', 'pending', 'private', 'future')
                      AND tt.term_id = %d",
                     $vendor_id,
                     $term->term_id
@@ -423,7 +423,7 @@ class Spare2App_POS_Sync {
             "SELECT COUNT(*) FROM {$wpdb->posts} 
              WHERE post_author = %d 
              AND post_type = 'product' 
-             AND post_status = 'publish'",
+             AND post_status IN ('publish', 'draft', 'pending', 'private', 'future')",
             $vendor_id
         ));
     }
@@ -502,7 +502,7 @@ class Spare2App_POS_Sync {
             'post_type' => 'product',
             'posts_per_page' => -1, // Get all products
             'author' => $vendor_id,
-            'post_status' => 'publish',
+            'post_status' => array('publish', 'draft', 'pending', 'private', 'future'),
             'orderby' => 'modified',
             'order' => 'DESC',
         );
