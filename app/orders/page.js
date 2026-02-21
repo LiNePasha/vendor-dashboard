@@ -450,10 +450,24 @@ function OrdersContent() {
           const discountAmount = parseFloat(order.discount_total || 0);
           const orderTotal = parseFloat(order.total);
           
+          // ✅ استخراج بيانات العنوان الكاملة
+          const cityId = order.meta_data?.find(m => m.key === '_shipping_city_id')?.value || '';
+          const cityName = order.meta_data?.find(m => m.key === '_shipping_city_name')?.value || order.shipping?.city || '';
+          const districtId = order.meta_data?.find(m => m.key === '_shipping_district_id')?.value || '';
+          const districtName = order.meta_data?.find(m => m.key === '_shipping_district_name')?.value || order.shipping?.state || '';
+          
+          // ✅ بناء العنوان الكامل للطباعة
+          const fullAddress = [
+            order.shipping?.address_1,
+            order.shipping?.address_2,
+            districtName,
+            cityName
+          ].filter(Boolean).join(' - ');
+          
           const invoice = {
             id: `order-${order.id}-${Date.now()}`,
             orderId: order.id,
-            date: new Date().toISOString(),
+            date: order.date_created, // ✅ استخدام تاريخ الطلب الحقيقي
             items: invoiceItems,
             services: [],
             orderType: 'delivery',
@@ -481,7 +495,7 @@ function OrdersContent() {
               name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
               phone: order.billing?.phone || '',
               email: order.billing?.email || '',
-              address: order.billing?.address_1 || ''
+              address: fullAddress // ✅ العنوان الكامل
             },
             deliveryPayment: {
               status: 'fully_paid_no_delivery',
@@ -491,12 +505,23 @@ function OrdersContent() {
             },
             delivery: {
               type: 'delivery',
-              address: order.billing?.address_1 || '',
+              address: fullAddress, // ✅ العنوان الكامل
               customer: {
                 name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
-                phone: order.billing?.phone || '',
+                phone: order.billing?.phone || order.shipping?.phone || '',
                 email: order.billing?.email || '',
-                address: {}
+                address: {
+                  cityId: cityId,
+                  city: cityName,
+                  districtId: districtId,
+                  district: districtName,
+                  street: order.shipping?.address_1 || '',
+                  area: order.shipping?.address_2 || '',
+                  building: '',
+                  floor: '',
+                  apartment: '',
+                  landmark: ''
+                }
               },
               fee: shippingFee,
               notes: ''
@@ -604,11 +629,25 @@ function OrdersContent() {
           const discountAmount = parseFloat(order.discount_total || 0);
           const orderTotal = parseFloat(order.total);
           
+          // ✅ استخراج بيانات العنوان الكاملة
+          const cityId = order.meta_data?.find(m => m.key === '_shipping_city_id')?.value || '';
+          const cityName = order.meta_data?.find(m => m.key === '_shipping_city_name')?.value || order.shipping?.city || '';
+          const districtId = order.meta_data?.find(m => m.key === '_shipping_district_id')?.value || '';
+          const districtName = order.meta_data?.find(m => m.key === '_shipping_district_name')?.value || order.shipping?.state || '';
+          
+          // ✅ بناء العنوان الكامل للطباعة
+          const fullAddress = [
+            order.shipping?.address_1,
+            order.shipping?.address_2,
+            districtName,
+            cityName
+          ].filter(Boolean).join(' - ');
+          
           const invoiceId = `order-${order.id}-${Date.now()}`;
           const invoice = {
             id: invoiceId,
             orderId: order.id,
-            date: new Date().toISOString(),
+            date: order.date_created, // ✅ استخدام تاريخ الطلب الحقيقي
             items: invoiceItems,
             services: [],
             orderType: 'delivery',
@@ -636,7 +675,7 @@ function OrdersContent() {
               name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
               phone: order.billing?.phone || '',
               email: order.billing?.email || '',
-              address: order.billing?.address_1 || ''
+              address: fullAddress // ✅ العنوان الكامل
             },
             deliveryPayment: {
               status: 'fully_paid_no_delivery',
@@ -646,12 +685,23 @@ function OrdersContent() {
             },
             delivery: {
               type: 'delivery',
-              address: order.billing?.address_1 || '',
+              address: fullAddress, // ✅ العنوان الكامل
               customer: {
                 name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
-                phone: order.billing?.phone || '',
+                phone: order.billing?.phone || order.shipping?.phone || '',
                 email: order.billing?.email || '',
-                address: {}
+                address: {
+                  cityId: cityId,
+                  city: cityName,
+                  districtId: districtId,
+                  district: districtName,
+                  street: order.shipping?.address_1 || '',
+                  area: order.shipping?.address_2 || '',
+                  building: '',
+                  floor: '',
+                  apartment: '',
+                  landmark: ''
+                }
               },
               fee: shippingFee,
               notes: ''
