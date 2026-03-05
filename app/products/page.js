@@ -112,6 +112,8 @@ export default function ProductsPage() {
   const [showProductLinks, setShowProductLinks] = useState(false);
   const [showBundleModal, setShowBundleModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [deletingProduct, setDeletingProduct] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Get vendor info for logo fallback
   const vendorInfo = usePOSStore((s) => s.vendorInfo);
@@ -483,6 +485,38 @@ export default function ProductsPage() {
     }
   };
 
+  // دالة حذف منتج
+  const handleDeleteProduct = async (productId) => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/products/${productId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || data?.message || 'فشل حذف المنتج');
+      }
+
+      // حذف من الـ state
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+      
+      // حذف من الـ cache
+      await productsCacheStorage.removeProductFromCache(productId);
+      
+      setToast({ message: '✅ تم حذف المنتج بنجاح', type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+      setDeletingProduct(null);
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      setToast({ message: `❌ ${error.message}`, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const nextPage = () => page < totalPages && setPage(page + 1);
   const prevPage = () => page > 1 && setPage(page - 1);
 
@@ -826,17 +860,26 @@ export default function ProductsPage() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex flex-col sm:flex-row gap-2 mt-auto pt-2 border-t border-gray-100">
-                    <button
-                      className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 text-white px-3 py-2 rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all text-xs sm:text-sm font-semibold shadow-sm hover:shadow-md"
-                      onClick={() => setEditingProduct(product.id)}
-                      title="تعديل المنتج"
-                    >
-                      ✏️ <span>تعديل</span>
-                    </button>
+                  <div className="flex flex-col gap-2 mt-auto pt-2 border-t border-gray-100">
+                    <div className="flex gap-2">
+                      <button
+                        className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 text-white px-3 py-2 rounded-lg hover:from-purple-600 hover:to-purple-700 transition-all text-xs sm:text-sm font-semibold shadow-sm hover:shadow-md"
+                        onClick={() => setEditingProduct(product.id)}
+                        title="تعديل المنتج"
+                      >
+                        ✏️ <span>تعديل</span>
+                      </button>
+                      <button
+                        className="bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-2 rounded-lg hover:from-red-600 hover:to-red-700 transition-all text-xs sm:text-sm font-semibold shadow-sm hover:shadow-md"
+                        onClick={() => setDeletingProduct(product)}
+                        title="حذف المنتج"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                     <select
                       disabled={updating}
-                      className="flex-1 border border-gray-200 rounded-lg px-2 py-2 text-[10px] sm:text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 bg-white cursor-pointer"
+                      className="w-full border border-gray-200 rounded-lg px-2 py-2 text-[10px] sm:text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 bg-white cursor-pointer"
                       value={product.status}
                       onChange={(e) =>
                         handleUpdateProduct({
@@ -1036,6 +1079,87 @@ export default function ProductsPage() {
               >
                 إغلاق
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingProduct && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100000] p-4 animate-fadeIn"
+          onClick={() => !deleting && setDeletingProduct(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-scaleIn"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-600 to-red-700 text-white p-6 flex items-center gap-4">
+              <div className="bg-white/20 rounded-full w-14 h-14 flex items-center justify-center text-3xl">
+                ⚠️
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">تأكيد حذف المنتج</h2>
+                <p className="text-red-100 text-sm mt-1">هذا الإجراء لا يمكن التراجع عنه</p>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
+                <p className="font-bold text-gray-800 mb-2">المنتج المراد حذفه:</p>
+                <p className="text-gray-700 text-lg font-semibold">{deletingProduct.name}</p>
+                {deletingProduct.sku && (
+                  <p className="text-sm text-gray-500 mt-1">SKU: {deletingProduct.sku}</p>
+                )}
+              </div>
+              
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start gap-2 text-sm text-red-800">
+                  <span className="text-xl">🚨</span>
+                  <div>
+                    <p className="font-semibold mb-1">تحذير:</p>
+                    <ul className="space-y-1 mr-4 text-xs">
+                      <li>• سيتم حذف المنتج نهائياً من النظام</li>
+                      <li>• لن تتمكن من استعادته بعد الحذف</li>
+                      <li>• سيتم حذف جميع البيانات المرتبطة به</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-gray-600 text-sm mb-6">
+                هل أنت متأكد من رغبتك في حذف هذا المنتج؟
+              </p>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => !deleting && setDeletingProduct(null)}
+                  disabled={deleting}
+                  className="flex-1 bg-gray-100 text-gray-700 px-6 py-3 rounded-xl hover:bg-gray-200 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={() => handleDeleteProduct(deletingProduct.id)}
+                  disabled={deleting}
+                  className="flex-1 bg-gradient-to-r from-red-600 to-red-700 text-white px-6 py-3 rounded-xl hover:from-red-700 hover:to-red-800 transition-all font-semibold shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {deleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                      <span>جاري الحذف...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🗑️</span>
+                      <span>حذف نهائياً</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
