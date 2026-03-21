@@ -47,6 +47,34 @@ export default function ProductsImportPage() {
     return mapping;
   };
 
+  // Detect actual header row in Excel files (some templates have title rows before headers)
+  const detectExcelHeaderRow = (rows) => {
+    const maxScan = Math.min(rows.length, 15);
+    let bestIndex = 0;
+    let bestScore = -1;
+
+    const headerHints = ['name', 'اسم', 'sku', 'كود', 'باركود', 'price', 'سعر', 'stock', 'كمية', 'category', 'فئة', 'تصنيف'];
+
+    for (let i = 0; i < maxScan; i++) {
+      const row = Array.isArray(rows[i]) ? rows[i] : [];
+      const nonEmpty = row.filter(cell => String(cell || '').trim().length > 0).length;
+      if (nonEmpty === 0) continue;
+
+      const hintMatches = row.filter(cell => {
+        const lower = String(cell || '').toLowerCase().trim();
+        return headerHints.some(h => lower.includes(h));
+      }).length;
+
+      const score = (hintMatches * 10) + nonEmpty;
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+
+    return bestIndex;
+  };
+
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
@@ -136,12 +164,14 @@ export default function ProductsImportPage() {
           const workbook = XLSX.read(arrayBuffer, { type: 'array' });
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
           const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+          const headerRowIndex = detectExcelHeaderRow(jsonData);
           
           console.log(`📊 Excel file loaded: ${workbook.SheetNames[0]}`);
           console.log(`📊 Total rows: ${jsonData.length}`);
+          console.log(`📊 Header row index: ${headerRowIndex}`);
           
-          headers = jsonData[0] || [];
-          preview = jsonData.slice(1, 4);
+          headers = jsonData[headerRowIndex] || [];
+          preview = jsonData.slice(headerRowIndex + 1, headerRowIndex + 4);
         }
         
         console.log("📋 Parsed Headers:", headers);
@@ -191,12 +221,14 @@ export default function ProductsImportPage() {
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
     const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
     
-    const headers = jsonData[0] || [];
-    const rows = jsonData.slice(1);
+    const headerRowIndex = detectExcelHeaderRow(jsonData);
+    const headers = jsonData[headerRowIndex] || [];
+    const rows = jsonData.slice(headerRowIndex + 1);
     const products = [];
     
     console.log("📊 Parsing Excel - Headers:", headers);
     console.log("📊 Parsing Excel - Total rows:", rows.length);
+    console.log("📊 Parsing Excel - Header row index:", headerRowIndex);
     
     // Use manual mapping if provided, otherwise auto-detect
     let headerMapping = {};
@@ -229,7 +261,7 @@ export default function ProductsImportPage() {
           headerMapping.stock = index;
         } else if (lowerHeader.includes('in stock') || lowerHeader.includes('available') || lowerHeader.includes('متوفر')) {
           headerMapping.in_stock = index;
-        } else if (lowerHeader.includes('categor') || lowerHeader.includes('فئة') || lowerHeader.includes('شركة')) {
+        } else if (lowerHeader.includes('categor') || lowerHeader.includes('فئة') || lowerHeader.includes('شركة') || lowerHeader.includes('تصنيف')) {
           headerMapping.categories = index;
         } else if (lowerHeader.includes('image') || lowerHeader.includes('photo') || lowerHeader.includes('صورة')) {
           headerMapping.images = index;
