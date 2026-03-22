@@ -213,6 +213,59 @@ function PrintInvoiceContent() {
           </div>
         )}
 
+        {/* Priority Notes (Top - Must be seen) */}
+        {(invoice.customerNote?.trim() || invoice.orderNotes?.trim()) && (
+          <div style={{
+            marginBottom: '2mm',
+            padding: '2mm',
+            border: '2px solid #000',
+            backgroundColor: '#fff3f3',
+            color: '#000'
+          }}>
+            <div style={{
+              textAlign: 'center',
+              fontWeight: 'bold',
+              fontSize: '11px',
+              marginBottom: '1.5mm',
+              borderBottom: '1px dashed #000',
+              paddingBottom: '1mm'
+            }}>
+              ⚠️ ملاحظات مهمة قبل التسليم
+            </div>
+
+            {invoice.customerNote?.trim() && (
+              <div style={{
+                marginBottom: invoice.orderNotes?.trim() ? '1.5mm' : 0,
+                padding: '1.5mm',
+                border: '2px solid #f59e0b',
+                backgroundColor: '#fef3c7'
+              }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '10px', color: '#92400e' }}>
+                  📝 ملاحظة العميل:
+                </div>
+                <div style={{ lineHeight: '1.45', whiteSpace: 'pre-wrap', fontSize: '10px', fontWeight: 'bold', color: '#7c2d12' }}>
+                  {invoice.customerNote}
+                </div>
+              </div>
+            )}
+
+            {invoice.orderNotes?.trim() && (
+              <div style={{
+                padding: '1.5mm',
+                border: '2px solid #111827',
+                backgroundColor: '#f9fafb'
+              }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '10px', color: '#111827' }}>
+                  💼 ملاحظاتنا على الطلب:
+                </div>
+                <div style={{ lineHeight: '1.45', whiteSpace: 'pre-wrap', fontSize: '10px', fontWeight: 'bold', color: '#111827' }}>
+                  {invoice.orderNotes}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Customer Info (for online orders or delivery) */}
         {((invoice.customerInfo && (invoice.customerInfo.name || invoice.customerInfo.phone)) || (isDelivery && customer)) && (
           <div style={{ 
@@ -596,36 +649,6 @@ function PrintInvoiceContent() {
           }}>
             <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '10px' }}>• ملاحظات التوصيل:</div>
             <div style={{ lineHeight: '1.3' }}>{deliveryNotes}</div>
-          </div>
-        )}
-
-        {/* Customer Note - ملاحظة العميل */}
-        {invoice.customerNote && invoice.customerNote.trim() && (
-          <div style={{ 
-            marginBottom: '2mm', 
-            padding: '2mm',
-            border: '2px solid #f59e0b',
-            fontSize: '9px',
-            color: '#000',
-            backgroundColor: '#fef3c7'
-          }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '10px', color: '#d97706' }}>📝 ملاحظة العميل:</div>
-            <div style={{ lineHeight: '1.4', whiteSpace: 'pre-wrap', color: '#92400e' }}>{invoice.customerNote}</div>
-          </div>
-        )}
-
-        {/* Order Notes - ملاحظات على الطلب */}
-        {invoice.orderNotes && (
-          <div style={{ 
-            marginBottom: '2mm', 
-            padding: '2mm',
-            border: '2px solid #000',
-            fontSize: '9px',
-            color: '#000',
-            backgroundColor: '#f5f5f5'
-          }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '10px' }}>💼 ملاحظاتنا على الطلب:</div>
-            <div style={{ lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>{invoice.orderNotes}</div>
           </div>
         )}
 

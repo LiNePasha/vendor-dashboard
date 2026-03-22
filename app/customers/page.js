@@ -36,6 +36,14 @@ export default function CustomersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [onlineTotalCount, setOnlineTotalCount] = useState(0);
+
+  const getDaysSinceLastOrder = (dateValue) => {
+    if (!dateValue) return null;
+    const parsed = new Date(dateValue);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return Math.floor((Date.now() - parsed.getTime()) / (1000 * 60 * 60 * 24));
+  };
 
   // 🆕 Fetch online customers from API
   const loadOnlineCustomers = async (page = 1, append = false) => {
@@ -59,6 +67,7 @@ export default function CustomersPage() {
           setOnlineCustomers(customers);
         }
         
+        setOnlineTotalCount(Number(result.pagination?.total || 0));
         setTotalPages(result.pagination.totalPages);
         setHasMore(result.pagination.hasMore);
         setCurrentPage(page);
@@ -69,23 +78,27 @@ export default function CustomersPage() {
   };
   
   // 🆕 Load stats from API
-  const loadStats = async () => {
+  const loadStats = async (offlineCustomersList = offlineCustomers) => {
     try {
       const result = await fetchCustomersStatsFromAPI();
       if (result.success) {
-        const apiStats = result.stats;
+        const apiStats = result.stats || {};
+        const totalOnline = Number(apiStats.total_customers ?? apiStats.total ?? apiStats.online ?? 0);
+        const activeOnline = Number(apiStats.active_customers ?? apiStats.active ?? 0);
+        const totalRevenue = Number(apiStats.total_revenue ?? apiStats.totalRevenue ?? 0);
+        const averageOrderValue = Number(apiStats.average_order_value ?? apiStats.averageOrderValue ?? 0);
         
         // Combine with offline customers
-        const offlineActive = offlineCustomers.filter(c => c.totalOrders > 0).length;
-        const offlineRevenue = offlineCustomers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+        const offlineActive = offlineCustomersList.filter(c => (c.totalOrders || 0) > 0).length;
+        const offlineRevenue = offlineCustomersList.reduce((sum, c) => sum + Number(c.totalSpent || 0), 0);
         
         setStats({
-          total: apiStats.total_customers + offlineCustomers.length,
-          online: apiStats.total_customers,
-          offline: offlineCustomers.length,
-          active: apiStats.active_customers + offlineActive,
-          total_revenue: apiStats.total_revenue + offlineRevenue,
-          average_order_value: apiStats.average_order_value,
+          total: totalOnline + offlineCustomersList.length,
+          online: totalOnline,
+          offline: offlineCustomersList.length,
+          active: activeOnline + offlineActive,
+          total_revenue: totalRevenue + offlineRevenue,
+          average_order_value: averageOrderValue,
         });
       }
     } catch (error) {
@@ -97,9 +110,9 @@ export default function CustomersPage() {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await loadOfflineCustomers();
+      const offlineList = await loadOfflineCustomers();
       await loadOnlineCustomers(1, false);
-      await loadStats();
+      await loadStats(offlineList);
       setLoading(false);
     };
     loadData();
@@ -115,6 +128,7 @@ export default function CustomersPage() {
   const loadOfflineCustomers = async () => {
     const customers = await offlineCustomersStorage.getAllOfflineCustomers();
     setOfflineCustomers(customers);
+    return customers;
   };
   
   // 🆕 Load more online customers
@@ -160,24 +174,81 @@ export default function CustomersPage() {
   
   // دمج العملاء الأونلاين والأوفلاين
   const allCustomers = useMemo(() => {
-    const online = onlineCustomers; // Already formatted from API
+    const online = onlineCustomers.map(c => {
+      const totalSpent = Number(c.total_spent || c.totalSpent || 0);
+      const ordersCount = Number(c.orders_count || c.ordersCount || c.orders?.length || 0);
+      const lastOrderDate = c.last_order_date || c.lastOrderDate || c.date_last_order || c.last_order || null;
+      const daysSinceLastOrder = c.days_since_last_order ?? getDaysSinceLastOrder(lastOrderDate);
+
+      return {
+        ...c,
+        name: c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || `عميل #${c.id}`,
+        phone: c.phone || c.billing?.phone || '',
+        email: c.email || c.billing?.email || '',
+        city: c.city || c.billing?.city || c.shipping?.city || '',
+        total_spent: totalSpent,
+        orders_count: ordersCount,
+        average_order: Number(c.average_order || c.averageOrder || (ordersCount > 0 ? totalSpent / ordersCount : 0)),
+        last_order_date: lastOrderDate,
+        days_since_last_order: daysSinceLastOrder,
+        status: c.status || ((daysSinceLastOrder !== null && daysSinceLastOrder <= 30) ? 'active' : 'inactive'),
+      };
+    });
+
     const offline = offlineCustomers.map(c => { 
       const totalSpent = c.totalSpent || 0;
       const ordersCount = c.totalOrders || 0;
       const averageOrder = ordersCount > 0 ? totalSpent / ordersCount : 0;
+      const lastOrderDate = c.lastOrderAt || c.updatedAt;
+      const daysSinceLastOrder = getDaysSinceLastOrder(lastOrderDate);
       
       return {
         ...c, 
         type: 'offline',
         source: 'محلي',
+        name: c.name || `عميل محلي #${c.id}`,
         total_spent: totalSpent,
         orders_count: ordersCount,
         average_order: averageOrder,
-        last_order_date: c.lastOrderAt || c.updatedAt
+        last_order_date: lastOrderDate,
+        days_since_last_order: daysSinceLastOrder,
+        status: c.status || ((daysSinceLastOrder !== null && daysSinceLastOrder <= 30) ? 'active' : 'inactive')
       };
     });
     return [...online, ...offline];
   }, [onlineCustomers, offlineCustomers]);
+
+  const derivedStats = useMemo(() => {
+    const totalRevenue = allCustomers.reduce((sum, customer) => sum + Number(customer.total_spent || 0), 0);
+    const totalOrders = allCustomers.reduce((sum, customer) => sum + Number(customer.orders_count || 0), 0);
+    const effectiveOnlineTotal = onlineTotalCount > 0 ? onlineTotalCount : allCustomers.filter(customer => customer.type === 'online').length;
+
+    return {
+      total: effectiveOnlineTotal + allCustomers.filter(customer => customer.type === 'offline').length,
+      online: effectiveOnlineTotal,
+      offline: allCustomers.filter(customer => customer.type === 'offline').length,
+      active: allCustomers.filter(customer => customer.status === 'active' || Number(customer.orders_count || 0) > 0).length,
+      total_revenue: totalRevenue,
+      average_order_value: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+    };
+  }, [allCustomers, onlineTotalCount]);
+
+  const displayStats = useMemo(() => {
+    const hasApiValues = Object.values(stats).some(value => Number(value || 0) > 0);
+
+    if (!hasApiValues) {
+      return derivedStats;
+    }
+
+    return {
+      total: Math.max(Number(stats.total || 0), derivedStats.total),
+      online: Math.max(Number(stats.online || 0), derivedStats.online),
+      offline: Math.max(Number(stats.offline || 0), derivedStats.offline),
+      active: Math.max(Number(stats.active || 0), derivedStats.active),
+      total_revenue: Math.max(Number(stats.total_revenue || 0), derivedStats.total_revenue),
+      average_order_value: Number(stats.average_order_value || 0) > 0 ? Number(stats.average_order_value) : derivedStats.average_order_value,
+    };
+  }, [stats, derivedStats]);
 
   // Stats are now loaded from API - removed calculation from useMemo
 
@@ -236,7 +307,8 @@ export default function CustomersPage() {
       if (confirm(`هل تريد حذف العميل "${customer.name}"؟`)) {
         try {
           await offlineCustomersStorage.deleteOfflineCustomer(customer.id);
-          await loadOfflineCustomers();
+          const offlineList = await loadOfflineCustomers();
+          await loadStats(offlineList);
           alert('✅ تم حذف العميل بنجاح');
         } catch (error) {
           alert('❌ فشل في حذف العميل');
@@ -248,7 +320,8 @@ export default function CustomersPage() {
   };
 
   const handleCustomerSaved = async () => {
-    await loadOfflineCustomers();
+    const offlineList = await loadOfflineCustomers();
+    await loadStats(offlineList);
   };
 
   const formatDate = (dateString) => {
@@ -281,7 +354,7 @@ export default function CustomersPage() {
             <p className="text-gray-600">
               {loading
                 ? "جاري التحميل..."
-                : `${allCustomers.length} عميل - ${stats.online} أونلاين، ${stats.offline} أوفلاين`}
+                : `${allCustomers.length} عميل - ${displayStats.online} أونلاين، ${displayStats.offline} أوفلاين`}
             </p>
           </div>
           <button
@@ -297,30 +370,30 @@ export default function CustomersPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
             <div className="text-sm text-gray-500 mb-1">إجمالي العملاء</div>
-            <div className="text-2xl font-bold text-gray-800">{stats.total}</div>
+            <div className="text-2xl font-bold text-gray-800">{displayStats.total}</div>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
             <div className="text-sm text-gray-500 mb-1">عملاء أونلاين</div>
-            <div className="text-2xl font-bold text-blue-600">{stats.online}</div>
+            <div className="text-2xl font-bold text-blue-600">{displayStats.online}</div>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
             <div className="text-sm text-gray-500 mb-1">عملاء أوفلاين</div>
-            <div className="text-2xl font-bold text-green-600">{stats.offline}</div>
+            <div className="text-2xl font-bold text-green-600">{displayStats.offline}</div>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
             <div className="text-sm text-gray-500 mb-1">عملاء نشطون</div>
-            <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+            <div className="text-2xl font-bold text-green-600">{displayStats.active}</div>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
             <div className="text-sm text-gray-500 mb-1">إجمالي الإيرادات</div>
             <div className="text-lg font-bold text-blue-600">
-              {formatCurrency(stats.total_revenue)}
+              {formatCurrency(displayStats.total_revenue)}
             </div>
           </div>
           <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
             <div className="text-sm text-gray-500 mb-1">متوسط الطلب</div>
             <div className="text-lg font-bold text-purple-600">
-              {formatCurrency(stats.average_order_value)}
+              {formatCurrency(displayStats.average_order_value)}
             </div>
           </div>
         </div>
