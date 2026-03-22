@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoiceStorage } from "@/app/lib/localforage";
 
 export default function OrderDetailsModal({ 
@@ -16,11 +16,15 @@ export default function OrderDetailsModal({
   onNoteTextChange,
   onSaveNote,
   savingNote,
-  onCancelNote
+  onCancelNote,
+  onShippingUpdate
 }) {
   const modalRef = useRef(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [registeringInvoice, setRegisteringInvoice] = useState(false);
+  const [editingShipping, setEditingShipping] = useState(false);
+  const [shippingAmount, setShippingAmount] = useState("");
+  const [updatingShipping, setUpdatingShipping] = useState(false);
 
   if (!isOpen || !order) return null;
 
@@ -28,10 +32,10 @@ export default function OrderDetailsModal({
   console.log('🔍 Full Order Object:', order);
   console.log('🔍 Order Keys:', Object.keys(order));
   console.log('🔍 Customer Note:', order.customer_note);
-  
+
   // 🆕 استخراج بيانات الدفع من meta_data
   const getMetaValue = (key) => order.meta_data?.find(m => m.key === key)?.value;
-  
+
   const paymentType = getMetaValue('_payment_type');
   const paidAmount = getMetaValue('_paid_amount');
   const remainingAmount = getMetaValue('_remaining_amount');
@@ -39,7 +43,7 @@ export default function OrderDetailsModal({
   const instaPayProof = getMetaValue('_instapay_payment_proof');
   const orderImage = getMetaValue('order_image');
   const shippingAddressIndex = getMetaValue('_shipping_address_index');
-  
+
   const isHalfPayment = paymentType === 'half_payment';
   const isFullPayment = paymentType === 'full_payment';
 
@@ -52,6 +56,14 @@ export default function OrderDetailsModal({
   const deliveryType = isStorePickup ? 'استلام من المتجر' : 'توصيل';
   const deliveryIcon = isStorePickup ? '🏪' : '🚚';
   const deliveryColor = isStorePickup ? 'bg-purple-50 border-purple-200' : 'bg-orange-50 border-orange-200';
+  const shippingTotal = parseFloat(order.shipping_total || 0);
+  const orderTotal = parseFloat(order.total || 0);
+  const productsTotal = Math.max(0, orderTotal - shippingTotal);
+
+  useEffect(() => {
+    setShippingAmount((parseFloat(order?.shipping_total || 0) || 0).toString());
+    setEditingShipping(false);
+  }, [order?.id, order?.shipping_total]);
 
   // Handle status change
   const handleStatusChange = async (newStatus) => {
@@ -216,6 +228,51 @@ export default function OrderDetailsModal({
       }
     } finally {
       setRegisteringInvoice(false);
+    }
+  };
+
+  const handleShippingSave = async () => {
+    const parsedShipping = parseFloat(shippingAmount);
+
+    if (Number.isNaN(parsedShipping) || parsedShipping < 0) {
+      if (showToast) {
+        showToast('سعر الشحن لازم يكون رقم صحيح أكبر من أو يساوي صفر', 'error');
+      }
+      return;
+    }
+
+    setUpdatingShipping(true);
+    try {
+      const response = await fetch('/api/orders/update-shipping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          shippingTotal: parsedShipping
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'فشل تحديث سعر الشحن');
+      }
+
+      if (onShippingUpdate) {
+        await onShippingUpdate(order.id, result.order);
+      }
+
+      setEditingShipping(false);
+      if (showToast) {
+        showToast('✅ تم تحديث سعر الشحن بنجاح');
+      }
+    } catch (error) {
+      console.error('Shipping Update Error:', error);
+      if (showToast) {
+        showToast(error.message || 'فشل تحديث سعر الشحن', 'error');
+      }
+    } finally {
+      setUpdatingShipping(false);
     }
   };
 
@@ -548,22 +605,76 @@ export default function OrderDetailsModal({
           {/* Total */}
           <section className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg sm:rounded-xl p-3 sm:p-4">
             <div className="space-y-2">
-              {!isStorePickup && order.shipping_total && parseFloat(order.shipping_total) > 0 && (
-                <div className="flex justify-between items-center text-xs sm:text-sm text-gray-700">
-                  <span className="font-medium">🚚 رنج الشحن</span>
-                  <span className="font-semibold">من {order.shipping_total - 25} إلي {order.shipping_total} {order.currency}</span>
+              {!isStorePickup && (
+                <div className="bg-white/80 rounded-lg p-3 border border-blue-200">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-medium text-xs sm:text-sm text-gray-700">🚚 سعر الشحن</span>
+
+                    {editingShipping ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={shippingAmount}
+                          onChange={(e) => setShippingAmount(e.target.value)}
+                          className="w-28 border border-blue-300 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          disabled={updatingShipping}
+                        />
+                        <button
+                          onClick={handleShippingSave}
+                          disabled={updatingShipping}
+                          className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold disabled:opacity-50"
+                        >
+                          {updatingShipping ? '⏳' : 'حفظ'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingShipping(false);
+                            setShippingAmount(shippingTotal.toString());
+                          }}
+                          disabled={updatingShipping}
+                          className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-bold disabled:opacity-50"
+                        >
+                          إلغاء
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm sm:text-base text-orange-700">{shippingTotal.toFixed(2)} {order.currency}</span>
+                        <button
+                          onClick={() => setEditingShipping(true)}
+                          className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold"
+                        >
+                          ✏️ تغيير السعر
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {!isStorePickup && order.shipping_total && parseFloat(order.shipping_total) > 0 && (
+              {/* {!isStorePickup && shippingTotal > 0 && (
+                <div className="flex justify-between items-center text-xs sm:text-sm text-gray-700">
+                  <span className="font-medium">🚚 رنج الشحن</span>
+                  <span className="font-semibold">من {(shippingTotal - 25).toFixed(2)} إلي {shippingTotal.toFixed(2)} {order.currency}</span>
+                </div>
+              )} */}
+
+              {!isStorePickup && (
                 <div className="flex justify-between items-center text-xs sm:text-sm text-gray-700">
                   <span className="font-medium">💰 مجموع الاوردر</span>
                   <p className="text-gray-900 font-bold text-base sm:text-lg">
-                      {(parseFloat(order.total) - parseFloat(order.shipping_total || 0))} {order.currency}
-                    </p>
+                    {productsTotal.toFixed(2)} {order.currency}
+                  </p>
                 </div>
               )}
-            </div>
+
+              {/* <div className="flex justify-between items-center text-sm sm:text-base text-gray-900 pt-2 border-t border-blue-200">
+                <span className="font-bold">الإجمالي النهائي</span>
+                <span className="font-black text-lg sm:text-xl text-green-700">{orderTotal.toFixed(2)} {order.currency}</span>
+              </div> */}
+                </div>
           </section>
         </div>
 

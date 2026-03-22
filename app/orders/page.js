@@ -1435,6 +1435,22 @@ function OrdersContent() {
     }
   };
 
+  const handleShippingUpdate = async (orderId, updatedOrder) => {
+    if (!updatedOrder) return;
+
+    const currentOrders = usePOSStore.getState().orders;
+    const updatedOrders = currentOrders.map(order =>
+      order.id === orderId ? updatedOrder : order
+    );
+
+    usePOSStore.setState({ orders: updatedOrders });
+    forceRefresh();
+
+    if (selectedOrder && selectedOrder.id === orderId) {
+      setSelectedOrder(updatedOrder);
+    }
+  };
+
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     showToast("تم نسخ العنوان!");
@@ -3579,6 +3595,7 @@ function OrdersContent() {
             setEditingNote(null);
             setNoteText('');
           }}
+          onShippingUpdate={handleShippingUpdate}
         />
       )}
       

@@ -152,6 +152,14 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
     }
   };
 
+  const handleShippingUpdate = async (orderId, updatedOrder) => {
+    if (selectedOrder && selectedOrder.id === orderId && updatedOrder) {
+      setSelectedOrder(updatedOrder);
+    }
+
+    await fetchProcessingOrders();
+  };
+
   // Get product images with fallback
   const getProductImages = (items) => {
     return items.slice(0, 4).map((item) => {
@@ -425,6 +433,7 @@ export default function NotificationSidebar({ isOpen, onClose, soundEnabled = tr
         onClose={() => setSelectedOrder(null)}
         onStatusChange={handleStatusChange}
         showToast={showToast}
+        onShippingUpdate={handleShippingUpdate}
       />
 
       {/* Toast */}
