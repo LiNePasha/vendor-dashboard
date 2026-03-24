@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { invoiceStorage } from "@/app/lib/localforage";
+import BostaLocationSelector from "@/components/BostaLocationSelector";
 
 export default function OrderDetailsModal({ 
   order, 
@@ -25,6 +26,21 @@ export default function OrderDetailsModal({
   const [editingShipping, setEditingShipping] = useState(false);
   const [shippingAmount, setShippingAmount] = useState("");
   const [updatingShipping, setUpdatingShipping] = useState(false);
+  const [editingAddress, setEditingAddress] = useState(false);
+  const [updatingAddress, setUpdatingAddress] = useState(false);
+  const [addressForm, setAddressForm] = useState({
+    first_name: "",
+    last_name: "",
+    phone: "",
+    address_1: "",
+    address_2: "",
+    city: "",
+    state: "",
+    cityId: "",
+    districtId: "",
+    zoneId: "",
+    address_index: "",
+  });
 
   if (!isOpen || !order) return null;
 
@@ -63,7 +79,21 @@ export default function OrderDetailsModal({
   useEffect(() => {
     setShippingAmount((parseFloat(order?.shipping_total || 0) || 0).toString());
     setEditingShipping(false);
-  }, [order?.id, order?.shipping_total]);
+    setAddressForm({
+      first_name: order?.shipping?.first_name || order?.billing?.first_name || '',
+      last_name: order?.shipping?.last_name || order?.billing?.last_name || '',
+      phone: order?.billing?.phone || order?.shipping?.phone || '',
+      address_1: order?.shipping?.address_1 || getMetaValue('_shipping_address_1') || '',
+      address_2: order?.shipping?.address_2 || getMetaValue('_shipping_area') || '',
+      city: getMetaValue('_shipping_city_name') || getMetaValue('_shipping_city') || order?.shipping?.city || '',
+      state: getMetaValue('_shipping_district_name') || getMetaValue('_shipping_state') || order?.shipping?.state || '',
+      cityId: getMetaValue('_shipping_city_id') || '',
+      districtId: getMetaValue('_shipping_district_id') || '',
+      zoneId: getMetaValue('_shipping_zone_id') || '',
+      address_index: getMetaValue('_shipping_address_index') || '',
+    });
+    setEditingAddress(false);
+  }, [order]);
 
   // Handle status change
   const handleStatusChange = async (newStatus) => {
@@ -276,6 +306,64 @@ export default function OrderDetailsModal({
     }
   };
 
+  const handleAddressSave = async () => {
+    if (!addressForm.address_1?.trim()) {
+      if (showToast) {
+        showToast('العنوان الأساسي مطلوب', 'error');
+      }
+      return;
+    }
+
+    setUpdatingAddress(true);
+    try {
+      const response = await fetch('/api/orders/update-shipping-address', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          shipping: {
+            first_name: addressForm.first_name?.trim() || '',
+            last_name: addressForm.last_name?.trim() || '',
+            phone: addressForm.phone?.trim() || '',
+            address_1: addressForm.address_1?.trim() || '',
+            address_2: addressForm.address_2?.trim() || '',
+            city: addressForm.city?.trim() || '',
+            state: addressForm.state?.trim() || '',
+          },
+          billingPhone: addressForm.phone?.trim() || '',
+          shippingAddressIndex: addressForm.address_index?.trim() || '',
+          shippingCityName: addressForm.city?.trim() || '',
+          shippingDistrictName: addressForm.state?.trim() || '',
+          shippingCityId: addressForm.cityId || '',
+          shippingDistrictId: addressForm.districtId || '',
+          shippingZoneId: addressForm.zoneId || '',
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'فشل تحديث عنوان الشحن');
+      }
+
+      if (onShippingUpdate) {
+        await onShippingUpdate(order.id, result.order);
+      }
+
+      setEditingAddress(false);
+      if (showToast) {
+        showToast('✅ تم تحديث عنوان الشحن بنجاح');
+      }
+    } catch (error) {
+      console.error('Shipping Address Update Error:', error);
+      if (showToast) {
+        showToast(error.message || 'فشل تحديث عنوان الشحن', 'error');
+      }
+    } finally {
+      setUpdatingAddress(false);
+    }
+  };
+
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     if (showToast) {
@@ -395,21 +483,27 @@ export default function OrderDetailsModal({
                   <span className="font-semibold">الهاتف:</span> {order.billing.phone}
                 </p>
               )}
-              {order.billing?.address_1 && (
+              {(order.billing?.address_1 || order.shipping?.address_1 || shippingAddressIndex) && (
                 <div className="flex items-start gap-2 pt-2">
                   <p className="flex-1 text-gray-700">
                     <span className="font-medium">العنوان:</span>{" "}
-                    {shippingAddressIndex || `${order.billing.address_1}, ${order.billing?.state}`}
+                    {shippingAddressIndex || order.shipping?.address_1 || `${order.billing?.address_1 || ''}, ${order.billing?.state || ''}`}
                   </p>
                   <button
                     onClick={() =>
                       copyToClipboard(
-                        shippingAddressIndex || `${order.billing.address_1}, ${order.billing.state}`
+                        shippingAddressIndex || order.shipping?.address_1 || `${order.billing?.address_1 || ''}, ${order.billing?.state || ''}`
                       )
                     }
                     className="text-blue-500 hover:text-blue-600 text-xs font-medium"
                   >
                     📋 نسخ
+                  </button>
+                  <button
+                    onClick={() => setEditingAddress(true)}
+                    className="text-purple-600 hover:text-purple-700 text-xs font-medium"
+                  >
+                    ✏️ تعديل العنوان
                   </button>
                   {order.meta_data?.find((m) => m.key === "_billing_maps_link") && (
                     <a
@@ -425,6 +519,91 @@ export default function OrderDetailsModal({
                   )}
                 </div>
               )}              
+
+              {editingAddress && (
+                <div className="mt-3 p-3 bg-white border border-blue-200 rounded-lg space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      value={addressForm.first_name}
+                      onChange={(e) => setAddressForm(prev => ({ ...prev, first_name: e.target.value }))}
+                      placeholder="الاسم الأول"
+                      className="border border-gray-300 rounded px-2 py-1.5 text-xs"
+                    />
+                    <input
+                      value={addressForm.last_name}
+                      onChange={(e) => setAddressForm(prev => ({ ...prev, last_name: e.target.value }))}
+                      placeholder="الاسم الأخير"
+                      className="border border-gray-300 rounded px-2 py-1.5 text-xs"
+                    />
+                  </div>
+                  <input
+                    value={addressForm.phone}
+                    onChange={(e) => setAddressForm(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="رقم الهاتف"
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs"
+                  />
+                  <input
+                    value={addressForm.address_1}
+                    onChange={(e) => setAddressForm(prev => ({ ...prev, address_1: e.target.value }))}
+                    placeholder="العنوان الأساسي"
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs"
+                  />
+                  <input
+                    value={addressForm.address_2}
+                    onChange={(e) => setAddressForm(prev => ({ ...prev, address_2: e.target.value }))}
+                    placeholder="عنوان إضافي / المنطقة"
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs"
+                  />
+                  <BostaLocationSelector
+                    address={{
+                      city: addressForm.city,
+                      district: addressForm.state,
+                      cityId: addressForm.cityId,
+                      districtId: addressForm.districtId,
+                      zoneId: addressForm.zoneId,
+                    }}
+                    onAddressChange={(nextAddress) => setAddressForm(prev => ({
+                      ...prev,
+                      city: nextAddress.city || prev.city,
+                      state: nextAddress.district || prev.state,
+                      cityId: nextAddress.cityId || '',
+                      districtId: nextAddress.districtId || '',
+                      zoneId: nextAddress.zoneId || '',
+                    }))}
+                    disabled={updatingAddress}
+                  />
+
+                  {(!addressForm.cityId || !addressForm.districtId) && (
+                    <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                      ⚠️ يفضل اختيار المدينة والمنطقة من قائمة بوسطة لضمان صحة الـ IDs قبل الإرسال.
+                    </div>
+                  )}
+
+                  <input
+                    value={addressForm.address_index}
+                    onChange={(e) => setAddressForm(prev => ({ ...prev, address_index: e.target.value }))}
+                    placeholder="العنوان المركب (اختياري)"
+                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleAddressSave}
+                      disabled={updatingAddress}
+                      className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded text-xs font-bold disabled:opacity-50"
+                    >
+                      {updatingAddress ? '⏳ جاري الحفظ...' : '💾 حفظ العنوان'}
+                    </button>
+                    <button
+                      onClick={() => setEditingAddress(false)}
+                      disabled={updatingAddress}
+                      className="px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded text-xs font-bold disabled:opacity-50"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Customer Note */}
               {order.customer_note && order.customer_note.trim() && (
                 <div className="bg-yellow-50 border-l-4 border-yellow-400 rounded-lg p-2 sm:p-3 mt-2">

@@ -1440,14 +1440,40 @@ function OrdersContent() {
 
     const currentOrders = usePOSStore.getState().orders;
     const updatedOrders = currentOrders.map(order =>
-      order.id === orderId ? updatedOrder : order
+      order.id === orderId
+        ? {
+            ...order,
+            ...updatedOrder,
+            shipping: {
+              ...(order.shipping || {}),
+              ...(updatedOrder.shipping || {}),
+            },
+            billing: {
+              ...(order.billing || {}),
+              ...(updatedOrder.billing || {}),
+            },
+            meta_data: updatedOrder.meta_data || order.meta_data,
+          }
+        : order
     );
 
     usePOSStore.setState({ orders: updatedOrders });
     forceRefresh();
 
     if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder(updatedOrder);
+      setSelectedOrder(prev => ({
+        ...prev,
+        ...updatedOrder,
+        shipping: {
+          ...(prev?.shipping || {}),
+          ...(updatedOrder.shipping || {}),
+        },
+        billing: {
+          ...(prev?.billing || {}),
+          ...(updatedOrder.billing || {}),
+        },
+        meta_data: updatedOrder.meta_data || prev?.meta_data,
+      }));
     }
   };
 
