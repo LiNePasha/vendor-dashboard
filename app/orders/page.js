@@ -19,6 +19,11 @@ const STATUS_OPTIONS = [
   { value: "failed", label: "فشل", color: "bg-red-500" },
 ];
 
+// 🎛️ Feature Flags - التحكم في الميزات
+const FEATURES = {
+  ENABLE_BOSTA_UNLINK: false, // إزالة الربط ببوسطة | غير إلى false لتعطيل الميزة
+};
+
 function OrdersContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1070,7 +1075,7 @@ function OrdersContent() {
       return false;
     }
   };
-  
+
   // 🆕 مزامنة حالة الطلب من Bosta
   const syncOrderStatusFromBosta = async (invoice) => {
     if (!invoice.bosta?.trackingNumber) return;
@@ -1182,7 +1187,7 @@ function OrdersContent() {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     orderId: order.id,
-                    bostaData: null // حذف بيانات بوسطة
+                    clearBosta: true
                   })
                 });
               }
@@ -1391,6 +1396,91 @@ function OrdersContent() {
       setToast({ message: 'حدث خطأ: ' + error.message, type: 'error' });
     } finally {
       setSendingToBosta(null);
+    }
+  };
+
+
+  const unlinkFromBosta = async (order) => {
+    try {
+      // تم حذف بيانات بوسطة للطلب
+      if (typeof order.id === 'number') {
+        const response = await fetch('/api/orders/update-bosta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: order.id, clearBosta: true })
+        });
+
+        if (!response.ok) {
+          throw new Error('فشل حذف بيانات بوسطة من الـ API');
+        }
+      } else {
+        await updatePOSInvoice(order.id, { bosta: null, deliveryStatus: 'pending' });
+      }
+
+      const updatedOrders = usePOSStore.getState().orders.map(o => {
+        if (o.id === order.id) {
+          return {
+            ...o,
+            bosta: null,
+            meta_data: (o.meta_data || []).filter(m => !['bosta_tracking_number','bosta_order_id','bosta_status','bosta_sent','_bosta_tracking_number','_bosta_status','_bosta_sent'].includes(m.key))
+          };
+        }
+        return o;
+      });
+      usePOSStore.setState({ orders: updatedOrders });
+      setPosInvoices(prev => prev.map(o => o.id === order.id ? { ...o, bosta: null, deliveryStatus: 'pending' } : o));
+
+      setToast({ message: '✅ تم إزالة الربط مع بوسطة بنجاح', type: 'success' });
+    } catch (error) {
+      console.error('Error unlinking from Bosta:', error);
+      setToast({ message: '❌ فشل إزالة الربط مع بوسطة', type: 'error' });
+    }
+  };
+
+  const setBostaActive = async (order, isActive) => {
+    try {
+      if (typeof order.id === 'number') {
+        const metaData = order.meta_data ? [...order.meta_data.filter(m => m.key !== '_bosta_active')] : [];
+        metaData.push({ key: '_bosta_active', value: isActive ? 'true' : 'false' });
+
+        const response = await fetch('/api/orders', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: order.id, meta_data: metaData })
+        });
+
+        if (!response.ok) {
+          throw new Error('فشل تحديث حالة بوسطة');
+        }
+      } else {
+        await updatePOSInvoice(order.id, {
+          bosta: {
+            ...order.bosta,
+            active: isActive
+          }
+        });
+      }
+
+      const updatedOrders = usePOSStore.getState().orders.map(o => {
+        if (o.id === order.id) {
+          return {
+            ...o,
+            bosta: {
+              ...o.bosta,
+              active: isActive
+            },
+            meta_data: (o.meta_data || []).filter(m => m.key !== '_bosta_active').concat([{ key: '_bosta_active', value: isActive ? 'true' : 'false' }])
+          };
+        }
+        return o;
+      });
+      usePOSStore.setState({ orders: updatedOrders });
+      setPosInvoices(prev => prev.map(o => o.id === order.id ? { ...o, bosta: { ...o.bosta, active: isActive } } : o));
+
+      setToast({ message: `✅ تم ${isActive ? 'تفعيل' : 'تعطيل'} بوسطة للطلب`, type: 'success' });
+    } catch (error) {
+      console.error('Error setting Bosta active:', error);
+      setToast({ message: '❌ فشل تحديث حالة البوسطة', type: 'error' });
     }
   };
 
@@ -2385,7 +2475,7 @@ function OrdersContent() {
                         {(order.deliveryStatus === 'pending' || order.status === 'on-hold' || order.status === 'pending') ? (
                           <span className="text-xs text-gray-400">معلق</span>
                         ) : order.bosta?.sent ? (
-                          <div className="flex flex-col gap-1">
+                          <div className="space-y-1">
                             <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">
                               ✅ {order.bosta.trackingNumber}
                             </span>
@@ -2398,6 +2488,17 @@ function OrdersContent() {
                             >
                               🔗 تتبع
                             </button>
+                            {FEATURES.ENABLE_BOSTA_UNLINK && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  unlinkFromBosta(order);
+                                }}
+                                className="text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded font-bold"
+                              >
+                                🗑️ إزالة الربط
+                              </button>
+                            )}
                           </div>
                         ) : bostaEnabled ? (
                           <button
@@ -2454,6 +2555,8 @@ function OrdersContent() {
                       const kashierTxId = order.meta_data?.find(m => m.key === '_kashier_transaction_id')?.value;
                       const bostaTracking = order.bosta?.trackingNumber || order.meta_data?.find(m => m.key === '_bosta_tracking_number')?.value;
                       const bostaStatus = order.bosta?.status || order.meta_data?.find(m => m.key === '_bosta_status')?.value;
+                      const bostaActiveMeta = order.bosta?.active ?? order.meta_data?.find(m => m.key === '_bosta_active')?.value;
+                      const bostaActive = bostaActiveMeta === undefined ? true : (bostaActiveMeta === 'true' || bostaActiveMeta === true);
                       const showBostaBadge = bostaTracking && bostaStatus && order.status !== 'completed'; // 🔥 عرض كل الأوردرات مع tracking
                       const productTotal = parseFloat(order.total) - parseFloat(order.shipping_total || 0);
                       const isPaid = order.payment_method_title && order.payment_method_title !== 'الدفع نقدًا عند الاستلام';
@@ -2649,20 +2752,33 @@ function OrdersContent() {
                           {/* Bosta Status */}
                           {bostaEnabled && (
                             <td className="px-2 py-3">
-                              {showBostaTracking ? (
-                                <div className="text-xs">
-                                  <div className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg font-bold mb-1 text-[10px]">
-                                    ✅ {bostaTracking}
+                              {bostaTracking ? (
+                                <div className="space-y-1">
+                                  <div className="text-xs">
+                                    <div className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg font-bold mb-1 text-[10px]">
+                                      ✅ {bostaTracking}
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openTrackingModal(bostaTracking);
+                                      }}
+                                      className="w-full bg-blue-500 text-white px-2 py-1 rounded text-[10px] hover:bg-blue-600"
+                                    >
+                                      🔍 تتبع
+                                    </button>
                                   </div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openTrackingModal(bostaTracking);
-                                    }}
-                                    className="w-full bg-blue-500 text-white px-2 py-1 rounded text-[10px] hover:bg-blue-600"
-                                  >
-                                    🔍 تتبع
-                                  </button>
+                                  {FEATURES.ENABLE_BOSTA_UNLINK && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        unlinkFromBosta(order);
+                                      }}
+                                      className="w-full bg-red-500 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-red-600"
+                                    >
+                                      🗑️ إزالة الربط
+                                    </button>
+                                  )}
                                 </div>
                               ) : (order.status === 'processing' || order.status === 'completed') && deliveryType !== 'pickup' ? (
                                 <button
@@ -2671,7 +2787,7 @@ function OrdersContent() {
                                     sendToBosta(order);
                                   }}
                                   disabled={sendingToBosta === order.id}
-                                  className="bg-purple-500 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-purple-600 w-full disabled:opacity-50"
+                                  className="w-full bg-purple-500 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-purple-600 disabled:opacity-50"
                                 >
                                   {sendingToBosta === order.id ? '⏳' : '📦 إرسال'}
                                 </button>
@@ -2768,6 +2884,8 @@ function OrdersContent() {
               // 🏪 عرض طلبات السيستم (POS)
               const orderDate = new Date(order.date); // ✅ استخدام date بدل timestamp
               const itemsCount = (order.items?.length || 0) + (order.services?.length || 0);
+              const systemBostaActiveMeta = order.bosta?.active ?? order.meta_data?.find(m => m.key === '_bosta_active')?.value;
+              const systemBostaActive = systemBostaActiveMeta === undefined ? true : (systemBostaActiveMeta === 'true' || systemBostaActiveMeta === true);
               
               return (
                 <div
