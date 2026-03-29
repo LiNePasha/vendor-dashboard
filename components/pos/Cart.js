@@ -987,7 +987,7 @@ export function Cart({
       </div>
 
       {/* � Fixed Bottom - الإجمالي وزر إتمام البيع فقط (compact) */}
-      <div className="fixed bottom-0 left-0 right-0 md:left-auto md:w-96 bg-white border-t-2 border-gray-300 shadow-lg z-50">
+      <div className="fixed bottom-0 left-0 right-0 md:left-auto md:w-96 bg-white border-t-2 border-gray-300 shadow-lg z-10">
         {/* Total + Button - في صف واحد compact */}
         <div className="p-3 flex items-center gap-3">
           {/* الإجمالي */}

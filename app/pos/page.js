@@ -39,6 +39,20 @@ export default function POSPage() {
   const [viewMode, setViewMode] = useState('categories'); // 🆕 categories or products
   const [toast, setToast] = useState(null);
   const [discount, setDiscount] = useState(0);
+
+  // 🆕 Bulk price update state
+  const [bulkPanelOpen, setBulkPanelOpen] = useState(false);
+  const [selectedBulkIds, setSelectedBulkIds] = useState([]);
+  const [bulkScope, setBulkScope] = useState('selected'); // selected | all | category
+  const [bulkCategoryIds, setBulkCategoryIds] = useState([]); // Multi-category support
+  const [bulkSearch, setBulkSearch] = useState('');
+  const [bulkShowSelectedOnly, setBulkShowSelectedOnly] = useState(false);
+  const [bulkOperation, setBulkOperation] = useState('increase'); // increase | decrease | set
+  const [bulkValueType, setBulkValueType] = useState('percentage'); // percentage | amount
+  const [bulkPriceTarget, setBulkPriceTarget] = useState('both'); // both | regular | sale
+  const [bulkValue, setBulkValue] = useState('');
+  const [bulkSetPrices, setBulkSetPrices] = useState({}); // key -> new set price (per product)
+  const [bulkApplying, setBulkApplying] = useState(false);
   const [discountType, setDiscountType] = useState('amount');
   const [discountApplyMode, setDiscountApplyMode] = useState('both');
   const [extraFee, setExtraFee] = useState(0);
@@ -402,6 +416,281 @@ export default function POSPage() {
 
   // Get active tab data
   const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0];
+
+  // 🆕 Toggle selection for bulk operations
+  const handleBulkToggle = (productId, checked) => {
+    setSelectedBulkIds(prev => {
+      const normalizedId = productId.toString();
+      if (checked) {
+        if (!prev.includes(normalizedId)) return [...prev, normalizedId];
+        return prev;
+      } else {
+        return prev.filter(id => id !== normalizedId);
+      }
+    });
+  };
+
+  // 🆕 Toggle single selected product key
+  const addBulkSelection = (productKey) => {
+    setSelectedBulkIds(prev => [...new Set([...prev, productKey])]);
+  };
+
+  const removeBulkSelection = (productKey) => {
+    setSelectedBulkIds(prev => prev.filter(id => id !== productKey));
+  };
+
+  // 🆕 Clear selected bulk after apply
+  const clearBulkSelection = () => {
+    setSelectedBulkIds([]);
+    setBulkScope('selected');
+    setBulkCategoryIds([]);
+    setBulkSearch('');
+    setBulkShowSelectedOnly(false);
+    setBulkOperation('increase');
+    setBulkValueType('percentage');
+    setBulkPriceTarget('both');
+    setBulkValue('');
+    setBulkSetPrices({});
+  };
+
+  // 🆕 حساب المنتجات المستهدفة للبريك ال bulk
+  const getBulkTargetProducts = () => {
+    let target = [];
+    if (bulkScope === 'all') {
+      target = allProducts || [];
+    } else if (bulkScope === 'category') {
+      const ids = bulkCategoryIds.map(id => id.toString());
+      if (ids.length === 0) return [];
+      target = (allProducts || []).filter(product =>
+        product.categories?.some(cat => ids.includes(cat.id?.toString()))
+      );
+    } else {
+      // selected
+      target = (allProducts || []).filter(product => {
+        const productKey = product.uniqueId || (product.is_variation && product.variation_id ? `${product.parent_id}_var_${product.variation_id}` : `prod_${product.id}`);
+        return selectedBulkIds.includes(productKey.toString());
+      });
+    }
+    return target;
+  };
+
+  // 🆕 المنتجات اللي تظهر في صندوق التحديد (لـ selected نعرض الكل لأول مرة)
+  const getBulkSelectableProducts = () => {
+    if (bulkScope === 'selected') {
+      return allProducts || [];
+    }
+    return getBulkTargetProducts();
+  };
+
+  const filteredBulkProducts = (() => {
+    const baseProducts = getBulkSelectableProducts();
+    const query = (bulkSearch || '').toLowerCase().trim();
+    const searchFiltered = !query ? baseProducts : baseProducts.filter((product) => {
+      const productName = (product.name || product.title || '').toLowerCase();
+      const productSku = (product.sku || '').toLowerCase();
+      return productName.includes(query) || productSku.includes(query);
+    });
+
+    if (!bulkShowSelectedOnly) return searchFiltered;
+
+    return searchFiltered.filter((product) => {
+      const productKey = product.uniqueId || (product.is_variation && product.variation_id
+        ? `${product.parent_id}_var_${product.variation_id}`
+        : `prod_${product.id}`);
+      return selectedBulkIds.includes(productKey.toString());
+    });
+  })();
+
+  const bulkTotalInScope = getBulkSelectableProducts().length;
+  const bulkFilteredCount = filteredBulkProducts.length;
+
+  // 🆕 Auto-select products when scope changes
+  useEffect(() => {
+    if (bulkScope === 'all') {
+      // اختار كل المنتجات المرئية
+      const allKeys = (filteredProducts || []).map(prod => 
+        prod.uniqueId || (prod.is_variation && prod.variation_id ? `${prod.parent_id}_var_${prod.variation_id}` : `prod_${prod.id}`)
+      );
+      setSelectedBulkIds(allKeys.map(k => k.toString()));
+    } else if (bulkScope === 'category' && bulkCategoryIds.length > 0) {
+      // اختار منتجات الفئات المختارة
+      const categoryProducts = (allProducts || []).filter(product =>
+        product.categories?.some(cat => bulkCategoryIds.includes(cat.id?.toString()))
+      );
+      const categoryKeys = categoryProducts.map(prod =>
+        prod.uniqueId || (prod.is_variation && prod.variation_id ? `${prod.parent_id}_var_${prod.variation_id}` : `prod_${prod.id}`)
+      );
+      setSelectedBulkIds(categoryKeys.map(k => k.toString()));
+    }
+  }, [bulkScope, bulkCategoryIds, filteredProducts, allProducts]);
+
+  // 🆕 تطبيق التعديل الجماعي على الأسعار
+  const applyBulkPriceUpdate = async () => {
+    const targetProducts = getBulkTargetProducts();
+
+    if (targetProducts.length === 0) {
+      setToast({ message: 'لا يوجد منتجات محددة للتعديل', type: 'error' });
+      return;
+    }
+
+    const globalAmount = bulkValue !== '' && !isNaN(parseFloat(bulkValue))
+      ? parseFloat(bulkValue)
+      : null;
+
+    if (bulkOperation !== 'set' && (globalAmount === null || globalAmount < 0)) {
+      setToast({ message: 'من فضلك أدخل قيمة صحيحة', type: 'error' });
+      return;
+    }
+
+    if (bulkOperation === 'set') {
+      const missingProducts = targetProducts.filter((product) => {
+        const productKey = (product.uniqueId || (product.is_variation && product.variation_id
+          ? `${product.parent_id}_var_${product.variation_id}`
+          : `prod_${product.id}`)).toString();
+        const manualValue = bulkSetPrices[productKey];
+        const manualNumeric = manualValue !== undefined && manualValue !== '' ? parseFloat(manualValue) : NaN;
+        const hasManual = !isNaN(manualNumeric) && manualNumeric >= 0;
+        const hasGlobal = globalAmount !== null && globalAmount >= 0;
+        return !hasManual && !hasGlobal;
+      });
+
+      if (missingProducts.length > 0) {
+        setToast({ message: 'اكتب سعر جديد لكل منتج أو أدخل سعر موحد سريع', type: 'error' });
+        return;
+      }
+    }
+
+    const targetKeys = targetProducts.map(product =>
+      (product.uniqueId || (product.is_variation && product.variation_id ? `${product.parent_id}_var_${product.variation_id}` : `prod_${product.id}`)).toString()
+    );
+
+    const priceUpdates = targetProducts.map(product => {
+      return {
+        id: product.id,
+        type: product.type,
+        parent_id: product.parent_id,
+        variation_id: product.variation_id,
+        is_variation: !!(product.is_variation && product.variation_id),
+        current_price: parseFloat(product.price) || 0,
+        current_regular_price: parseFloat(product.regular_price || product.price) || 0,
+        current_sale_price: product.sale_price,
+        manual_set_price: (() => {
+          const manualValue = bulkSetPrices[(product.uniqueId || (product.is_variation && product.variation_id ? `${product.parent_id}_var_${product.variation_id}` : `prod_${product.id}`)).toString()];
+          if (manualValue === undefined || manualValue === '') return null;
+          const parsed = parseFloat(manualValue);
+          return isNaN(parsed) ? null : parsed;
+        })(),
+        productKey: (product.uniqueId || (product.is_variation && product.variation_id ? `${product.parent_id}_var_${product.variation_id}` : `prod_${product.id}`)).toString(),
+      };
+    });
+
+    try {
+      setBulkApplying(true);
+
+      const response = await fetch('/api/products/bulk-price', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          updates: priceUpdates,
+          operation: bulkOperation,
+          valueType: bulkValueType,
+          value: globalAmount,
+          priceTarget: bulkPriceTarget,
+          clearSaleOnRegular: true,
+        })
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'فشل تعديل الأسعار على السيرفر');
+      }
+
+      const regularPriceMap = new Map();
+      const salePriceMap = new Map();
+
+      (result.applied || []).forEach((entry) => {
+        const key = entry.is_variation
+          ? `${entry.parent_id}_var_${entry.variation_id}`
+          : `prod_${entry.id}`;
+
+        if (entry.new_regular_price !== null && entry.new_regular_price !== undefined) {
+          regularPriceMap.set(key, entry.new_regular_price);
+        }
+
+        if (entry.new_sale_price !== null && entry.new_sale_price !== undefined) {
+          salePriceMap.set(key, entry.new_sale_price);
+        }
+      });
+
+      targetProducts.forEach(product => {
+        const productKey = (product.uniqueId || (product.is_variation && product.variation_id ? `${product.parent_id}_var_${product.variation_id}` : `prod_${product.id}`)).toString();
+        const hasRegularUpdate = regularPriceMap.has(productKey);
+        const hasSaleUpdate = salePriceMap.has(productKey);
+        const nextRegular = hasRegularUpdate ? regularPriceMap.get(productKey) : null;
+        const nextSale = hasSaleUpdate ? salePriceMap.get(productKey) : null;
+
+        if (!hasRegularUpdate && !hasSaleUpdate) return;
+
+        const resolvedRegular = hasRegularUpdate
+          ? nextRegular
+          : (parseFloat(product.regular_price || product.price) || 0);
+
+        const hasSaleValue = hasSaleUpdate && nextSale !== '';
+        const resolvedPrice = hasSaleValue
+          ? parseFloat(nextSale)
+          : resolvedRegular;
+
+        updateProduct(product.id, {
+          price: resolvedPrice,
+          regular_price: resolvedRegular,
+          ...(hasSaleUpdate ? { sale_price: nextSale } : {})
+        });
+      });
+
+      if (activeTab && activeTab.cart) {
+        const updatedCart = activeTab.cart.map(item => {
+          const itemKey = item.id?.toString();
+          const hasRegularUpdate = regularPriceMap.has(itemKey);
+          const hasSaleUpdate = salePriceMap.has(itemKey);
+          if (!hasRegularUpdate && !hasSaleUpdate) return item;
+
+          const nextRegular = hasRegularUpdate
+            ? regularPriceMap.get(itemKey)
+            : (parseFloat(item.regular_price || item.price) || 0);
+
+          const nextSale = hasSaleUpdate ? salePriceMap.get(itemKey) : item.sale_price;
+          const hasSaleValue = nextSale !== '' && nextSale !== null && nextSale !== undefined;
+
+          return {
+            ...item,
+            price: hasSaleValue ? parseFloat(nextSale) : nextRegular,
+            regular_price: nextRegular,
+            ...(hasSaleUpdate ? { sale_price: nextSale } : {})
+          };
+        });
+        updateActiveTab({ cart: updatedCart });
+      }
+
+      setToast({
+        message: `✅ تم تعديل ${result.updatedCount || targetProducts.length} منتج فعلياً على السيرفر${result.mode === 'fallback-individual' ? ' (بوضع متوافق)' : ''}`,
+        type: 'success'
+      });
+      setTimeout(() => setToast(null), 3000);
+      clearBulkSelection();
+      setBulkPanelOpen(false);
+
+      syncAllProducts().catch((error) => {
+        console.error('Failed to resync products after bulk price update:', error);
+      });
+    } catch (error) {
+      setToast({ message: error.message || 'فشل تعديل الأسعار', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setBulkApplying(false);
+    }
+  };
 
   // 🔍 معالجة البحث - instant local filtering
   const handleSearch = (e) => {
@@ -939,6 +1228,21 @@ export default function POSPage() {
                     <span className={`${syncInProgress ? 'animate-spin' : ''} text-base sm:text-xl`}>🔄</span>
                   </button>
 
+                  <button
+                    onClick={() => {
+                      setShowBulkUpload(false);
+                      setShowWholesaleModal(false);
+                      setShowInvoicesModal(false);
+                      setShowMobileCart(false);
+                      setBulkPanelOpen(prev => !prev);
+                    }}
+                    className="bg-amber-600 hover:bg-amber-700 text-white px-2 sm:px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-1 sm:gap-2"
+                    title="تسعير جملة"
+                  >
+                    <span className="text-sm sm:text-base">🔧</span>
+                    <span className="hidden lg:inline text-sm sm:text-base">تسعير جماعي</span>
+                  </button>
+
                   {/* Quick Add */}
                   <button
                     onClick={() => setShowQuickAdd(true)}
@@ -951,6 +1255,278 @@ export default function POSPage() {
                 </div>
               </div>
             </div>
+
+            {/* 🆕 Popup for Bulk Price Update */}
+            {bulkPanelOpen && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-lg shadow-xl w-full max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col p-4">
+                  <button
+                    onClick={() => setBulkPanelOpen(false)}
+                    className="absolute top-3 right-3 text-gray-500 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-full w-9 h-9 flex items-center justify-center transition-colors"
+                    title="إغلاق"
+                  >
+                    ✕
+                  </button>
+
+                  <div>
+                    <h3 className="text-xl font-extrabold text-slate-900">تعديل الأسعار بشكل جماعي</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-black">اختر المجال</label>
+                      <select
+                        value={bulkScope}
+                        onChange={(e) => setBulkScope(e.target.value)}
+                        className="w-full px-2 py-1 rounded-lg border border-gray-300 text-black"
+                      >
+                      <option value="selected">المنتجات المحددة</option>
+                      <option value="all">كل المنتجات</option>
+                      <option value="category">فئة محددة</option>
+                    </select>
+                  </div>
+
+                  {bulkScope === 'category' && (
+                    <div className="md:col-span-2 lg:col-span-1">
+                      <label className="text-xs font-bold text-black">اختر الفئات</label>
+                      <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-2 bg-white">
+                        {categories.length === 0 ? (
+                          <p className="text-xs text-gray-500">لا توجد فئات</p>
+                        ) : (
+                          categories.map(cat => {
+                            const checked = bulkCategoryIds.includes(cat.id?.toString());
+                            return (
+                              <label key={cat.id} className="flex items-center gap-2 text-sm text-black">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setBulkCategoryIds(prev => [...new Set([...prev, cat.id?.toString()])]);
+                                    } else {
+                                      setBulkCategoryIds(prev => prev.filter(id => id !== cat.id?.toString()));
+                                    }
+                                  }}
+                                  className="w-4 h-4 rounded border-gray-300"
+                                />
+                                <span>{cat.name}</span>
+                              </label>
+                            );
+                          })
+                        )}
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => setBulkCategoryIds(categories.map(cat => cat.id?.toString()))}
+                            className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
+                            type="button"
+                          >
+                            اختر الكل
+                          </button>
+                          <button
+                            onClick={() => setBulkCategoryIds([])}
+                            className="text-xs bg-gray-200 hover:bg-gray-300 text-black px-2 py-1 rounded"
+                            type="button"
+                          >
+                            امسح الكل
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-xs font-bold text-black">نوع التعديل</label>
+                    <select
+                      value={bulkOperation}
+                      onChange={(e) => setBulkOperation(e.target.value)}
+                      className="w-full px-2 py-1 rounded-lg border border-gray-300 text-black"
+                    >
+                      <option value="increase">زيادة</option>
+                      <option value="decrease">نقصان</option>
+                      <option value="set">تحديد سعر جديد</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-black">نوع السعر المستهدف</label>
+                    <select
+                      value={bulkPriceTarget}
+                      onChange={(e) => setBulkPriceTarget(e.target.value)}
+                      className="w-full px-2 py-1 rounded-lg border border-gray-300 text-black"
+                    >
+                      <option value="both">العادي + العرض معًا</option>
+                      <option value="regular">السعر العادي</option>
+                      <option value="sale">سعر العرض (Sale)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 flex flex-wrap gap-2 items-center justify-between">
+                  <div className="flex flex-wrap gap-2 items-center">
+                  <button
+                    onClick={() => {
+                      const allKeys = (getBulkTargetProducts() || []).map(prod => prod.uniqueId || (prod.is_variation && prod.variation_id ? `${prod.parent_id}_var_${prod.variation_id}` : `prod_${prod.id}`));
+                      setSelectedBulkIds(allKeys.map(k => k.toString()));
+                      setToast({ message: `✅ تم تحديد ${allKeys.length} منتج`, type: 'success' });
+                      setTimeout(() => setToast(null), 2000);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs font-semibold shadow-sm transition-shadow hover:shadow-lg"
+                  >
+                    تحديد كل المنتجات الظاهرة
+                  </button>
+                  <button
+                    onClick={() => setSelectedBulkIds([])}
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-2 rounded-lg text-xs font-semibold"
+                  >
+                    مسح الاختيار
+                  </button>
+                  <button
+                    onClick={() => setBulkShowSelectedOnly(prev => !prev)}
+                    className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${bulkShowSelectedOnly ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-700 border border-indigo-200 hover:bg-indigo-50'}`}
+                  >
+                    {bulkShowSelectedOnly ? 'إظهار الكل' : 'المحدد فقط'}
+                  </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 items-center text-[11px]">
+                    <span className="px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-700">داخل المجال: {bulkTotalInScope}</span>
+                    <span className="px-2 py-1 rounded-full bg-white border border-slate-200 text-slate-700">المعروض: {bulkFilteredCount}</span>
+                    <span className="px-2 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold">محدد: {selectedBulkIds.length}</span>
+                  </div>
+                </div>
+
+
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-3 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">حدد المنتجات من القائمة</p>
+                    </div>
+                    <span className="text-[11px] px-2 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold">
+                      نتائج: {filteredBulkProducts.length}
+                    </span>
+                  </div>
+
+                  <div className="mb-3 relative">
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+                    <input
+                      type="text"
+                      placeholder="ابحث عن منتج أو SKU..."
+                      value={bulkSearch}
+                      onChange={(e) => setBulkSearch(e.target.value)}
+                      className="w-full pl-3 pr-9 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                    {filteredBulkProducts.length === 0 ? (
+                      <div className="text-center text-xs text-gray-500 py-6 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                        لا توجد منتجات مطابقة للبحث أو الفلاتر الحالية
+                      </div>
+                    ) : filteredBulkProducts.map((product) => {
+                      const productKey = product.uniqueId || (product.is_variation && product.variation_id ? `${product.parent_id}_var_${product.variation_id}` : `prod_${product.id}`);
+                      const checked = selectedBulkIds.includes(productKey.toString());
+                      return (
+                        <label key={productKey} className={`block rounded-xl p-2.5 border ${checked ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-white'} hover:border-indigo-300 hover:bg-indigo-50/60 transition-colors space-y-2`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedBulkIds(prev => [...new Set([...prev, productKey.toString()])]);
+                                  } else {
+                                    setSelectedBulkIds(prev => prev.filter(id => id !== productKey.toString()));
+                                  }
+                                }}
+                                className="mt-0.5 w-4 h-4 text-indigo-600 border-gray-300 rounded"
+                              />
+                              <span className="text-xs font-medium text-slate-800 leading-5 break-words">
+                                {product.name ?? product.title ?? product.sku ?? product.id}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-right leading-5 whitespace-nowrap">
+                              <div className="font-semibold text-slate-700">عادي: {product.regular_price || product.price || '0'}</div>
+                              <div className="font-semibold text-emerald-700">عرض: {product.sale_price || '—'}</div>
+                            </div>
+                          </div>
+
+                          {bulkOperation === 'set' && checked && (
+                            <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg p-2">
+                              <span className="text-[11px] text-gray-600 whitespace-nowrap">سعر المنتج ده:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={bulkSetPrices[productKey.toString()] ?? ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setBulkSetPrices(prev => ({ ...prev, [productKey.toString()]: val }));
+                                }}
+                                className="w-full px-2 py-1.5 rounded border border-indigo-300 bg-white text-xs text-black"
+                                placeholder="اكتب السعر الجديد"
+                              />
+                            </div>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+                  <div>
+                    <label className="text-xs font-bold text-black">
+                      {bulkOperation === 'set' ? 'سعر موحد سريع (اختياري)' : 'القيمة'}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={bulkValue}
+                      onChange={(e) => setBulkValue(e.target.value)}
+                      placeholder={bulkOperation === 'set' ? 'اكتب سعر يطبق على كل المنتجات غير المحدد لها سعر' : ''}
+                      className="w-full px-2 py-1 rounded-lg border border-gray-300 text-black"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-black">نوع القيمة</label>
+                    <select
+                      value={bulkValueType}
+                      onChange={(e) => setBulkValueType(e.target.value)}
+                      disabled={bulkOperation === 'set'}
+                      className="w-full px-2 py-1 rounded-lg border border-gray-300 text-black"
+                    >
+                      <option value="percentage">٪</option>
+                      <option value="amount">جنيه</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-end">
+                    <button
+                      onClick={applyBulkPriceUpdate}
+                      disabled={bulkApplying}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg"
+                    >
+                      {bulkApplying ? 'جاري التعديل الفعلي...' : 'تطبيق تعديل الأسعار'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-2 text-xs text-gray-500">
+                  اختر / حدّد المنتجات من الشبكة بالعلامات، ثم اضغط التطبيق. 
+                  <span className="font-bold">(يدعم السعر العادي + سعر العرض + المنتجات المتغيرة، مع تطبيق فعلي على السيرفر)</span>
+                </div>
+
+                {bulkOperation === 'set' && (
+                  <div className="mt-2 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg p-2">
+                    💡 في وضع "تحديد سعر جديد" يمكنك كتابة سعر مختلف لكل منتج من القائمة. 
+                    لو كتبت "سعر موحد سريع" بالأعلى، هيتطبق على أي منتج لسه بدون سعر يدوي.
+                  </div>
+                )}
+              </div>
+            </div>
+            )}
 
             {/* 🆕 Multi-Tabs for Multiple Invoices */}
             {tabs.length > 0 && (
@@ -1064,6 +1640,8 @@ export default function POSPage() {
                   onSelectVariation={handleSelectVariation}
                   cart={activeTab?.cart || cart}
                   vendorId={vendorInfo?.id} // 🆕 Pass vendor ID for logo fallback
+                  selectedProducts={selectedBulkIds}
+                  onToggleSelect={handleBulkToggle}
                 />
               )}
             </div>

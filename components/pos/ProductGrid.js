@@ -13,7 +13,7 @@ function ProductSkeleton() {
   );
 }
 
-export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVariation, cart = [], vendorId }) {
+export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVariation, cart = [], vendorId, selectedProducts = [], onToggleSelect = null }) {
   const [quantities, setQuantities] = useState({});
 
   // 🔄 Sync quantities with actual cart
@@ -76,7 +76,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
       <>
         <div className="text-center py-12 mb-6">
           <div className="inline-block animate-spin text-6xl mb-4">🔄</div>
-          <p className="text-indigo-600 font-black text-xl bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+          <p className="font-black text-xl bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
             جاري تحميل المنتجات...
           </p>
         </div>
@@ -109,9 +109,27 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
         const currentQty = getCartQuantity(product);
         const isInCart = currentQty > 0;
 
+        const productSelectKey = product.uniqueId || (product.is_variation && product.variation_id ? `${product.parent_id}_var_${product.variation_id}` : `prod_${product.id}`);
+        const isSelected = selectedProducts.includes(productSelectKey.toString());
+
         return (
-        <div key={uniqueKey} className="group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-blue-400 relative">
+        <div key={uniqueKey} className={`group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border ${isSelected ? 'border-blue-500 ring-2 ring-blue-300' : 'border-gray-200 hover:border-blue-400'} relative`}>
           
+          {/* 🆕 تحديد المنتج للتعديل الجماعي */}
+          {onToggleSelect && (
+            <div className="absolute top-2 left-2 z-20">
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  onToggleSelect(productSelectKey.toString(), e.target.checked);
+                }}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+            </div>
+          )}
+
           {/* 🆕 زر التعديل */}
           {onEdit && (
             <button
@@ -119,7 +137,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                 e.stopPropagation();
                 onEdit(product.id); // إرسال ID فقط
               }}
-              className="absolute top-2 left-2 z-20 bg-white hover:bg-slate-700 hover:text-white text-gray-700 rounded-lg w-8 h-8 flex items-center justify-center shadow-lg transition-all border border-gray-300 hover:border-slate-600"
+              className="absolute top-2 left-10 z-20 bg-white hover:bg-slate-700 hover:text-white text-gray-700 rounded-lg w-8 h-8 flex items-center justify-center shadow-lg transition-all border border-gray-300 hover:border-slate-600"
               title="تعديل المنتج"
             >
               ✏️
