@@ -19,6 +19,8 @@ export async function GET(req) {
     const after = searchParams.get('after') || '';
     const before = searchParams.get('before') || '';
     const search = searchParams.get('search') || '';
+    const minTotal = searchParams.get('min_total') || '';
+    const maxTotal = searchParams.get('max_total') || '';
 
     // بناء URL مع الـ parameters
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
@@ -64,6 +66,15 @@ export async function GET(req) {
     // Search filter
     if (search) {
       apiUrl += `&search=${encodeURIComponent(search)}`;
+    }
+    
+    // 🆕 Price filters
+    if (minTotal) {
+      apiUrl += `&min_total=${encodeURIComponent(minTotal)}`;
+    }
+    
+    if (maxTotal) {
+      apiUrl += `&max_total=${encodeURIComponent(maxTotal)}`;
     }
 
     const res = await fetch(apiUrl, {

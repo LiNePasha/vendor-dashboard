@@ -42,6 +42,11 @@ function OrdersContent() {
   const [dateTo, setDateTo] = useState("");
   const [toast, setToast] = useState(null);
   
+  // 🆕 Advanced Filters State
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  
   // 🆕 Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [totalOrders, setTotalOrders] = useState(0);
@@ -221,8 +226,20 @@ function OrdersContent() {
     // إضافة الفلاتر إذا كانت موجودة - الـ API هيفلترها
     if (statusFilter) filters.status = statusFilter;
     if (searchTerm) filters.search = searchTerm;
-    if (dateFrom) filters.after = dateFrom;
-    if (dateTo) filters.before = dateTo;
+    
+    // 🔥 FIX: تحويل التاريخ لـ ISO 8601 format كامل
+    if (dateFrom) {
+      // إضافة الوقت 00:00:00 لبداية اليوم
+      filters.after = `${dateFrom}T00:00:00`;
+    }
+    if (dateTo) {
+      // إضافة الوقت 23:59:59 لنهاية اليوم
+      filters.before = `${dateTo}T23:59:59`;
+    }
+    
+    // 🆕 فلاتر السعر
+    if (minPrice) filters.min_total = minPrice;
+    if (maxPrice) filters.max_total = maxPrice;
     
     const result = await fetchOrders(filters);
     
@@ -252,7 +269,7 @@ function OrdersContent() {
     // عند تغيير أي فلتر، ارجع للصفحة الأولى وأعد التحميل
     setCurrentPage(1);
     loadOrders(1, false);
-  }, [statusFilter, searchTerm, dateFrom, dateTo]);
+  }, [statusFilter, searchTerm, dateFrom, dateTo, minPrice, maxPrice]);
   
   // 🆕 تحميل إعدادات Bosta
   const loadBostaSettings = async () => {
@@ -1583,33 +1600,15 @@ function OrdersContent() {
   const currentOrders = activeTab === 'website' ? orders : posInvoices;
   
   const filteredOrders = useMemo(() => {
-    return currentOrders.filter((order) => {
-      // للطلبات من الموقع
-      if (activeTab === 'website') {
-        const fullName = `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.toLowerCase();
-        const matchesSearch = fullName.includes(searchTerm.toLowerCase()) || order.id.toString().includes(searchTerm);
-        // ✅ مش محتاجين نفلتر status هنا لأن API بيفلتره
-        
-        // Date filtering - للفلترة المحلية الإضافية فقط
-        let matchesDate = true;
-        if (dateFrom || dateTo) {
-          const orderDate = new Date(order.date_created);
-          if (dateFrom) {
-            const fromDate = new Date(dateFrom);
-            fromDate.setHours(0, 0, 0, 0);
-            matchesDate = matchesDate && orderDate >= fromDate;
-          }
-          if (dateTo) {
-            const toDate = new Date(dateTo);
-            toDate.setHours(23, 59, 59, 999);
-            matchesDate = matchesDate && orderDate <= toDate;
-          }
-        }
-        
-        return matchesSearch && matchesDate;
-      } 
-      // للطلبات من السيستم (POS)
-      else {
+    // للطلبات من الموقع - الـ API بيفلتر كل حاجة، مفيش حاجة نعملها هنا
+    if (activeTab === 'website') {
+      // ✅ الـ API بيفلتر: status, search, date, price
+      // مش محتاجين فلترة محلية لأن ده بيخلي النتائج غير دقيقة
+      return currentOrders;
+    } 
+    // للطلبات من السيستم (POS) - دي محلية فلازم نفلترها هنا
+    else {
+      return currentOrders.filter((order) => {
         const customerName = order.customer?.name?.toLowerCase() || '';
         const customerPhone = order.customer?.phone || '';
         const matchesSearch = customerName.includes(searchTerm.toLowerCase()) || 
@@ -1633,9 +1632,9 @@ function OrdersContent() {
         }
         
         return matchesSearch && matchesDate;
-      }
-    });
-  }, [currentOrders, activeTab, searchTerm, statusFilter, dateFrom, dateTo, refreshKey]);
+      });
+    }
+  }, [currentOrders, activeTab, searchTerm, dateFrom, dateTo, refreshKey]);
 
   return (
     <div className="p-6 relative min-h-screen bg-gray-50">
@@ -1810,7 +1809,22 @@ function OrdersContent() {
                 onChange={(e) => setDateTo(e.target.value)}
               />
             </div>
-            {(searchTerm || statusFilter || dateFrom || dateTo) && (
+            
+            {/* 🆕 Advanced Filters Toggle */}
+            <button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className={`px-4 py-2.5 rounded-lg transition-all font-medium whitespace-nowrap flex items-center gap-2 ${
+                showAdvancedFilters 
+                  ? 'bg-blue-500 text-white hover:bg-blue-600' 
+                  : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span>⚙️</span>
+              <span>فلاتر متقدمة</span>
+              <span className="text-xs">{showAdvancedFilters ? '▲' : '▼'}</span>
+            </button>
+            
+            {(searchTerm || statusFilter || dateFrom || dateTo || minPrice || maxPrice) && (
               <button
                 onClick={() => {
                   setSearchTerm("");
@@ -1818,6 +1832,8 @@ function OrdersContent() {
                   setStatusFilter("");
                   setDateFrom("");
                   setDateTo("");
+                  setMinPrice("");
+                  setMaxPrice("");
                   router.push('/orders');
                   setCurrentPage(1);
                   loadOrders(1); // جلب جميع الطلبات من جديد
@@ -1840,9 +1856,52 @@ function OrdersContent() {
               </button>
             )}
           </div>
+          
+          {/* 🆕 Advanced Filters Section */}
+          {showAdvancedFilters && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 space-y-4 animate-slideDown">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                <span>⚙️</span>
+                <span>فلاتر متقدمة</span>
+              </h3>
+              
+              {/* Price Range Filter */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-700 font-medium whitespace-nowrap">💰 السعر من:</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="مثال: 100"
+                    className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-700 font-medium whitespace-nowrap">💰 السعر إلى:</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="مثال: 1000"
+                    className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                  />
+                </div>
+              </div>
+              
+              {/* Info Text */}
+              <p className="text-xs text-gray-600 bg-white/60 rounded-lg p-3 border border-blue-200">
+                💡 <strong>نصيحة:</strong> البحث يدعم رقم الأوردر، اسم العميل، رقم التلفون. استخدم الفلاتر المتقدمة لتحديد نطاق السعر والتاريخ.
+              </p>
+            </div>
+          )}
 
           {/* Active Filters Display */}
-          {(searchTerm || statusFilter || dateFrom || dateTo) && (
+          {(searchTerm || statusFilter || dateFrom || dateTo || minPrice || maxPrice) && (
             <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
               <span className="text-xs text-gray-500 font-medium">الفلاتر النشطة:</span>
               {searchTerm && (
@@ -1869,6 +1928,76 @@ function OrdersContent() {
                   <button onClick={() => setDateTo("")} className="hover:text-green-900">×</button>
                 </span>
               )}
+              {minPrice && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                  💰 من: {minPrice}
+                  <button onClick={() => setMinPrice("")} className="hover:text-amber-900">×</button>
+                </span>
+              )}
+              {maxPrice && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                  💰 إلى: {maxPrice}
+                  <button onClick={() => setMaxPrice("")} className="hover:text-amber-900">×</button>
+                </span>
+              )}
+            </div>
+          )}
+          
+          {/* 🆕 Statistics Cards - يظهر فقط في تاب الموقع */}
+          {activeTab === 'website' && orders.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fadeIn">
+              {/* Total Orders */}
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-blue-600 font-medium mb-1">إجمالي الطلبات</p>
+                    <p className="text-2xl font-bold text-blue-900">{filteredOrders.length}</p>
+                  </div>
+                  <div className="text-3xl">📦</div>
+                </div>
+              </div>
+              
+              {/* Total Revenue */}
+              <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-green-600 font-medium mb-1">إجمالي المبيعات</p>
+                    <p className="text-2xl font-bold text-green-900">
+                      {filteredOrders.reduce((sum, o) => sum + parseFloat(o.total || 0), 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="text-3xl">💰</div>
+                </div>
+              </div>
+              
+              {/* Average Order Value */}
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-purple-600 font-medium mb-1">متوسط الطلب</p>
+                    <p className="text-2xl font-bold text-purple-900">
+                      {filteredOrders.length > 0 
+                        ? (filteredOrders.reduce((sum, o) => sum + parseFloat(o.total || 0), 0) / filteredOrders.length).toFixed(2)
+                        : '0.00'
+                      }
+                    </p>
+                  </div>
+                  <div className="text-3xl">📊</div>
+                </div>
+              </div>
+              
+              {/* Completed Orders */}
+              <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-orange-600 font-medium mb-1">طلبات مكتملة</p>
+                    <p className="text-2xl font-bold text-orange-900">
+                      {filteredOrders.filter(o => o.status === 'completed').length}
+                    </p>
+                  </div>
+                  <div className="text-3xl">✅</div>
+                </div>
+              </div>
             </div>
           )}
         </div>

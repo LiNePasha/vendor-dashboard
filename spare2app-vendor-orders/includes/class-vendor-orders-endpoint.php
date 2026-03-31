@@ -51,6 +51,16 @@ class Spare2App_Vendor_Orders_Endpoint {
                     'type' => 'string',
                     'sanitize_callback' => 'sanitize_text_field',
                 ),
+                'min_total' => array(
+                    'description' => 'Filter orders with total greater than or equal to this value',
+                    'type' => 'number',
+                    'sanitize_callback' => 'floatval',
+                ),
+                'max_total' => array(
+                    'description' => 'Filter orders with total less than or equal to this value',
+                    'type' => 'number',
+                    'sanitize_callback' => 'floatval',
+                ),
                 'per_page' => array(
                     'description' => 'Number of orders per page',
                     'type' => 'integer',
@@ -142,8 +152,19 @@ class Spare2App_Vendor_Orders_Endpoint {
         $search = $request->get_param('search');
         $after = $request->get_param('after');
         $before = $request->get_param('before');
+        $min_total = $request->get_param('min_total');
+        $max_total = $request->get_param('max_total');
         $per_page = $request->get_param('per_page') ?: 20;
         $page = $request->get_param('page') ?: 1;
+        
+        // Debug logging
+        error_log('📅 Spare2App Vendor Orders - Date Filters: after=' . $after . ', before=' . $before);
+        if (!empty($after)) {
+            error_log('📅 After timestamp: ' . strtotime($after) . ' (' . date('Y-m-d H:i:s', strtotime($after)) . ')');
+        }
+        if (!empty($before)) {
+            error_log('📅 Before timestamp: ' . strtotime($before) . ' (' . date('Y-m-d H:i:s', strtotime($before)) . ')');
+        }
         
         // Calculate offset
         $offset = ($page - 1) * $per_page;
@@ -169,24 +190,58 @@ class Spare2App_Vendor_Orders_Endpoint {
             $args['status'] = 'wc-' . $status;
         }
         
-        // Add date filters
-        if (!empty($after)) {
-            $args['date_created'] = '>' . strtotime($after);
-        }
-        if (!empty($before)) {
-            if (isset($args['date_created'])) {
-                // Both after and before
-                $args['date_created'] = array(
-                    'after' => $after,
-                    'before' => $before,
-                );
-            } else {
-                $args['date_created'] = '<' . strtotime($before);
-            }
-        }
+        // Don't use date_created in args - filter manually for better reliability
         
         // Get all matching orders
         $all_order_ids = wc_get_orders($args);
+        
+        error_log('📦 Total orders before date filter: ' . count($all_order_ids));
+        
+        // 🔥 Apply date filters manually for reliability
+        if (!empty($after) || !empty($before)) {
+            $after_timestamp = !empty($after) ? strtotime($after) : null;
+            $before_timestamp = !empty($before) ? strtotime($before) : null;
+            
+            $all_order_ids = array_filter($all_order_ids, function($order_id) use ($after_timestamp, $before_timestamp) {
+                $order = wc_get_order($order_id);
+                if (!$order) return false;
+                
+                $order_date = $order->get_date_created();
+                if (!$order_date) return false;
+                
+                $order_timestamp = $order_date->getTimestamp();
+                
+                // Debug first 3 orders
+                static $debug_count = 0;
+                if ($debug_count < 3) {
+                    error_log("📅 Order #{$order_id} date: " . date('Y-m-d H:i:s', $order_timestamp) . " (timestamp: {$order_timestamp})");
+                    if ($after_timestamp) error_log("   After check: " . ($order_timestamp >= $after_timestamp ? 'PASS' : 'FAIL') . " (need >= " . date('Y-m-d H:i:s', $after_timestamp) . ")");
+                    if ($before_timestamp) error_log("   Before check: " . ($order_timestamp <= $before_timestamp ? 'PASS' : 'FAIL') . " (need <= " . date('Y-m-d H:i:s', $before_timestamp) . ")");
+                    $debug_count++;
+                }
+                
+                // Check after date (start of day)
+                if ($after_timestamp !== null) {
+                    if ($order_timestamp < $after_timestamp) {
+                        return false;
+                    }
+                }
+                
+                // Check before date (end of day)
+                if ($before_timestamp !== null) {
+                    if ($order_timestamp > $before_timestamp) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+            
+            // Re-index array
+            $all_order_ids = array_values($all_order_ids);
+            
+            error_log('📦 Total orders after date filter: ' . count($all_order_ids));
+        }
         
         // Apply search filter
         if (!empty($search)) {
@@ -215,6 +270,31 @@ class Spare2App_Vendor_Orders_Endpoint {
                 }
                 
                 return false;
+            });
+            
+            // Re-index array
+            $all_order_ids = array_values($all_order_ids);
+        }
+        
+        // 🆕 Apply price filters
+        if (!empty($min_total) || !empty($max_total)) {
+            $all_order_ids = array_filter($all_order_ids, function($order_id) use ($min_total, $max_total) {
+                $order = wc_get_order($order_id);
+                if (!$order) return false;
+                
+                $total = floatval($order->get_total());
+                
+                // Check min_total
+                if (!empty($min_total) && $total < floatval($min_total)) {
+                    return false;
+                }
+                
+                // Check max_total
+                if (!empty($max_total) && $total > floatval($max_total)) {
+                    return false;
+                }
+                
+                return true;
             });
             
             // Re-index array

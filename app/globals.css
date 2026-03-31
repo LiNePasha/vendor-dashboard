@@ -62,6 +62,19 @@ p, h1, h2, h3, h4, h5, h6, span, a {
   }
 }
 
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 500px;
+  }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.2s ease-out;
 }
@@ -72,6 +85,10 @@ p, h1, h2, h3, h4, h5, h6, span, a {
 
 .animate-slideUp {
   animation: slideUp 0.3s ease-out;
+}
+
+.animate-slideDown {
+  animation: slideDown 0.3s ease-out;
 }
 
 /* Text truncate with line clamp */
