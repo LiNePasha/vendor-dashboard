@@ -110,15 +110,20 @@ class Spare2App_Vendor_Analytics_Endpoint {
         // Get date range
         $date_range = $this->get_date_range($period, $start_date, $end_date);
         
+        error_log("📅 Analytics period: $period | Date range: {$date_range['start']} to {$date_range['end']}");
+        
         // Get vendor order IDs
         $vendor_order_ids = $this->get_vendor_order_ids($current_user_id);
         
         if (empty($vendor_order_ids)) {
+            error_log("⚠️ No vendor orders found - returning empty response");
             return $this->empty_analytics_response();
         }
         
         // Get all paid orders in date range
         $paid_orders = $this->get_paid_orders($vendor_order_ids, $date_range['start'], $date_range['end']);
+        
+        error_log("📊 Found " . count($paid_orders) . " orders in date range");
         
         // Calculate totals
         $total_revenue = 0;
@@ -248,6 +253,8 @@ class Spare2App_Vendor_Analytics_Endpoint {
     private function get_vendor_order_ids($vendor_id) {
         global $wpdb;
         
+        error_log("🔍 Getting vendor order IDs for vendor: $vendor_id");
+        
         $table_name = $wpdb->prefix . 'wcfm_marketplace_orders';
         
         if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") == $table_name) {
@@ -255,15 +262,20 @@ class Spare2App_Vendor_Analytics_Endpoint {
                 "SELECT DISTINCT order_id FROM {$table_name} WHERE vendor_id = %d",
                 $vendor_id
             ));
-            return array_map('intval', $order_ids);
+            $order_ids = array_map('intval', $order_ids);
+            error_log("📦 Found " . count($order_ids) . " orders for vendor from WCFM table");
+            return $order_ids;
         }
         
         // Fallback for admins
         if (current_user_can('manage_woocommerce')) {
             $args = array('limit' => -1, 'return' => 'ids');
-            return wc_get_orders($args);
+            $order_ids = wc_get_orders($args);
+            error_log("📦 Admin fallback: Found " . count($order_ids) . " total orders");
+            return $order_ids;
         }
         
+        error_log("⚠️ No orders found for vendor");
         return array();
     }
     
@@ -271,15 +283,36 @@ class Spare2App_Vendor_Analytics_Endpoint {
      * Get paid orders in date range
      */
     private function get_paid_orders($order_ids, $start_date, $end_date) {
+        // Get ALL orders (not just processing/completed) and filter by date manually
         $args = array(
             'post__in' => $order_ids,
             'limit' => -1,
-            'status' => array('wc-processing', 'wc-completed'),
-            'date_created' => $start_date . '...' . $end_date,
             'return' => 'objects',
+            'orderby' => 'date',
+            'order' => 'DESC',
         );
         
-        return wc_get_orders($args);
+        $all_orders = wc_get_orders($args);
+        
+        // Filter by date range manually - more reliable
+        $start_timestamp = strtotime($start_date);
+        $end_timestamp = strtotime($end_date);
+        
+        $filtered_orders = array_filter($all_orders, function($order) use ($start_timestamp, $end_timestamp) {
+            $order_date = $order->get_date_created();
+            if (!$order_date) return false;
+            
+            $order_timestamp = $order_date->getTimestamp();
+            
+            // Include order if in date range and has a valid paid status
+            $valid_statuses = array('processing', 'completed', 'on-hold', 'pending');
+            $is_valid_status = in_array($order->get_status(), $valid_statuses);
+            $is_in_range = $order_timestamp >= $start_timestamp && $order_timestamp <= $end_timestamp;
+            
+            return $is_valid_status && $is_in_range;
+        });
+        
+        return array_values($filtered_orders);
     }
     
     /**

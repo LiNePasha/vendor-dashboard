@@ -99,6 +99,9 @@ function OrdersContent() {
   const [refreshKey, setRefreshKey] = useState(0);
   const forceRefresh = () => setRefreshKey(prev => prev + 1);
   
+  // 🆕 State للطباعة المجمّعة للأوردرات غير المبعوتة لبوسطة
+  const [printingNonBosta, setPrintingNonBosta] = useState(false);
+  
   // 🔥 Bulk Selection State
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [registeringBulk, setRegisteringBulk] = useState(false);
@@ -768,6 +771,181 @@ function OrdersContent() {
       setToast({ message: '❌ فشل تسجيل الفواتير', type: 'error' });
     } finally {
       setRegisteringBulk(false);
+    }
+  };
+  
+  // 🆕 طباعة كل الأوردرات غير المبعوتة لبوسطة
+  const handlePrintNonBostaOrders = async () => {
+    // فلترة الأوردرات غير المبعوتة لبوسطة
+    const nonBostaOrders = filteredOrders.filter(order => {
+      // Check if order has bosta.sent = true
+      if (order.bosta && order.bosta.sent === true) {
+        return false;
+      }
+      // Check if order has _bosta_sent meta
+      const bostaSentMeta = order.meta_data?.find(m => m.key === '_bosta_sent' || m.key === 'bosta_sent');
+      if (bostaSentMeta && bostaSentMeta.value === 'yes') {
+        return false;
+      }
+      return true;
+    });
+    
+    if (nonBostaOrders.length === 0) {
+      setToast({ message: '⚠️ لا يوجد طلبات غير مبعوتة لبوسطة', type: 'warning' });
+      return;
+    }
+    
+    const confirmed = confirm(`هل تريد طباعة وتسجيل ${nonBostaOrders.length} طلب غير مبعوت لبوسطة؟\n\nسيتم تسجيلهم كفواتير تلقائياً وفتح صفحة الطباعة.`);
+    if (!confirmed) return;
+    
+    setPrintingNonBosta(true);
+    let successCount = 0;
+    let failCount = 0;
+    let alreadyRegisteredCount = 0;
+    const invoiceIdsToShow = [];
+    
+    try {
+      const existingInvoices = await invoiceStorage.getAllInvoices();
+      
+      for (const order of nonBostaOrders) {
+        // Check if already registered
+        const existingInvoice = existingInvoices.find(inv => inv.orderId === order.id);
+        if (existingInvoice) {
+          alreadyRegisteredCount++;
+          invoiceIdsToShow.push(existingInvoice.id);
+          continue;
+        }
+        
+        try {
+          // Create invoice from order
+          const invoiceItems = order.line_items.map(item => ({
+            id: item.product_id || item.id,
+            name: item.name,
+            price: parseFloat(item.price),
+            quantity: item.quantity,
+            totalPrice: parseFloat(item.price) * item.quantity,
+            stock_quantity: null,
+            wholesalePrice: null,
+            profit: null
+          }));
+
+          const productsSubtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
+          const shippingFee = parseFloat(order.shipping_total || 0);
+          const discountAmount = parseFloat(order.discount_total || 0);
+          const orderTotal = parseFloat(order.total);
+          
+          const cityId = order.meta_data?.find(m => m.key === '_shipping_city_id')?.value || '';
+          const cityName = order.meta_data?.find(m => m.key === '_shipping_city_name')?.value || order.shipping?.city || '';
+          const districtId = order.meta_data?.find(m => m.key === '_shipping_district_id')?.value || '';
+          const districtName = order.meta_data?.find(m => m.key === '_shipping_district_name')?.value || order.shipping?.state || '';
+          
+          const fullAddress = [
+            order.shipping?.address_1,
+            order.shipping?.address_2,
+            districtName,
+            cityName
+          ].filter(Boolean).join(' - ');
+          
+          const invoiceId = `order-${order.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const invoice = {
+            id: invoiceId,
+            orderId: order.id,
+            date: order.date_created,
+            items: invoiceItems,
+            services: [],
+            orderType: 'delivery',
+            orderNotes: orderNotes[order.id] || '',
+            customerNote: order.customer_note || '',
+            summary: {
+              productsSubtotal: productsSubtotal,
+              servicesTotal: 0,
+              subtotal: productsSubtotal,
+              discount: {
+                type: 'fixed',
+                value: discountAmount,
+                amount: discountAmount
+              },
+              extraFee: 0,
+              deliveryFee: shippingFee,
+              total: orderTotal,
+              totalProfit: 0,
+              profitItemsCount: 0
+            },
+            profitDetails: [],
+            paymentMethod: order.payment_method_title || 'غير محدد',
+            paymentStatus: 'partial',
+            customerInfo: {
+              name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
+              phone: order.billing?.phone || '',
+              email: order.billing?.email || '',
+              address: fullAddress
+            },
+            deliveryPayment: {
+              status: 'fully_paid_no_delivery',
+              paidAmount: productsSubtotal - discountAmount,
+              remainingAmount: shippingFee,
+              note: 'تم الدفع في الستور (ثمن المنتجات فقط) - رسوم التوصيل للتحصيل'
+            },
+            delivery: {
+              type: 'delivery',
+              address: fullAddress,
+              customer: {
+                name: `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim(),
+                phone: order.billing?.phone || order.shipping?.phone || '',
+                email: order.billing?.email || '',
+                address: {
+                  cityId: cityId,
+                  city: cityName,
+                  districtId: districtId,
+                  district: districtName,
+                  street: order.shipping?.address_1 || '',
+                  area: order.shipping?.address_2 || '',
+                  building: '',
+                  floor: '',
+                  apartment: '',
+                  landmark: ''
+                }
+              },
+              fee: shippingFee,
+              notes: ''
+            },
+            deliveryStatus: 'pending',
+            synced: true,
+            source: 'order'
+          };
+
+          await invoiceStorage.saveInvoice(invoice);
+          successCount++;
+          invoiceIdsToShow.push(invoiceId);
+        } catch (error) {
+          console.error(`Error registering order ${order.id}:`, error);
+          failCount++;
+        }
+      }
+      
+      // Show result
+      let message = '';
+      if (successCount > 0) message += `✅ تم تسجيل ${successCount} فاتورة`;
+      if (alreadyRegisteredCount > 0) message += ` | ⚠️ ${alreadyRegisteredCount} مسجل مسبقاً`;
+      if (failCount > 0) message += ` | ❌ ${failCount} فشل`;
+      
+      setToast({ 
+        message: message + ' | 🖨️ جاري فتح صفحة الطباعة...', 
+        type: failCount === 0 ? 'success' : 'warning' 
+      });
+      
+      // Open ONE print page with all invoice IDs
+      if (invoiceIdsToShow.length > 0) {
+        setTimeout(() => {
+          const idsParam = invoiceIdsToShow.join(',');
+          window.open(`/pos/invoices/print?ids=${idsParam}`, '_blank');
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Print non-Bosta orders error:', error);
+      setToast({ message: '❌ فشل تسجيل الفواتير', type: 'error' });
+    } finally {
+      setPrintingNonBosta(false);
     }
   };
   
@@ -2321,7 +2499,7 @@ function OrdersContent() {
                 
                 <button
                   onClick={handleBulkPrintOrders}
-                  disabled={registeringBulk}
+                  disabled={registeringBulk || printingNonBosta}
                   className="px-4 py-2 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {registeringBulk ? (
@@ -2336,6 +2514,27 @@ function OrdersContent() {
                     </>
                   )}
                 </button>
+                
+                {/* 🆕 زرار طباعة الأوردرات غير المبعوتة لبوسطة */}
+                {bostaEnabled && (
+                  <button
+                    onClick={handlePrintNonBostaOrders}
+                    disabled={registeringBulk || printingNonBosta}
+                    className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-lg font-bold hover:from-orange-600 hover:to-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md"
+                  >
+                    {printingNonBosta ? (
+                      <>
+                        <span className="animate-spin">⏳</span>
+                        <span>جاري المعالجة...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>🖨️</span>
+                        <span>طباعة غير Bosta ({filteredOrders.filter(o => !o.bosta?.sent && !o.meta_data?.find(m => (m.key === '_bosta_sent' || m.key === 'bosta_sent') && m.value === 'yes')).length})</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           )}
