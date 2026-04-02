@@ -116,7 +116,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
         <div key={uniqueKey} className={`group bg-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border ${isSelected ? 'border-blue-500 ring-2 ring-blue-300' : 'border-gray-200 hover:border-blue-400'} relative`}>
           
           {/* 🆕 تحديد المنتج للتعديل الجماعي */}
-          {onToggleSelect && (
+          {/* {onToggleSelect && (
             <div className="absolute top-2 left-2 z-20">
               <input
                 type="checkbox"
@@ -128,7 +128,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
               />
             </div>
-          )}
+          )} */}
 
           {/* 🆕 زر التعديل */}
           {onEdit && (
@@ -137,7 +137,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                 e.stopPropagation();
                 onEdit(product.id); // إرسال ID فقط
               }}
-              className="absolute top-2 left-10 z-20 bg-white hover:bg-slate-700 hover:text-white text-gray-700 rounded-lg w-8 h-8 flex items-center justify-center shadow-lg transition-all border border-gray-300 hover:border-slate-600"
+              className="absolute top-2 left-2 z-20 bg-white hover:bg-slate-700 hover:text-white text-gray-700 rounded-lg w-8 h-8 flex items-center justify-center shadow-lg transition-all border border-gray-300 hover:border-slate-600"
               title="تعديل المنتج"
             >
               ✏️
@@ -159,16 +159,36 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
             />
             {/* Stock Badge */}
             <div className={`absolute top-2 right-2 px-2 py-1 rounded-lg text-xs font-bold shadow-lg backdrop-blur-sm border
-              ${product.stock_quantity > 5 
-                ? 'bg-green-500 text-white border-green-400'
-                : product.stock_quantity > 0
-                  ? 'bg-orange-500 text-white border-orange-400'
-                  : 'bg-red-500 text-white border-red-400'
-              }`}
+              ${(() => {
+                // للمنتجات المتغيرة، احسب إجمالي المخزون من الـ variations
+                if (product.type === 'variable' && product.variations && product.variations.length > 0) {
+                  const totalStock = product.variations
+                    .filter(v => v && (v.variation_id || v.id))
+                    .reduce((sum, v) => sum + (parseInt(v.stock_quantity) || 0), 0);
+                  
+                  if (totalStock > 5) return 'bg-green-500 text-white border-green-400';
+                  if (totalStock > 0) return 'bg-orange-500 text-white border-orange-400';
+                  return 'bg-red-500 text-white border-red-400';
+                }
+                // للمنتجات العادية، استخدم stock_quantity
+                if (product.stock_quantity > 5) return 'bg-green-500 text-white border-green-400';
+                if (product.stock_quantity > 0) return 'bg-orange-500 text-white border-orange-400';
+                return 'bg-red-500 text-white border-red-400';
+              })()}
+            `}
             >
-              {product.stock_quantity > 0
-                ? `📦 ${product.stock_quantity}`
-                : (product.type === 'variable' ? 'اختر أولاً' : 'نفذ')}
+              {(() => {
+                // للمنتجات المتغيرة، احسب إجمالي المخزون من الـ variations
+                if (product.type === 'variable' && product.variations && product.variations.length > 0) {
+                  const totalStock = product.variations
+                    .filter(v => v && (v.variation_id || v.id))
+                    .reduce((sum, v) => sum + (parseInt(v.stock_quantity) || 0), 0);
+                  
+                  return totalStock > 0 ? `📦 ${totalStock}` : 'نفذ';
+                }
+                // للمنتجات العادية
+                return product.stock_quantity > 0 ? `📦 ${product.stock_quantity}` : 'نفذ';
+              })()}
             </div>
           </div>
           
