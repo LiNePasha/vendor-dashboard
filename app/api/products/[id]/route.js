@@ -184,7 +184,7 @@ export async function PATCH(req, { params }) {
 
     // 🔥 دعم images مع منع التكرار
     // Only update images if they actually changed
-    if (Array.isArray(body.images) && body.images.length > 0) {
+    if (Array.isArray(body.images)) {
       const currentImages = currentProduct?.images?.map(img => img.src) || [];
       const newImages = body.images;
       
@@ -194,7 +194,10 @@ export async function PATCH(req, { params }) {
         !currentImages.every((src, idx) => src === newImages[idx]);
       
       if (imagesChanged) {
-        updatePayload.images = newImages.map(src => ({ src }));
+        // إذا كان المستخدم حذف كل الصور، نبعت empty array
+        updatePayload.images = newImages.length > 0 
+          ? newImages.map(src => ({ src }))
+          : [];
       }
     } else if (body.imageUrl) {
       // دعم القديم imageUrl
