@@ -252,13 +252,13 @@ function PrintInvoiceContent() {
             {invoice.orderNotes?.trim() && (
               <div style={{
                 padding: '1.5mm',
-                border: '2px solid #111827',
-                backgroundColor: '#f9fafb'
+                border: '3px solid #059669',
+                backgroundColor: '#d1fae5'
               }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '10px', color: '#111827' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '1mm', fontSize: '11px', color: '#065f46' }}>
                   💼 ملاحظاتنا على الطلب:
                 </div>
-                <div style={{ lineHeight: '1.45', whiteSpace: 'pre-wrap', fontSize: '10px', fontWeight: 'bold', color: '#111827' }}>
+                <div style={{ lineHeight: '1.45', whiteSpace: 'pre-wrap', fontSize: '11px', fontWeight: 'bold', color: '#064e3b' }}>
                   {invoice.orderNotes}
                 </div>
               </div>

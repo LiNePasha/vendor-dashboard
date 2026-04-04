@@ -481,6 +481,10 @@ function OrdersContent() {
           const districtId = order.meta_data?.find(m => m.key === '_shipping_district_id')?.value || '';
           const districtName = order.meta_data?.find(m => m.key === '_shipping_district_name')?.value || order.shipping?.state || '';
           
+          // 🔥 قراءة الملاحظة من meta_data مباشرة (نفس طريقة loadOrderNote)
+          const vendorNoteMeta = order.meta_data?.find(m => m.key === '_vendor_note');
+          const vendorNote = vendorNoteMeta?.value || orderNotes[order.id] || '';
+          
           // ✅ بناء العنوان الكامل للطباعة
           const fullAddress = [
             order.shipping?.address_1,
@@ -496,7 +500,7 @@ function OrdersContent() {
             items: invoiceItems,
             services: [],
             orderType: 'delivery',
-            orderNotes: orderNotes[order.id] || '',
+            orderNotes: vendorNote,
             customerNote: order.customer_note || '',
             summary: {
               productsSubtotal: productsSubtotal,
@@ -660,6 +664,10 @@ function OrdersContent() {
           const districtId = order.meta_data?.find(m => m.key === '_shipping_district_id')?.value || '';
           const districtName = order.meta_data?.find(m => m.key === '_shipping_district_name')?.value || order.shipping?.state || '';
           
+          // 🔥 قراءة الملاحظة من meta_data مباشرة (نفس طريقة loadOrderNote)
+          const vendorNoteMeta = order.meta_data?.find(m => m.key === '_vendor_note');
+          const vendorNote = vendorNoteMeta?.value || orderNotes[order.id] || '';
+          
           // ✅ بناء العنوان الكامل للطباعة
           const fullAddress = [
             order.shipping?.address_1,
@@ -676,7 +684,7 @@ function OrdersContent() {
             items: invoiceItems,
             services: [],
             orderType: 'delivery',
-            orderNotes: orderNotes[order.id] || '',
+            orderNotes: vendorNote,
             customerNote: order.customer_note || '',
             summary: {
               productsSubtotal: productsSubtotal,
@@ -839,6 +847,10 @@ function OrdersContent() {
           const districtId = order.meta_data?.find(m => m.key === '_shipping_district_id')?.value || '';
           const districtName = order.meta_data?.find(m => m.key === '_shipping_district_name')?.value || order.shipping?.state || '';
           
+          // 🔥 قراءة الملاحظة من meta_data مباشرة (نفس طريقة loadOrderNote)
+          const vendorNoteMeta = order.meta_data?.find(m => m.key === '_vendor_note');
+          const vendorNote = vendorNoteMeta?.value || orderNotes[order.id] || '';
+          
           const fullAddress = [
             order.shipping?.address_1,
             order.shipping?.address_2,
@@ -854,7 +866,7 @@ function OrdersContent() {
             items: invoiceItems,
             services: [],
             orderType: 'delivery',
-            orderNotes: orderNotes[order.id] || '',
+            orderNotes: vendorNote,
             customerNote: order.customer_note || '',
             summary: {
               productsSubtotal: productsSubtotal,
