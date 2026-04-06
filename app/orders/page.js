@@ -634,11 +634,6 @@ function OrdersContent() {
         
         // Check if already registered
         const existingInvoice = existingInvoices.find(inv => inv.orderId === order.id);
-        if (existingInvoice) {
-          alreadyRegisteredCount++;
-          invoiceIdsToShow.push(existingInvoice.id);
-          continue;
-        }
         
         try {
           // Create invoice from order (same structure as handleBulkRegisterInvoices)
@@ -676,7 +671,9 @@ function OrdersContent() {
             cityName
           ].filter(Boolean).join(' - ');
           
-          const invoiceId = `order-${order.id}-${Date.now()}`;
+          // 🔥 ID ثابت بناءً على رقم الطلب فقط (بدون timestamp)
+          const invoiceId = `order-${order.id}`;
+          
           const invoice = {
             id: invoiceId,
             orderId: order.id,
@@ -744,8 +741,25 @@ function OrdersContent() {
             source: 'order'
           };
 
+          // 🔥 حفظ/تحديث الفاتورة
           await invoiceStorage.saveInvoice(invoice);
-          successCount++;
+          
+          if (existingInvoice) {
+            alreadyRegisteredCount++;
+            console.log(`🔄 تم تحديث فاتورة ${invoiceId} للطلب ${order.id}`);
+          } else {
+            successCount++;
+            console.log(`✅ تم إنشاء فاتورة ${invoiceId} للطلب ${order.id}`);
+          }
+          
+          if (existingInvoice) {
+            alreadyRegisteredCount++;
+            console.log(`🔄 تم تحديث فاتورة ${invoiceId} للطلب ${order.id}`);
+          } else {
+            successCount++;
+            console.log(`✅ تم إنشاء فاتورة ${invoiceId} للطلب ${order.id}`);
+          }
+          
           invoiceIdsToShow.push(invoiceId);
         } catch (error) {
           console.error(`Error registering order ${order.id}:`, error);
@@ -755,8 +769,8 @@ function OrdersContent() {
       
       // Show result
       let message = '';
-      if (successCount > 0) message += `✅ تم تسجيل ${successCount} فاتورة`;
-      if (alreadyRegisteredCount > 0) message += ` | ⚠️ ${alreadyRegisteredCount} مسجل مسبقاً`;
+      if (successCount > 0) message += `✅ تم تسجيل ${successCount} فاتورة جديدة`;
+      if (alreadyRegisteredCount > 0) message += ` | 🔄 ${alreadyRegisteredCount} تم تحديثها`;
       if (failCount > 0) message += ` | ❌ ${failCount} فشل`;
       
       setToast({ 
@@ -818,14 +832,9 @@ function OrdersContent() {
       for (const order of nonBostaOrders) {
         // Check if already registered
         const existingInvoice = existingInvoices.find(inv => inv.orderId === order.id);
-        if (existingInvoice) {
-          alreadyRegisteredCount++;
-          invoiceIdsToShow.push(existingInvoice.id);
-          continue;
-        }
         
         try {
-          // Create invoice from order
+          // Create invoice from order (سواء جديد أو تحديث)
           const invoiceItems = order.line_items.map(item => ({
             id: item.product_id || item.id,
             name: item.name,
@@ -858,7 +867,9 @@ function OrdersContent() {
             cityName
           ].filter(Boolean).join(' - ');
           
-          const invoiceId = `order-${order.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          // 🔥 ID ثابت بناءً على رقم الطلب فقط (بدون timestamp)
+          const invoiceId = `order-${order.id}`;
+          
           const invoice = {
             id: invoiceId,
             orderId: order.id,
@@ -926,8 +937,17 @@ function OrdersContent() {
             source: 'order'
           };
 
+          // 🔥 حفظ/تحديث الفاتورة
           await invoiceStorage.saveInvoice(invoice);
-          successCount++;
+          
+          if (existingInvoice) {
+            alreadyRegisteredCount++;
+            console.log(`🔄 تم تحديث فاتورة ${invoiceId} للطلب ${order.id}`);
+          } else {
+            successCount++;
+            console.log(`✅ تم إنشاء فاتورة ${invoiceId} للطلب ${order.id}`);
+          }
+          
           invoiceIdsToShow.push(invoiceId);
         } catch (error) {
           console.error(`Error registering order ${order.id}:`, error);
@@ -937,8 +957,8 @@ function OrdersContent() {
       
       // Show result
       let message = '';
-      if (successCount > 0) message += `✅ تم تسجيل ${successCount} فاتورة`;
-      if (alreadyRegisteredCount > 0) message += ` | ⚠️ ${alreadyRegisteredCount} مسجل مسبقاً`;
+      if (successCount > 0) message += `✅ تم تسجيل ${successCount} فاتورة جديدة`;
+      if (alreadyRegisteredCount > 0) message += ` | 🔄 ${alreadyRegisteredCount} تم تحديثها`;
       if (failCount > 0) message += ` | ❌ ${failCount} فشل`;
       
       setToast({ 

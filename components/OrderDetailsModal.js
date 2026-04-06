@@ -41,6 +41,22 @@ export default function OrderDetailsModal({
     zoneId: "",
     address_index: "",
   });
+  
+  // 🆕 State for editing line items
+  const [editingItems, setEditingItems] = useState(false);
+  const [lineItems, setLineItems] = useState([]);
+  const [updatingItems, setUpdatingItems] = useState(false);
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [allProducts, setAllProducts] = useState([]); // 🔥 كل المنتجات محملة مرة واحدة
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const searchTimeoutRef = useRef(null);
+  
+  // 🆕 State for variable products
+  const [selectedVariableProduct, setSelectedVariableProduct] = useState(null);
+  const [showVariationsModal, setShowVariationsModal] = useState(false);
+  const [selectedVariation, setSelectedVariation] = useState(null);
 
   if (!isOpen || !order) return null;
 
@@ -93,6 +109,9 @@ export default function OrderDetailsModal({
       address_index: getMetaValue('_shipping_address_index') || '',
     });
     setEditingAddress(false);
+    // 🆕 Initialize line items
+    setLineItems(order?.line_items ? JSON.parse(JSON.stringify(order.line_items)) : []);
+    setEditingItems(false);
   }, [order]);
 
   // Handle status change
@@ -362,6 +381,249 @@ export default function OrderDetailsModal({
     } finally {
       setUpdatingAddress(false);
     }
+  };
+
+  // 🆕 Update item quantity
+  const handleUpdateQuantity = (itemId, newQuantity) => {
+    const qty = parseInt(newQuantity);
+    if (isNaN(qty) || qty < 0) return;
+    
+    setLineItems(prev => prev.map(item => 
+      item.id === itemId ? { ...item, quantity: qty } : item
+    ));
+  };
+
+  // 🆕 Remove item
+  const handleRemoveItem = (itemId) => {
+    if (!confirm('هل تريد حذف هذا المنتج من الطلب؟')) return;
+    setLineItems(prev => prev.filter(item => item.id !== itemId));
+  };
+
+  // 🆕 Load all products once (using same API as products page)
+  const loadAllProducts = async () => {
+    if (allProducts.length > 0) {
+      // Already loaded
+      return;
+    }
+
+    setLoadingProducts(true);
+    try {
+      console.log('📦 Loading all products from Cashier API...');
+      const timestamp = Date.now();
+      const response = await fetch(`/api/cashier/initial?all=true&_t=${timestamp}`, {
+        credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Cashier API Error:', errorData);
+        throw new Error(errorData.error || 'فشل تحميل المنتجات');
+      }
+      
+      const data = await response.json();
+      console.log('✅ Cashier API Response:', data);
+      
+      // Cashier API returns { products: [], categories: [] }
+      const products = data.products || [];
+      
+      // Remove duplicates
+      const uniqueProducts = Array.from(
+        new Map(products.map(p => [p.id, p])).values()
+      );
+      
+      console.log(`✅ Loaded ${uniqueProducts.length} unique products`);
+      
+      setAllProducts(uniqueProducts);
+      setSearchResults(uniqueProducts); // Show all initially
+    } catch (error) {
+      console.error('❌ Load products error:', error);
+      if (showToast) {
+        showToast('فشل تحميل المنتجات: ' + error.message, 'error');
+      }
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  // 🆕 Search/filter products locally (no API calls)
+  const handleSearchProducts = (searchValue) => {
+    setSearchTerm(searchValue);
+    
+    if (!searchValue || searchValue.trim() === '') {
+      // Show all products
+      setSearchResults(allProducts);
+      return;
+    }
+
+    // Filter locally
+    const searchLower = searchValue.toLowerCase();
+    const filtered = allProducts.filter(product => {
+      const nameMatch = product.name?.toLowerCase().includes(searchLower);
+      const skuMatch = product.sku?.toLowerCase().includes(searchLower);
+      return nameMatch || skuMatch;
+    });
+    
+    console.log(`🔍 Filtered ${filtered.length} products from ${allProducts.length} for "${searchValue}"`);
+    setSearchResults(filtered);
+  };
+
+  // 🆕 Add product to order
+  const handleAddProduct = (product) => {
+    // Check if product is variable
+    if (product.type === 'variable') {
+      // Show variations modal
+      setSelectedVariableProduct(product);
+      setShowVariationsModal(true);
+      setSelectedVariation(null);
+      return;
+    }
+    
+    // Check if already exists
+    const exists = lineItems.find(item => item.product_id === product.id);
+    if (exists) {
+      if (showToast) {
+        showToast('المنتج موجود بالفعل في الطلب', 'warning');
+      }
+      return;
+    }
+
+    const newItem = {
+      id: Date.now(), // Temporary ID
+      product_id: product.id,
+      name: product.name,
+      price: parseFloat(product.price) || 0,
+      quantity: 1,
+      total: parseFloat(product.price) || 0,
+      image_url: product.images?.[0]?.src || '',
+      sku: product.sku || ''
+    };
+
+    setLineItems(prev => [...prev, newItem]);
+    setSearchTerm('');
+    setSearchResults(allProducts); // Reset to show all
+    if (showToast) {
+      showToast('✅ تم إضافة المنتج');
+    }
+  };
+
+  // 🆕 Add variation to order
+  const handleAddVariation = () => {
+    if (!selectedVariation || !selectedVariableProduct) return;
+    
+    // Check if variation already exists
+    const exists = lineItems.find(item => item.variation_id === selectedVariation.id);
+    if (exists) {
+      if (showToast) {
+        showToast('هذا الاختيار موجود بالفعل في الطلب', 'warning');
+      }
+      return;
+    }
+
+    // Build variation name with attributes
+    const attributesText = Object.entries(selectedVariation.attributes || {})
+      .map(([key, value]) => value)
+      .join(' - ');
+    
+    const variationName = `${selectedVariableProduct.name} (${attributesText})`;
+
+    const newItem = {
+      id: Date.now(), // Temporary ID
+      product_id: selectedVariableProduct.id,
+      variation_id: selectedVariation.id,
+      name: variationName,
+      price: parseFloat(selectedVariation.price) || 0,
+      quantity: 1,
+      total: parseFloat(selectedVariation.price) || 0,
+      image_url: selectedVariation.image?.src || selectedVariableProduct.images?.[0]?.src || '',
+      sku: selectedVariation.sku || ''
+    };
+
+    setLineItems(prev => [...prev, newItem]);
+    setShowVariationsModal(false);
+    setSelectedVariableProduct(null);
+    setSelectedVariation(null);
+    setSearchTerm('');
+    setSearchResults(allProducts);
+    
+    if (showToast) {
+      showToast('✅ تم إضافة المنتج');
+    }
+  };
+
+  // 🆕 Save items changes
+  const handleSaveItems = async () => {
+    if (lineItems.length === 0) {
+      if (showToast) {
+        showToast('لا يمكن حفظ طلب فارغ', 'error');
+      }
+      return;
+    }
+
+    setUpdatingItems(true);
+    try {
+      // Format line items for WooCommerce API
+      const formattedItems = lineItems.map(item => {
+        const lineItem = {
+          id: item.id > 1000000000000 ? undefined : item.id, // Remove temp IDs
+          product_id: item.product_id,
+          quantity: item.quantity
+        };
+        
+        // Add variation_id if exists
+        if (item.variation_id) {
+          lineItem.variation_id = item.variation_id;
+        }
+        
+        return lineItem;
+      });
+
+      const response = await fetch('/api/orders/update-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          lineItems: formattedItems
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'فشل تحديث المنتجات');
+      }
+
+      if (onShippingUpdate) {
+        await onShippingUpdate(order.id, result.order);
+      }
+
+      setEditingItems(false);
+      if (showToast) {
+        showToast('✅ تم تحديث المنتجات بنجاح');
+      }
+    } catch (error) {
+      console.error('Items Update Error:', error);
+      if (showToast) {
+        showToast(error.message || 'فشل تحديث المنتجات', 'error');
+      }
+    } finally {
+      setUpdatingItems(false);
+    }
+  };
+
+  // 🆕 Calculate new total
+  const calculateTotal = () => {
+    const itemsTotal = lineItems.reduce((sum, item) => {
+      const price = parseFloat(item.price || 0);
+      const qty = parseInt(item.quantity || 0);
+      return sum + (price * qty);
+    }, 0);
+    return itemsTotal;
   };
 
   const copyToClipboard = (text) => {
@@ -738,19 +1000,52 @@ export default function OrderDetailsModal({
 
           {/* Products */}
           <section>
-            <h3 className="font-bold text-sm sm:text-base mb-3 flex items-center gap-2 text-gray-600">
-              <span>📦</span> المنتجات ({order.line_items?.length || 0})
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-sm sm:text-base flex items-center gap-2 text-gray-600">
+                <span>📦</span> المنتجات ({editingItems ? lineItems.length : order.line_items?.length || 0})
+              </h3>
+              
+              {!editingItems ? (
+                <button
+                  onClick={() => setEditingItems(true)}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all"
+                >
+                  ✏️ تعديل المنتجات
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveItems}
+                    disabled={updatingItems}
+                    className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold disabled:opacity-50 transition-all"
+                  >
+                    {updatingItems ? '⏳ جاري الحفظ...' : '✅ حفظ التغييرات'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setLineItems(JSON.parse(JSON.stringify(order.line_items)));
+                      setEditingItems(false);
+                    }}
+                    disabled={updatingItems}
+                    className="px-3 py-1.5 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-xs font-bold disabled:opacity-50 transition-all"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="space-y-2 sm:space-y-3">
-              {order.line_items?.map((item) => {
-                // Get image URL with fallback
+              {(editingItems ? lineItems : order.line_items)?.map((item) => {
                 const imageUrl = item.image_url || item.image?.src || '/icons/placeholder.webp';
                 const unitPrice = item.price || (item.quantity > 0 ? (parseFloat(item.total) / item.quantity) : 0);
                 
                 return (
                   <div
                     key={item.id}
-                    className="flex items-center gap-2 sm:gap-3 bg-gray-50 rounded-lg sm:rounded-xl p-2 sm:p-3"
+                    className={`flex items-center gap-2 sm:gap-3 rounded-lg sm:rounded-xl p-2 sm:p-3 ${
+                      editingItems ? 'bg-blue-50 border-2 border-blue-200' : 'bg-gray-50'
+                    }`}
                   >
                     <img
                       src={imageUrl}
@@ -762,23 +1057,164 @@ export default function OrderDetailsModal({
                     />
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-xs sm:text-sm text-gray-800 truncate">{item.name}</p>
-                      <p className="text-xs text-gray-600 mt-0.5">
-                        {item.quantity} × {parseFloat(unitPrice).toFixed(2)} {order.currency}
-                      </p>
+                      {editingItems ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <label className="text-xs text-gray-600">الكمية:</label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => handleUpdateQuantity(item.id, e.target.value)}
+                            className="w-16 border border-gray-300 rounded px-2 py-0.5 text-xs text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <span className="text-xs text-gray-600">× {parseFloat(unitPrice).toFixed(2)} {order.currency}</span>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-600 mt-0.5">
+                          {item.quantity} × {parseFloat(unitPrice).toFixed(2)} {order.currency}
+                        </p>
+                      )}
                       {item.sku && (
                         <p className="text-xs text-gray-400 mt-0.5">كود: {item.sku}</p>
                       )}
                     </div>
-                    <div className="text-right flex-shrink-0">
+                    <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                       <p className="font-bold text-sm sm:text-base text-gray-900">
-                        {parseFloat(item.total).toFixed(2)}
+                        {(parseFloat(unitPrice) * parseInt(item.quantity)).toFixed(2)}
                       </p>
                       <p className="text-xs text-gray-500">{order.currency}</p>
+                      {editingItems && (
+                        <button
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="text-xs px-2 py-0.5 bg-red-500 hover:bg-red-600 text-white rounded transition-all"
+                        >
+                          🗑️ حذف
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
+
+            {/* Add Product Button */}
+            {editingItems && (
+              <div className="mt-3">
+                {!showAddProduct ? (
+                  <button
+                    onClick={() => {
+                      setShowAddProduct(true);
+                      loadAllProducts(); // 🔥 تحميل المنتجات مرة واحدة
+                    }}
+                    className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-bold transition-all"
+                  >
+                    ➕ إضافة منتج جديد
+                  </button>
+                ) : (
+                  <div className="bg-white border-2 border-green-300 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-bold text-sm text-gray-700">
+                        بحث عن منتج {allProducts.length > 0 && `(${allProducts.length} منتج)`}
+                      </h4>
+                      <button
+                        onClick={() => {
+                          setShowAddProduct(false);
+                          setSearchTerm('');
+                          setSearchResults([]);
+                        }}
+                        className="text-gray-500 hover:text-gray-700 text-xl"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    
+                    {loadingProducts ? (
+                      <div className="text-center py-6">
+                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                        <p className="text-sm text-gray-600 mt-3">جاري تحميل المنتجات...</p>
+                      </div>
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          placeholder="ابحث هنا بالاسم أو الكود..."
+                          value={searchTerm}
+                          onChange={(e) => handleSearchProducts(e.target.value)}
+                          className="w-full border-2 border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                          autoFocus
+                        />
+                        
+                        {searchResults.length === 0 && allProducts.length > 0 && (
+                          <p className="text-sm text-gray-500 text-center py-4">لا توجد نتائج 😕</p>
+                        )}
+                        
+                        {searchResults.length > 0 && (
+                          <div className="mt-2 max-h-64 overflow-y-auto space-y-1 border-t-2 border-gray-200 pt-2">
+                            <p className="text-xs text-gray-500 mb-1 px-1">
+                              {searchTerm ? `${searchResults.length} نتيجة` : `${searchResults.length} منتج متاح`}
+                            </p>
+                            {searchResults.map(product => {
+                              const isVariable = product.type === 'variable';
+                              const hasVariations = product.variations && product.variations.length > 0;
+                              
+                              return (
+                                <button
+                                  key={product.id}
+                                  onClick={() => handleAddProduct(product)}
+                                  className="w-full text-left px-3 py-2 hover:bg-green-50 rounded-lg transition-all flex items-center gap-3 border border-gray-200 hover:border-green-400 hover:shadow-sm"
+                                >
+                                  <img
+                                    src={product.images?.[0]?.src || '/icons/placeholder.webp'}
+                                    alt={product.name}
+                                    className="w-12 h-12 object-cover rounded border border-gray-200"
+                                    onError={(e) => { e.target.src = '/icons/placeholder.webp'; }}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-sm font-semibold text-gray-800 truncate">{product.name}</p>
+                                      {isVariable && (
+                                        <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">
+                                          متغير
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <p className="text-xs font-bold text-green-700">
+                                        {isVariable && hasVariations 
+                                          ? `من ${parseFloat(product.price).toFixed(2)}` 
+                                          : parseFloat(product.price).toFixed(2)
+                                        } {order.currency}
+                                      </p>
+                                      {product.sku && (
+                                        <p className="text-xs text-gray-500">• كود: {product.sku}</p>
+                                      )}
+                                      {isVariable && hasVariations && (
+                                        <p className="text-xs text-purple-600">• {product.variations.length} اختيار</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="text-green-600 text-xl">+</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Show new total when editing */}
+            {editingItems && (
+              <div className="mt-3 p-3 bg-blue-100 border-2 border-blue-300 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-sm text-gray-700">📊 الإجمالي الجديد (المنتجات فقط):</span>
+                  <span className="font-bold text-lg text-blue-700">{calculateTotal().toFixed(2)} {order.currency}</span>
+                </div>
+              </div>
+            )}
           </section>
 
           {/* Total */}
@@ -917,6 +1353,102 @@ export default function OrderDetailsModal({
           </button>
         </div>
       </div>
+
+      {/* 🆕 Variations Modal */}
+      {showVariationsModal && selectedVariableProduct && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4 text-white">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-lg">اختر المتغير</h3>
+                <button
+                  onClick={() => {
+                    setShowVariationsModal(false);
+                    setSelectedVariableProduct(null);
+                    setSelectedVariation(null);
+                  }}
+                  className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-xl transition-all"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-sm text-blue-100 mt-1">{selectedVariableProduct.name}</p>
+            </div>
+
+            {/* Variations List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {selectedVariableProduct.variations && selectedVariableProduct.variations.length > 0 ? (
+                selectedVariableProduct.variations.map(variation => {
+                  // Build attributes text
+                  const attributesText = Object.entries(variation.attributes || {})
+                    .map(([key, value]) => value)
+                    .join(' - ');
+                  
+                  const isSelected = selectedVariation?.id === variation.id;
+                  
+                  return (
+                    <button
+                      key={variation.id}
+                      onClick={() => setSelectedVariation(variation)}
+                      className={`w-full text-left p-3 rounded-lg border-2 transition-all flex items-center gap-3 ${
+                        isSelected 
+                          ? 'border-blue-500 bg-blue-50' 
+                          : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <img
+                        src={variation.image?.src || selectedVariableProduct.images?.[0]?.src || '/icons/placeholder.webp'}
+                        alt={attributesText}
+                        className="w-16 h-16 object-cover rounded border border-gray-200"
+                        onError={(e) => { e.target.src = '/icons/placeholder.webp'; }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-gray-800">{attributesText}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {variation.sku && `كود: ${variation.sku} • `}
+                          السعر: {parseFloat(variation.price).toFixed(2)} {order.currency}
+                        </p>
+                        {variation.stock_quantity !== null && variation.stock_quantity !== undefined && (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            المخزون: {variation.stock_quantity}
+                          </p>
+                        )}
+                      </div>
+                      {isSelected && (
+                        <div className="text-blue-600 text-2xl">✓</div>
+                      )}
+                    </button>
+                  );
+                })
+              ) : (
+                <p className="text-center text-gray-500 py-8">لا توجد متغيرات متاحة</p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-gray-200 p-4 flex gap-2">
+              <button
+                onClick={handleAddVariation}
+                disabled={!selectedVariation}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ✅ إضافة المتغير المحدد
+              </button>
+              <button
+                onClick={() => {
+                  setShowVariationsModal(false);
+                  setSelectedVariableProduct(null);
+                  setSelectedVariation(null);
+                }}
+                className="px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2.5 rounded-lg transition-all"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

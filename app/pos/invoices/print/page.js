@@ -358,10 +358,41 @@ function PrintInvoiceContent() {
             const discountPercent = hasDiscount 
               ? Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100)
               : 0;
+            const quantity = parseInt(item.quantity) || 0;
+            const isMultiple = quantity > 1; // 🔥 الكمية أكتر من 1
             
             return (
-              <div key={item.id} style={{ marginBottom: '2mm' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '0.5mm', fontSize: '12px', color: '#000' }}>
+              <div 
+                key={item.id} 
+                style={{ 
+                  marginBottom: '2mm',
+                  backgroundColor: isMultiple ? '#fff3cd' : 'transparent', // 🔥 خلفية صفراء لو أكتر من 1
+                  padding: isMultiple ? '2mm' : '0',
+                  border: isMultiple ? '2px solid #ff6b00' : 'none', // 🔥 بوردر برتقالي لو أكتر من 1
+                  borderRadius: '2mm'
+                }}
+              >
+                <div style={{ 
+                  fontWeight: 'bold', 
+                  marginBottom: '0.5mm', 
+                  fontSize: isMultiple ? '14px' : '12px', // 🔥 خط أكبر لو أكتر من 1
+                  color: '#000' 
+                }}>
+                  {isMultiple && (
+                    <span style={{ 
+                      backgroundColor: '#ff6b00',
+                      color: '#fff',
+                      padding: '1mm 2mm',
+                      marginLeft: '2mm',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      border: '2px solid #000',
+                      display: 'inline-block',
+                      marginBottom: '1mm'
+                    }}>
+                      ⚠️ الكمية: {quantity} قطعة
+                    </span>
+                  )}
                   {item.name}
                   {hasDiscount && (
                     <span style={{ 
@@ -376,11 +407,22 @@ function PrintInvoiceContent() {
                     </span>
                   )}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#000' }}>
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  fontSize: isMultiple ? '12px' : '10px', // 🔥 خط أكبر لو أكتر من 1
+                  color: '#000',
+                  fontWeight: isMultiple ? 'bold' : 'normal' // 🔥 خط أسمك لو أكتر من 1
+                }}>
                   <span>
                     {hasDiscount ? (
                       <>
-                        <span style={{ fontWeight: 'normal' }}>{item.quantity} × </span>
+                        <span style={{ 
+                          fontWeight: isMultiple ? 'bold' : 'normal',
+                          fontSize: isMultiple ? '13px' : 'inherit' // 🔥 رقم الكمية أكبر
+                        }}>
+                          {item.quantity} × 
+                        </span>
                         <span style={{ 
                           textDecoration: 'line-through', 
                           marginLeft: '1mm', 
@@ -394,10 +436,24 @@ function PrintInvoiceContent() {
                         </span>
                       </>
                     ) : (
-                      <span>{item.quantity} × {item.price} ج.م</span>
+                      <span>
+                        <span style={{ 
+                          fontWeight: isMultiple ? 'bold' : 'normal',
+                          fontSize: isMultiple ? '13px' : 'inherit', // 🔥 رقم الكمية أكبر
+                          color: isMultiple ? '#ff6b00' : 'inherit' // 🔥 لون برتقالي للكمية
+                        }}>
+                          {item.quantity}
+                        </span>
+                        {' × '}{item.price} ج.م
+                      </span>
                     )}
                   </span>
-                  <span style={{ fontWeight: 'bold' }}>{Number(item.totalPrice || (item.price * item.quantity)).toFixed(2)} ج.م</span>
+                  <span style={{ 
+                    fontWeight: 'bold',
+                    fontSize: isMultiple ? '13px' : 'inherit' // 🔥 الإجمالي أكبر لو أكتر من 1
+                  }}>
+                    {Number(item.totalPrice || (item.price * item.quantity)).toFixed(2)} ج.م
+                  </span>
                 </div>
               </div>
             );
