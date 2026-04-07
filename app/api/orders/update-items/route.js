@@ -24,26 +24,9 @@ export async function POST(request) {
 
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
 
-    // التحقق من صلاحية الوصول للطلب
-    const checkResponse = await fetch(`${API_BASE}/wp-json/wcfmmp/v1/orders/${orderId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      cache: 'no-store'
-    });
-
-    if (!checkResponse.ok) {
-      return NextResponse.json(
-        { error: 'الطلب غير موجود أو غير مسموح بالوصول إليه' },
-        { status: 403 }
-      );
-    }
-
-    // تحديث المنتجات في WooCommerce
-    const updateResponse = await fetch(`${API_BASE}/wp-json/wc/v3/orders/${orderId}`, {
-      method: 'PUT',
+    // 🔥 استخدام endpoint الجديد اللي بيعمل WCFM sync تلقائي
+    const updateResponse = await fetch(`${API_BASE}/wp-json/spare2app/v1/vendor-orders/${orderId}/update-items`, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
@@ -55,18 +38,18 @@ export async function POST(request) {
 
     if (!updateResponse.ok) {
       const errorData = await updateResponse.json();
-      console.error('WooCommerce API Error:', errorData);
+      console.error('Vendor Orders API Error:', errorData);
       return NextResponse.json(
-        { error: 'فشل تحديث المنتجات في WooCommerce', details: errorData },
+        { error: 'فشل تحديث المنتجات', details: errorData },
         { status: updateResponse.status }
       );
     }
 
-    const updatedOrder = await updateResponse.json();
+    const result = await updateResponse.json();
 
     return NextResponse.json({
       success: true,
-      order: updatedOrder
+      order: result.order
     });
 
   } catch (error) {

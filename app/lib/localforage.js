@@ -12,7 +12,15 @@ localforage.config({
 export const invoiceStorage = {
   async saveInvoice(invoice) {
     const invoices = await this.getAllInvoices();
-    invoices.push(invoice);
+    const index = invoices.findIndex(i => String(i.id) === String(invoice.id));
+    if (index !== -1) {
+      invoices[index] = {
+        ...invoices[index],
+        ...invoice,
+      };
+    } else {
+      invoices.push(invoice);
+    }
     await localforage.setItem('invoices', invoices);
   },
 
@@ -23,7 +31,8 @@ export const invoiceStorage = {
 
   async getInvoice(invoiceId) {
     const invoices = await this.getAllInvoices();
-    return invoices.find(invoice => invoice.id === invoiceId);
+    // Prefer latest record in case legacy duplicated IDs exist
+    return [...invoices].reverse().find(invoice => String(invoice.id) === String(invoiceId));
   },
 
   async getUnsyncedInvoices() {

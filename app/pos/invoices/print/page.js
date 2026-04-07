@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { invoiceStorage } from '@/app/lib/localforage';
 import { getVendorLogo, getVendorStoreLink } from '@/app/lib/vendor-constants';
+import { isOrderDelayed, getBostaSettings } from '@/app/lib/bosta-helpers';
 import usePOSStore from '@/app/stores/pos-store';
 
 function PrintInvoiceContent() {
@@ -24,6 +25,7 @@ function PrintInvoiceContent() {
 
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [bostaEnabled, setBostaEnabled] = useState(false);
   const vendorInfo = usePOSStore((state) => state.vendorInfo);
   const getVendorInfo = usePOSStore((state) => state.getVendorInfo);
 
@@ -33,13 +35,29 @@ function PrintInvoiceContent() {
       getVendorInfo();
     }
   }, [vendorInfo, getVendorInfo]);
+  
+  // 🆕 Load Bosta settings
+  useEffect(() => {
+    const loadBostaSettings = async () => {
+      const settings = await getBostaSettings();
+      setBostaEnabled(settings.enabled && settings.apiKey);
+    };
+    loadBostaSettings();
+  }, []);
 
   useEffect(() => {
     async function load() {
       try {
         const allInvoices = await invoiceStorage.getAllInvoices();
         const loadedInvoices = invoiceIds
-          .map(id => allInvoices.find(i => String(i.id) === String(id)))
+          .map((id) => {
+            for (let i = allInvoices.length - 1; i >= 0; i--) {
+              if (String(allInvoices[i].id) === String(id)) {
+                return allInvoices[i];
+              }
+            }
+            return null;
+          })
           .filter(Boolean);
         setInvoices(loadedInvoices);
       } catch (err) {
@@ -212,6 +230,42 @@ function PrintInvoiceContent() {
             🌐 طلب أونلاين {invoice.orderId && `#${invoice.orderId}`}
           </div>
         )}
+        
+        {/* 🆕 Delayed Order Warning - High Priority */}
+        {(() => {
+          // Build minimal order object for checking delay
+          const orderObj = {
+            status: invoice.status || 'processing',
+            date_created: invoice.date || new Date().toISOString(),
+            meta_data: [
+              { key: '_bosta_sent', value: invoice.bosta?.sent ? 'yes' : 'no' },
+              { key: '_is_store_pickup', value: invoice.orderType === 'delivery' ? 'no' : 'yes' }
+            ],
+            bosta: invoice.bosta
+          };
+          
+          const orderDelayed = isOrderDelayed(orderObj, bostaEnabled);
+          
+          if (!orderDelayed) return null;
+          
+          return (
+            <div style={{
+              textAlign: 'center',
+              marginBottom: '2mm',
+              padding: '2mm',
+              backgroundColor: '#fee2e2',
+              border: '3px solid #991b1b',
+              borderRadius: '2mm',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              color: '#7f1d1d'
+            }}>
+              <div style={{ fontSize: '16px', marginBottom: '1mm' }}>⚠️⚠️⚠️</div>
+              <div style={{ fontSize: '12px' }}>طلب متأخر - أكثر من 5 أيام</div>
+              <div style={{ fontSize: '10px', marginTop: '0.5mm' }}>يجب إرساله للتوصيل فوراً!</div>
+            </div>
+          );
+        })()}
 
         {/* Priority Notes (Top - Must be seen) */}
         {(invoice.customerNote?.trim() || invoice.orderNotes?.trim()) && (

@@ -568,12 +568,26 @@ export default function OrderDetailsModal({
     setUpdatingItems(true);
     try {
       // Format line items for WooCommerce API
-      const formattedItems = lineItems.map(item => {
+      // ⚠️ Woo لا يحذف العنصر إذا تم حذفه محلياً فقط، لازم نبعت id بكمية 0
+      const originalLineItems = order?.line_items || [];
+      const currentExistingIds = new Set(
+        lineItems
+          .filter((item) => Number(item.id) < 1000000000000)
+          .map((item) => Number(item.id))
+      );
+
+      // Existing + newly added/edited items
+      const formattedItems = lineItems.map((item) => {
+        const isTempItem = Number(item.id) > 1000000000000;
         const lineItem = {
-          id: item.id > 1000000000000 ? undefined : item.id, // Remove temp IDs
           product_id: item.product_id,
-          quantity: item.quantity
+          quantity: Number(item.quantity)
         };
+
+        // Existing item in order
+        if (!isTempItem) {
+          lineItem.id = Number(item.id);
+        }
         
         // Add variation_id if exists
         if (item.variation_id) {
@@ -583,12 +597,22 @@ export default function OrderDetailsModal({
         return lineItem;
       });
 
+      // Deleted items: send quantity 0 to force deletion in WooCommerce
+      const deletedItems = originalLineItems
+        .filter((originalItem) => !currentExistingIds.has(Number(originalItem.id)))
+        .map((originalItem) => ({
+          id: Number(originalItem.id),
+          quantity: 0
+        }));
+
+      const payloadLineItems = [...formattedItems, ...deletedItems];
+
       const response = await fetch('/api/orders/update-items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: order.id,
-          lineItems: formattedItems
+          lineItems: payloadLineItems
         })
       });
 

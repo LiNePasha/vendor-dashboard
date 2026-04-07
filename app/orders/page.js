@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import usePOSStore from "@/app/stores/pos-store";
 import OrderDetailsModal from "@/components/OrderDetailsModal";
 import { BostaAPI } from "@/app/lib/bosta-api";
-import { getBostaSettings, validateInvoiceForBosta, formatBostaStatus, getBostaTrackingUrl } from "@/app/lib/bosta-helpers";
+import { getBostaSettings, validateInvoiceForBosta, formatBostaStatus, getBostaTrackingUrl, isOrderDelayed } from "@/app/lib/bosta-helpers";
 import localforage from 'localforage';
 import { invoiceStorage } from '@/app/lib/localforage';
 
@@ -2924,11 +2924,16 @@ function OrdersContent() {
                       // 🆕 إخفاء رقم التتبع لو الحالة pending أو on-hold
                       const showBostaTracking = bostaTracking && order.status !== 'pending' && order.status !== 'on-hold';
                       
+                      // 🆕 التحقق من تأخر الأوردر
+                      const orderIsDelayed = isOrderDelayed(order, bostaEnabled);
+                      
                       return (
                         <tr 
                           key={`${order.id}-${bostaTracking || 'no-track'}-${order.status}-${refreshKey}`}
                           className={`border-b transition-colors ${
-                            order.status === 'pending'
+                            orderIsDelayed
+                              ? 'bg-red-50/80 hover:bg-red-100 border-red-200 border-2'
+                              : order.status === 'pending'
                               ? 'bg-gray-50/80 opacity-75 hover:opacity-100 border-dashed'
                               : index % 2 === 0 
                                 ? 'bg-white hover:bg-blue-50 border-gray-100' 
@@ -2948,8 +2953,13 @@ function OrdersContent() {
 
                           {/* Order ID + Badges */}
                           <td className="px-2 py-3">
-                            <div className="flex items-center gap-1 mb-1">
+                            <div className="flex items-center gap-1 mb-1 flex-wrap">
                               <span className="font-bold text-blue-600 text-sm">#{order.id}</span>
+                              {orderIsDelayed && (
+                                <span className="bg-red-600 text-white text-[9px] px-1.5 py-0.5 rounded-full animate-pulse font-bold border-2 border-red-800">
+                                  ⚠️ متأخر +5 أيام
+                                </span>
+                              )}
                               {order.status === 'pending' && (
                                 <span className="bg-gray-400 text-white text-[9px] px-1.5 py-0.5 rounded-full">💳 لم يدفع</span>
                               )}
@@ -3606,6 +3616,9 @@ function OrdersContent() {
 
             const layout = getImageLayout();
             
+            // 🆕 التحقق من تأخر الأوردر في Grid View
+            const orderIsDelayed = isOrderDelayed(order, bostaEnabled);
+            
             // حساب الوقت مع تصحيح التوقيت
             const getTimeAgo = (dateString) => {
               const date = new Date(dateString);
@@ -3634,7 +3647,9 @@ function OrdersContent() {
               <div
                 key={order.id}
                 className={`group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 border-2 cursor-pointer transform hover:-translate-y-2 ${
-                  order.status === 'pending'
+                  orderIsDelayed
+                    ? "border-red-600 ring-4 ring-red-200 shadow-red-300/50 bg-red-50/30"
+                    : order.status === 'pending'
                     ? "border-dashed border-gray-300 bg-gray-50/50 opacity-75 hover:opacity-100"
                     : isNew 
                       ? "border-yellow-400 ring-4 ring-yellow-100 shadow-yellow-200/50" 
@@ -3646,8 +3661,13 @@ function OrdersContent() {
                   {/* Header - Order Number & Status */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-gray-800 text-lg">#{order.id}</span>
+                        {orderIsDelayed && (
+                          <span className="inline-flex items-center gap-1 bg-red-600 text-white text-xs px-2 py-1 rounded-full animate-pulse font-bold border-2 border-red-800">
+                            ⚠️ متأخر +5 أيام
+                          </span>
+                        )}
                         {order.status === 'pending' && (
                           <span className="inline-flex items-center gap-1 bg-gray-400 text-white text-xs px-2 py-1 rounded-full">
                             💳 لم يدفع

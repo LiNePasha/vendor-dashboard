@@ -90,6 +90,25 @@ class Spare2App_Vendor_Orders_Endpoint {
                 ),
             ),
         ));
+        
+        // 🆕 Update order items endpoint with WCFM sync
+        register_rest_route('spare2app/v1', '/vendor-orders/(?P<id>\d+)/update-items', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'update_order_items'),
+            'permission_callback' => array($this, 'check_vendor_permission'),
+            'args' => array(
+                'id' => array(
+                    'description' => 'Order ID',
+                    'type' => 'integer',
+                    'required' => true,
+                ),
+                'line_items' => array(
+                    'description' => 'Array of line items to update',
+                    'type' => 'array',
+                    'required' => true,
+                ),
+            ),
+        ));
     }
     
     /**
@@ -479,5 +498,163 @@ class Spare2App_Vendor_Orders_Endpoint {
                 'has_more' => $has_more,
             ),
         );
+    }
+    
+    /**
+     * 🆕 Update order items with automatic WCFM sync
+     */
+    public function update_order_items($request) {
+        global $wpdb;
+        
+        $order_id = $request->get_param('id');
+        $line_items = $request->get_param('line_items');
+        
+        if (!$order_id || !is_array($line_items)) {
+            return new WP_Error('invalid_data', 'يجب إرسال رقم الطلب والمنتجات', array('status' => 400));
+        }
+        
+        // Get order
+        $order = wc_get_order($order_id);
+        if (!$order) {
+            return new WP_Error('order_not_found', 'الطلب غير موجود', array('status' => 404));
+        }
+        
+        // Check vendor permission
+        $current_user_id = get_current_user_id();
+        if (!$this->order_belongs_to_vendor($order_id, $current_user_id) && !current_user_can('manage_woocommerce')) {
+            return new WP_Error('rest_forbidden', 'ليس لديك صلاحية لتعديل هذا الطلب', array('status' => 403));
+        }
+        
+        // 1. Update line items via WooCommerce
+        try {
+            // Track which items should be kept
+            $items_to_keep = array();
+            $new_items = array();
+            
+            foreach ($line_items as $item_data) {
+                // Handle deleted items (quantity = 0)
+                if (isset($item_data['quantity']) && $item_data['quantity'] == 0) {
+                    // Mark for deletion
+                    if (!empty($item_data['id'])) {
+                        $order->remove_item($item_data['id']);
+                    }
+                    continue;
+                }
+                
+                // Handle existing item update
+                if (!empty($item_data['id'])) {
+                    $existing_item = $order->get_item($item_data['id']);
+                    if ($existing_item) {
+                        $existing_item->set_quantity($item_data['quantity']);
+                        if (isset($item_data['price'])) {
+                            $existing_item->set_subtotal($item_data['price'] * $item_data['quantity']);
+                            $existing_item->set_total($item_data['price'] * $item_data['quantity']);
+                        }
+                        $existing_item->save();
+                        continue;
+                    }
+                }
+                
+                // Add new item
+                $product_id = isset($item_data['variation_id']) && $item_data['variation_id'] > 0 
+                    ? $item_data['variation_id'] 
+                    : $item_data['product_id'];
+                
+                $product = wc_get_product($product_id);
+                if (!$product) {
+                    continue;
+                }
+                
+                // 🔥 Get product author (vendor)
+                $product_author = get_post_field('post_author', $product->get_id());
+                
+                $item = new WC_Order_Item_Product();
+                $item->set_product($product);
+                $item->set_quantity($item_data['quantity']);
+                
+                if (isset($item_data['price'])) {
+                    $item->set_subtotal($item_data['price'] * $item_data['quantity']);
+                    $item->set_total($item_data['price'] * $item_data['quantity']);
+                } else {
+                    $price = $product->get_price();
+                    $item->set_subtotal($price * $item_data['quantity']);
+                    $item->set_total($price * $item_data['quantity']);
+                }
+                
+                $order->add_item($item);
+                
+                // 🔥 Add vendor metadata to the item
+                $item->add_meta_data('_wcfm_product_author', $product_author, true);
+                $item->save();
+            }
+            
+            $order->calculate_totals();
+            $order->save();
+            
+        } catch (Exception $e) {
+            return new WP_Error('update_failed', 'فشل تحديث المنتجات: ' . $e->getMessage(), array('status' => 500));
+        }
+        
+        // 2. 🔥 Sync WCFM marketplace orders table
+        $this->sync_wcfm_vendor_mapping($order_id);
+        
+        // 3. Return updated order
+        return array(
+            'success' => true,
+            'message' => 'تم تحديث المنتجات بنجاح',
+            'order' => $this->format_order($order),
+        );
+    }
+    
+    /**
+     * 🔥 Sync vendor mapping in WCFM marketplace orders table
+     */
+    private function sync_wcfm_vendor_mapping($order_id) {
+        global $wpdb;
+        
+        $order = wc_get_order($order_id);
+        if (!$order) {
+            return;
+        }
+        
+        $table_name = $wpdb->prefix . 'wcfm_marketplace_orders';
+        
+        // Check if table exists
+        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
+            return;
+        }
+        
+        // Get all vendors from current line items
+        $vendor_ids = array();
+        foreach ($order->get_items() as $item) {
+            $product = $item->get_product();
+            if (!$product) {
+                continue;
+            }
+            
+            // Get vendor from product author
+            $vendor_id = get_post_field('post_author', $product->get_id());
+            if ($vendor_id && !in_array($vendor_id, $vendor_ids)) {
+                $vendor_ids[] = intval($vendor_id);
+            }
+        }
+        
+        // Delete old mappings for this order
+        $wpdb->delete($table_name, array('order_id' => $order_id), array('%d'));
+        
+        // Insert new mappings
+        foreach ($vendor_ids as $vendor_id) {
+            $wpdb->insert(
+                $table_name,
+                array(
+                    'order_id' => $order_id,
+                    'vendor_id' => $vendor_id,
+                    'created' => current_time('mysql'),
+                ),
+                array('%d', '%d', '%s')
+            );
+        }
+        
+        error_log("🔄 WCFM sync: Order #{$order_id} mapped to vendors: " . implode(', ', $vendor_ids));
     }
 }

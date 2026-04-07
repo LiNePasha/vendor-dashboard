@@ -158,3 +158,35 @@ export function formatBostaStatus(status) {
 export function getBostaTrackingUrl(trackingNumber) {
   return `https://bosta.co/tracking-shipment/?track_id=${trackingNumber}`;
 }
+
+/**
+ * 🆕 التحقق من أن الأوردر متأخر (أكتر من 5 أيام ولم يتم إرساله لبوسطة)
+ */
+export function isOrderDelayed(order, bostaEnabled) {
+  // إذا بوسطة مش متفعلة، مش هيكون في تأخير
+  if (!bostaEnabled) return false;
+  
+  // الأوردرات المكتملة أو الملغية مش بتعتبر متأخرة
+  const completedStatuses = ['completed', 'cancelled', 'refunded', 'failed'];
+  if (completedStatuses.includes(order.status)) return false;
+  
+  // التحقق من أن الأوردر نوع توصيل (مش استلام من المتجر)
+  const isStorePickup = order.meta_data?.some(m => 
+    (m.key === '_is_store_pickup' && m.value === 'yes') || 
+    (m.key === '_delivery_type' && m.value === 'store_pickup')
+  );
+  if (isStorePickup) return false; // أوردرات الاستلام مش محتاجة بوسطة
+  
+  // التحقق من أن الأوردر اتبعت لبوسطة ولا لأ
+  const bostaSent = order.bosta?.sent || 
+                    order.meta_data?.find(m => m.key === '_bosta_sent')?.value === 'yes';
+  if (bostaSent) return false; // متبعتش يبقى مش متأخرة
+  
+  // حساب عمر الأوردر بالأيام
+  const orderDate = new Date(order.date_created);
+  const now = new Date();
+  const ageInDays = (now - orderDate) / (1000 * 60 * 60 * 24);
+  
+  // الأوردر متأخر لو عمره أكتر من 5 أيام
+  return ageInDays > 5;
+}

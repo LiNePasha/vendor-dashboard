@@ -62,6 +62,17 @@ class Spare2App_Vendor_Customers_Endpoint {
         
         // Single customer endpoint with order history
         register_rest_route('spare2app/v1', '/vendor-customers/(?P<identifier>[^/]+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_single_customer'),
+            'permission_callback' => array($this, 'check_vendor_permission'),
+            'args' => array(
+                'identifier' => array(
+                    'description' => 'Customer identifier (email or phone)',
+                    'type' => 'string',
+                    'required' => true,
+                ),
+            ),
+        ));
     }
     
     /**
