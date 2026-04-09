@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import usePOSStore from "@/app/stores/pos-store";
 import OrderDetailsModal from "@/components/OrderDetailsModal";
 import { BostaAPI } from "@/app/lib/bosta-api";
-import { getBostaSettings, validateInvoiceForBosta, formatBostaStatus, getBostaTrackingUrl, isOrderDelayed } from "@/app/lib/bosta-helpers";
+import { getBostaSettings, validateInvoiceForBosta, formatBostaStatus, getBostaTrackingUrl, isOrderDelayed, getOrdersDeliveredToday } from "@/app/lib/bosta-helpers";
 import localforage from 'localforage';
 import { invoiceStorage } from '@/app/lib/localforage';
 
@@ -981,6 +981,142 @@ function OrdersContent() {
     }
   };
   
+  // 🆕 تقرير الطلبات المُرسلة لبوسطة اليوم
+  const handleDailySalesReport = async () => {
+    try {
+      // استخدام الأوردرات المحددة أو كل الأوردرات
+      const ordersToCheck = selectedOrders.length > 0 
+        ? orders.filter(o => selectedOrders.includes(o.id))
+        : orders;
+      
+      // جلب الأوردرات اللي مبعوتة لبوسطة اليوم فقط
+      const sentToBosta = getOrdersDeliveredToday(ordersToCheck);
+      
+      if (sentToBosta.length === 0) {
+        setToast({ 
+          message: selectedOrders.length > 0 
+            ? '⚠️ لا توجد طلبات مُرسلة لبوسطة اليوم من الطلبات المحددة' 
+            : '⚠️ لا توجد طلبات مُرسلة لبوسطة اليوم',
+          type: 'warning' 
+        });
+        return;
+      }
+      
+      // تسجيل الأوردرات كفواتير (لو مش مسجلة)
+      const invoiceIdsToShow = [];
+      const existingInvoices = await invoiceStorage.getAllInvoices();
+      
+      for (const order of sentToBosta) {
+        // Check if already registered
+        let existingInvoice = existingInvoices.find(inv => inv.orderId === order.id);
+        
+        if (!existingInvoice) {
+          // تسجيل الطلب كفاتورة
+          const invoiceItems = order.line_items.map(item => ({
+            id: item.product_id || item.id,
+            name: item.name,
+            price: parseFloat(item.price),
+            quantity: item.quantity,
+            totalPrice: parseFloat(item.price) * item.quantity,
+            imageUrl: item.image_url || item.image?.src || '',
+            stock_quantity: null,
+            wholesalePrice: null,
+            profit: null
+          }));
+
+          const productsSubtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
+          const shippingFee = parseFloat(order.shipping_total || 0);
+          const discountAmount = parseFloat(order.discount_total || 0);
+          const orderTotal = parseFloat(order.total);
+          
+          const cityId = order.meta_data?.find(m => m.key === '_shipping_city_id')?.value || '';
+          const cityName = order.meta_data?.find(m => m.key === '_shipping_city_name')?.value || order.shipping?.city || '';
+          const districtId = order.meta_data?.find(m => m.key === '_shipping_district_id')?.value || '';
+          const districtName = order.meta_data?.find(m => m.key === '_shipping_district_name')?.value || order.shipping?.state || '';
+          
+          const vendorNoteMeta = order.meta_data?.find(m => m.key === '_vendor_note');
+          const vendorNote = vendorNoteMeta?.value || orderNotes[order.id] || '';
+          
+          const fullAddress = [
+            order.shipping?.address_1,
+            order.shipping?.address_2,
+            districtName,
+            cityName
+          ].filter(Boolean).join(' - ');
+          
+          const invoiceId = `order-${order.id}`;
+          
+          const invoice = {
+            id: invoiceId,
+            orderId: order.id,
+            date: order.date_created,
+            items: invoiceItems,
+            services: [],
+            orderType: 'delivery',
+            orderNotes: vendorNote,
+            customerNote: order.customer_note || '',
+            summary: {
+              productsSubtotal: productsSubtotal,
+              servicesTotal: 0,
+              subtotal: productsSubtotal,
+              discount: {
+                type: 'fixed',
+                value: discountAmount,
+                amount: discountAmount
+              },
+              extraFee: 0,
+              deliveryFee: shippingFee,
+              total: orderTotal,
+              totalProfit: 0,
+              profitItemsCount: 0
+            },
+            profitDetails: [],
+            paymentMethod: order.payment_method_title || 'غير محدد',
+            paymentStatus: 'partial',
+            customerInfo: {
+              name: `${order.billing.first_name} ${order.billing.last_name}`.trim() || 'عميل',
+              phone: order.billing.phone || '',
+              email: order.billing.email || ''
+            },
+            delivery: {
+              customer: {
+                name: `${order.shipping?.first_name || order.billing.first_name} ${order.shipping?.last_name || order.billing.last_name}`.trim(),
+                phone: order.billing.phone || order.shipping?.phone || '',
+                address: {
+                  firstLine: order.shipping?.address_1 || '',
+                  secondLine: order.shipping?.address_2 || '',
+                  city: cityName,
+                  cityId: cityId,
+                  district: districtName,
+                  districtId: districtId,
+                  fullAddress: fullAddress
+                }
+              },
+              fee: shippingFee
+            },
+            bosta: order.bosta || null
+          };
+          
+          await invoiceStorage.saveInvoice(invoice);
+          invoiceIdsToShow.push(invoice.id);
+        } else {
+          invoiceIdsToShow.push(existingInvoice.id);
+        }
+      }
+      
+      // فتح صفحة تقرير المبيعات اليومية
+      if (invoiceIdsToShow.length > 0) {
+        const idsParam = invoiceIdsToShow.join(',');
+        window.open(`/pos/invoices/daily-sales-report?ids=${idsParam}`, '_blank');
+      }
+      
+      setToast({ message: `✅ تقرير جاهز - ${sentToBosta.length} طلب مُرسل لبوسطة اليوم`, type: 'success' });
+    } catch (error) {
+      console.error('Daily sales report error:', error);
+      setToast({ message: '❌ فشل إنشاء تقرير المبيعات', type: 'error' });
+    }
+  };
+  
   // 🆕 حذف ملاحظة مستقلة
   const deleteStandaloneNote = async (noteId) => {
     try {
@@ -1329,8 +1465,8 @@ function OrdersContent() {
           deliveryStatus = 'picked_up';
         }
         
-        // Update invoice
-        await updatePOSInvoice(invoice.id, {
+        // تحديث بيانات الفاتورة
+        const updateData = {
           deliveryStatus,
           bosta: {
             ...invoice.bosta,
@@ -1338,7 +1474,21 @@ function OrdersContent() {
             statusCode: result.data.state?.code,
             lastUpdated: new Date().toISOString()
           }
-        });
+        };
+        
+        // إضافة deliveredAt لو الطلب تم تسليمه
+        if (deliveryStatus === 'delivered') {
+          updateData.bosta.deliveredAt = new Date().toISOString();
+        }
+        
+        // إضافة pickedUpAt لو الطلب تم استلامه من المخزن
+        if (deliveryStatus === 'picked_up') {
+          updateData.bosta.pickedUp = true;
+          updateData.bosta.pickedUpAt = new Date().toISOString();
+        }
+        
+        // Update invoice
+        await updatePOSInvoice(invoice.id, updateData);
         
         setToast({ message: '✅ تم مزامنة حالة الطلب', type: 'success' });
       }
@@ -1426,6 +1576,49 @@ function OrdersContent() {
           const bostaStatus = result.data.state?.value?.toLowerCase() || '';
           const bostaStatusLabel = result.data.state?.value || ''; // 🔥 للحفظ في meta
           
+          // 🔍 Debug: شوف إيه اللي راجع من بوسطة
+          console.log(`🔍 Bosta Response for Order #${order.id}:`, {
+            hasTrackingHistory: !!result.data.trackingHistory,
+            trackingHistoryLength: result.data.trackingHistory?.length || 0,
+            state: result.data.state,
+            fullData: result.data
+          });
+          
+          // 🆕 استخراج التاريخ الفعلي من timeline بوسطة
+          let actualPickedUpAt = null;
+          let actualDeliveredAt = null;
+          
+          if (result.data.trackingHistory && Array.isArray(result.data.trackingHistory)) {
+            console.log(`📋 trackingHistory for Order #${order.id}:`, result.data.trackingHistory);
+            
+            // البحث عن تاريخ الاستلام من المخزن (Picked Up)
+            const pickedUpEvent = result.data.trackingHistory.find(event => 
+              event.state?.value?.toLowerCase().includes('picked_up') || 
+              event.state?.value?.toLowerCase().includes('picked up') ||
+              event.state?.value?.toLowerCase().includes('received at warehouse')
+            );
+            if (pickedUpEvent && pickedUpEvent.timestamp) {
+              actualPickedUpAt = pickedUpEvent.timestamp;
+              console.log(`✅ Found picked up date:`, actualPickedUpAt);
+            }
+            
+            // البحث عن تاريخ التسليم للعميل (Delivered)
+            const deliveredEvent = result.data.trackingHistory.find(event => 
+              event.state?.value?.toLowerCase().includes('delivered')
+            );
+            if (deliveredEvent && deliveredEvent.timestamp) {
+              actualDeliveredAt = deliveredEvent.timestamp;
+            }
+          } else {
+            console.log(`⚠️ No trackingHistory for Order #${order.id}`);
+          }
+          
+          console.log(`📦 Order #${order.id} - Final Timeline data:`, {
+            status: bostaStatusLabel,
+            actualPickedUpAt,
+            actualDeliveredAt
+          });
+          
           // تحديث حسب الحالة
           if (bostaStatus.includes('delivered')) {
             // تم التوصيل → تغيير الحالة لـ completed
@@ -1442,6 +1635,24 @@ function OrdersContent() {
                 })
               });
               
+              // حفظ تاريخ التسليم في meta_data
+              await fetch('/api/orders/update-bosta', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  orderId: order.id,
+                  bostaData: {
+                    sent: true,
+                    trackingNumber: trackingNumber,
+                    orderId: result.data._id,
+                    status: bostaStatusLabel,
+                    statusCode: result.data.state?.code,
+                    deliveredAt: actualDeliveredAt || new Date().toISOString(),
+                    lastUpdated: new Date().toISOString()
+                  }
+                })
+              });
+              
               // Update local state
               await updateOrderStatus(order.id, 'completed');
             } else {
@@ -1452,6 +1663,7 @@ function OrdersContent() {
                   ...order.bosta,
                   status: bostaStatusLabel,
                   statusCode: result.data.state?.code,
+                  deliveredAt: actualDeliveredAt || new Date().toISOString(),
                   lastUpdated: new Date().toISOString()
                 }
               });
@@ -1474,7 +1686,7 @@ function OrdersContent() {
                     status: bostaStatusLabel, // 🔥 حفظ النص الكامل
                     statusCode: result.data.state?.code,
                     pickedUp: true,
-                    pickedUpAt: new Date().toISOString(),
+                    pickedUpAt: actualPickedUpAt || new Date().toISOString(),
                     lastUpdated: new Date().toISOString()
                   }
                 })
@@ -1488,7 +1700,7 @@ function OrdersContent() {
                   status: bostaStatusLabel,
                   statusCode: result.data.state?.code,
                   pickedUp: true,
-                  pickedUpAt: new Date().toISOString(),
+                  pickedUpAt: actualPickedUpAt || new Date().toISOString(),
                   lastUpdated: new Date().toISOString()
                 }
               });
@@ -2063,6 +2275,23 @@ function OrdersContent() {
               >
                 <span>🔄</span>
                 <span>مزامنة Bosta</span>
+              </button>
+            )}
+            
+            {/* 🆕 زر تقرير الطلبات المُرسلة لبوسطة اليوم */}
+            {bostaEnabled && activeTab === 'website' && (
+              <button
+                onClick={handleDailySalesReport}
+                className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-2"
+                title="تقرير بالطلبات المُرسلة لبوسطة اليوم (من المحددة أو الكل)"
+              >
+                <span>📊</span>
+                <span>
+                  {selectedOrders.length > 0 
+                    ? `تقرير اليوم (${getOrdersDeliveredToday(orders.filter(o => selectedOrders.includes(o.id))).length})`
+                    : `طلبات بوسطا اليوم (${getOrdersDeliveredToday(orders).length})`
+                  }
+                </span>
               </button>
             )}
           </div>

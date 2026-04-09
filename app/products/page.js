@@ -713,8 +713,28 @@ export default function ProductsPage() {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {productsWithUniqueKeys.map((product) => {
-            const stockQty = product.stock_quantity ?? 0;
-            const manageStock = product.manage_stock;
+            // 🎨 حساب المخزون للمنتجات المتعددة (Variable Products)
+            let stockQty = product.stock_quantity ?? 0;
+            let manageStock = product.manage_stock;
+            
+            // إذا كان المنتج متعدد (variable) وعنده variations، نجمع المخزون من كل الـ variations
+            if (product.type === 'variable' && product.variations && Array.isArray(product.variations)) {
+              const totalVariationsStock = product.variations.reduce((total, variation) => {
+                // نجمع فقط الـ variations اللي بتدير المخزون
+                if (variation.manage_stock && variation.stock_quantity) {
+                  return total + (Number(variation.stock_quantity) || 0);
+                }
+                return total;
+              }, 0);
+              
+              // لو في variations بتدير المخزون، نستخدم المجموع
+              const hasStockManagement = product.variations.some(v => v.manage_stock);
+              if (hasStockManagement) {
+                stockQty = totalVariationsStock;
+                manageStock = true;
+              }
+            }
+            
             const isLowStock = manageStock && stockQty > 0 && stockQty <= 5;
             const isOutOfStock = manageStock && stockQty === 0;
             

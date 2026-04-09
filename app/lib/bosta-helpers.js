@@ -190,3 +190,80 @@ export function isOrderDelayed(order, bostaEnabled) {
   // الأوردر متأخر لو عمره أكتر من 5 أيام
   return ageInDays > 5;
 }
+
+/**
+ * 🆕 فلترة الأوردرات المُرسلة لبوسطة اليوم فقط
+ */
+export function getOrdersDeliveredToday(orders) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // بداية اليوم
+  
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1); // بداية اليوم التالي
+  
+  console.log('🔍 Filtering orders sent to Bosta TODAY:', {
+    totalOrders: orders.length,
+    today: today.toISOString()
+  });
+  
+  const result = orders.filter(order => {
+    // لازم يكون مبعوت لبوسطة أصلاً
+    const bostaSent = order.bosta?.sent || 
+                      order.meta_data?.find(m => m.key === '_bosta_sent')?.value === 'yes';
+    
+    if (!bostaSent) return false;
+    
+    // أولوية 1: تاريخ الإرسال (sentAt)
+    const sentAtStr = order.bosta?.sentAt || 
+                     order.meta_data?.find(m => m.key === '_bosta_sent_at')?.value;
+    
+    if (sentAtStr) {
+      const sentAt = new Date(sentAtStr);
+      if (sentAt >= today && sentAt < tomorrow) {
+        console.log(`✅ Order #${order.id} - Sent today via sentAt`);
+        return true;
+      }
+    }
+    
+    // أولوية 2: تاريخ الاستلام من المخزن (pickedUpAt)
+    const pickedUpAtStr = order.bosta?.pickedUpAt || 
+                         order.meta_data?.find(m => m.key === '_bosta_picked_up_at')?.value;
+    
+    if (pickedUpAtStr) {
+      const pickedUpAt = new Date(pickedUpAtStr);
+      if (pickedUpAt >= today && pickedUpAt < tomorrow) {
+        console.log(`✅ Order #${order.id} - Picked up today`);
+        return true;
+      }
+    }
+    
+    // أولوية 3: آخر تحديث (lastUpdated) لو الحالة picked_up
+    const bostaStatus = order.bosta?.status?.toLowerCase() || '';
+    if (bostaStatus.includes('picked_up') || 
+        bostaStatus.includes('picked up') ||
+        bostaStatus.includes('received at warehouse')) {
+      
+      const lastUpdatedStr = order.bosta?.lastUpdated || 
+                           order.meta_data?.find(m => m.key === '_bosta_last_updated')?.value;
+      
+      if (lastUpdatedStr) {
+        const lastUpdated = new Date(lastUpdatedStr);
+        if (lastUpdated >= today && lastUpdated < tomorrow) {
+          console.log(`✅ Order #${order.id} - Updated today with picked status`);
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  });
+  
+  console.log(`✅ Found ${result.length} orders sent to Bosta TODAY`);
+  return result;
+}
+
+
+
+
+
+

@@ -1015,6 +1015,7 @@ const usePOSStore = create(persist((set, get) => ({
           const bostaLastUpdated = order.meta_data.find(m => m.key === '_bosta_last_updated' || m.key === 'bosta_last_updated')?.value;
           const bostaPickedUp = order.meta_data.find(m => m.key === '_bosta_picked_up' || m.key === 'bosta_picked_up')?.value;
           const bostaPickedUpAt = order.meta_data.find(m => m.key === '_bosta_picked_up_at' || m.key === 'bosta_picked_up_at')?.value;
+          const bostaDeliveredAt = order.meta_data.find(m => m.key === '_bosta_delivered_at' || m.key === 'bosta_delivered_at')?.value;
           
           // إنشاء bosta object لو فيه tracking number
           if (bostaTrackingNumber) {
@@ -1027,7 +1028,8 @@ const usePOSStore = create(persist((set, get) => ({
               sentAt: bostaSentAt || '',
               lastUpdated: bostaLastUpdated || '',
               pickedUp: bostaPickedUp === 'yes' || bostaPickedUp === true,
-              pickedUpAt: bostaPickedUpAt || ''
+              pickedUpAt: bostaPickedUpAt || '',
+              deliveredAt: bostaDeliveredAt || ''
             };
           }
         }

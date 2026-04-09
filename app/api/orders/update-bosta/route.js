@@ -37,7 +37,10 @@ export async function POST(request) {
         { key: '_bosta_status', value: '' },
         { key: '_bosta_status_code', value: '' },
         { key: '_bosta_sent_at', value: '' },
-        { key: '_bosta_last_updated', value: '' }
+        { key: '_bosta_last_updated', value: '' },
+        { key: '_bosta_delivered_at', value: '' },
+        { key: '_bosta_picked_up', value: '' },
+        { key: '_bosta_picked_up_at', value: '' }
       ];
     } else if (bostaData) {
       // إضافة/تحديث بيانات بوسطة
@@ -50,6 +53,17 @@ export async function POST(request) {
         { key: '_bosta_sent_at', value: bostaData.sentAt },
         { key: '_bosta_last_updated', value: bostaData.lastUpdated }
       ];
+      
+      // إضافة deliveredAt لو الطلب تم تسليمه
+      if (bostaData.deliveredAt) {
+        metaData.push({ key: '_bosta_delivered_at', value: bostaData.deliveredAt });
+      }
+      
+      // إضافة pickedUpAt لو الطلب تم استلامه من بوسطة
+      if (bostaData.pickedUpAt) {
+        metaData.push({ key: '_bosta_picked_up', value: 'yes' });
+        metaData.push({ key: '_bosta_picked_up_at', value: bostaData.pickedUpAt });
+      }
     } else {
       return NextResponse.json(
         { error: 'يجب إرسال بيانات بوسطة أو clearBosta' },
