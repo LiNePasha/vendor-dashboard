@@ -232,28 +232,14 @@ export function getOrdersDeliveredToday(orders) {
     if (pickedUpAtStr) {
       const pickedUpAt = new Date(pickedUpAtStr);
       if (pickedUpAt >= today && pickedUpAt < tomorrow) {
-        console.log(`✅ Order #${order.id} - Picked up today`);
+        console.log(`✅ Order #${order.id} - Picked up today via timeline`);
         return true;
+      } else {
+        console.log(`⏭️ Order #${order.id} - Picked up on ${pickedUpAt.toLocaleDateString('ar-EG')}, not today`);
       }
     }
     
-    // أولوية 3: آخر تحديث (lastUpdated) لو الحالة picked_up
-    const bostaStatus = order.bosta?.status?.toLowerCase() || '';
-    if (bostaStatus.includes('picked_up') || 
-        bostaStatus.includes('picked up') ||
-        bostaStatus.includes('received at warehouse')) {
-      
-      const lastUpdatedStr = order.bosta?.lastUpdated || 
-                           order.meta_data?.find(m => m.key === '_bosta_last_updated')?.value;
-      
-      if (lastUpdatedStr) {
-        const lastUpdated = new Date(lastUpdatedStr);
-        if (lastUpdated >= today && lastUpdated < tomorrow) {
-          console.log(`✅ Order #${order.id} - Updated today with picked status`);
-          return true;
-        }
-      }
-    }
+    // ✅ تم إزالة الأولوية 3 (lastUpdated check) لأنها كانت بتظهر طلبات قديمة
     
     return false;
   });

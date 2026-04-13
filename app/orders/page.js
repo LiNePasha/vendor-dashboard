@@ -1465,6 +1465,48 @@ function OrdersContent() {
           deliveryStatus = 'picked_up';
         }
         
+        // 🆕 استخراج التاريخ الفعلي من timeline بوسطة
+        let actualPickedUpAt = null;
+        let actualDeliveredAt = null;
+        
+        if (result.data.trackingHistory && Array.isArray(result.data.trackingHistory)) {
+          // 🔍 طباعة تفصيلية لكل event
+          console.log(`📋 trackingHistory:`, result.data.trackingHistory);
+          result.data.trackingHistory.forEach((event, index) => {
+            console.log(`  Event ${index + 1}:`, {
+              state: event.state?.value,
+              timestamp: event.timestamp,
+              hasPickedUp: event.state?.value?.toLowerCase().includes('picked'),
+              hasReceived: event.state?.value?.toLowerCase().includes('received'),
+              hasArabic: event.state?.value?.includes('استلام')
+            });
+          });
+          
+          // البحث عن تاريخ الاستلام من المخزن (Picked Up)
+          const pickedUpEvent = result.data.trackingHistory.find(event => {
+            const stateLower = event.state?.value?.toLowerCase() || '';
+            return stateLower.includes('picked_up') || 
+                   stateLower.includes('picked up') ||
+                   stateLower.includes('picked') ||
+                   stateLower.includes('received at warehouse') ||
+                   stateLower.includes('received') ||
+                   event.state?.value?.includes('استلام') ||
+                   event.state?.value?.includes('ستلم');
+          });
+          if (pickedUpEvent && pickedUpEvent.timestamp) {
+            actualPickedUpAt = pickedUpEvent.timestamp;
+            console.log(`✅ Found picked up event:`, pickedUpEvent);
+          }
+          
+          // البحث عن تاريخ التسليم للعميل (Delivered)
+          const deliveredEvent = result.data.trackingHistory.find(event => 
+            event.state?.value?.toLowerCase().includes('delivered')
+          );
+          if (deliveredEvent && deliveredEvent.timestamp) {
+            actualDeliveredAt = deliveredEvent.timestamp;
+          }
+        }
+        
         // تحديث بيانات الفاتورة
         const updateData = {
           deliveryStatus,
@@ -1476,15 +1518,15 @@ function OrdersContent() {
           }
         };
         
-        // إضافة deliveredAt لو الطلب تم تسليمه
-        if (deliveryStatus === 'delivered') {
-          updateData.bosta.deliveredAt = new Date().toISOString();
+        // إضافة deliveredAt لو الطلب تم تسليمه (بس من timeline)
+        if (deliveryStatus === 'delivered' && actualDeliveredAt) {
+          updateData.bosta.deliveredAt = actualDeliveredAt;
         }
         
-        // إضافة pickedUpAt لو الطلب تم استلامه من المخزن
-        if (deliveryStatus === 'picked_up') {
+        // إضافة pickedUpAt لو الطلب تم استلامه من المخزن (بس من timeline)
+        if (deliveryStatus === 'picked_up' && actualPickedUpAt) {
           updateData.bosta.pickedUp = true;
-          updateData.bosta.pickedUpAt = new Date().toISOString();
+          updateData.bosta.pickedUpAt = actualPickedUpAt;
         }
         
         // Update invoice
@@ -1591,15 +1633,37 @@ function OrdersContent() {
           if (result.data.trackingHistory && Array.isArray(result.data.trackingHistory)) {
             console.log(`📋 trackingHistory for Order #${order.id}:`, result.data.trackingHistory);
             
+            // 🔍 طباعة تفصيلية لكل event
+            result.data.trackingHistory.forEach((event, index) => {
+              console.log(`  Event ${index + 1}:`, {
+                state: event.state?.value,
+                stateLower: event.state?.value?.toLowerCase(),
+                timestamp: event.timestamp,
+                hasPickedUp: event.state?.value?.toLowerCase().includes('picked'),
+                hasReceived: event.state?.value?.toLowerCase().includes('received'),
+                hasArabic: event.state?.value?.includes('استلام') || event.state?.value?.includes('ستلم')
+              });
+            });
+            
             // البحث عن تاريخ الاستلام من المخزن (Picked Up)
-            const pickedUpEvent = result.data.trackingHistory.find(event => 
-              event.state?.value?.toLowerCase().includes('picked_up') || 
-              event.state?.value?.toLowerCase().includes('picked up') ||
-              event.state?.value?.toLowerCase().includes('received at warehouse')
-            );
+            const pickedUpEvent = result.data.trackingHistory.find(event => {
+              const stateLower = event.state?.value?.toLowerCase() || '';
+              return stateLower.includes('picked_up') || 
+                     stateLower.includes('picked up') ||
+                     stateLower.includes('picked') ||
+                     stateLower.includes('received at warehouse') ||
+                     stateLower.includes('received') ||
+                     event.state?.value?.includes('استلام') || // نص عربي
+                     event.state?.value?.includes('ستلم');
+            });
             if (pickedUpEvent && pickedUpEvent.timestamp) {
               actualPickedUpAt = pickedUpEvent.timestamp;
-              console.log(`✅ Found picked up date:`, actualPickedUpAt);
+              console.log(`✅ Found picked up date from event:`, {
+                state: pickedUpEvent.state?.value,
+                timestamp: actualPickedUpAt
+              });
+            } else {
+              console.log(`⚠️ No picked up event found in timeline`);
             }
             
             // البحث عن تاريخ التسليم للعميل (Delivered)
@@ -1647,7 +1711,7 @@ function OrdersContent() {
                     orderId: result.data._id,
                     status: bostaStatusLabel,
                     statusCode: result.data.state?.code,
-                    deliveredAt: actualDeliveredAt || new Date().toISOString(),
+                    deliveredAt: actualDeliveredAt, // ✅ بس التاريخ الحقيقي من timeline
                     lastUpdated: new Date().toISOString()
                   }
                 })
@@ -1663,7 +1727,7 @@ function OrdersContent() {
                   ...order.bosta,
                   status: bostaStatusLabel,
                   statusCode: result.data.state?.code,
-                  deliveredAt: actualDeliveredAt || new Date().toISOString(),
+                  deliveredAt: actualDeliveredAt, // ✅ بس التاريخ الحقيقي من timeline
                   lastUpdated: new Date().toISOString()
                 }
               });
@@ -1686,7 +1750,7 @@ function OrdersContent() {
                     status: bostaStatusLabel, // 🔥 حفظ النص الكامل
                     statusCode: result.data.state?.code,
                     pickedUp: true,
-                    pickedUpAt: actualPickedUpAt || new Date().toISOString(),
+                    pickedUpAt: actualPickedUpAt, // ✅ بس التاريخ الحقيقي من timeline
                     lastUpdated: new Date().toISOString()
                   }
                 })
@@ -1700,7 +1764,7 @@ function OrdersContent() {
                   status: bostaStatusLabel,
                   statusCode: result.data.state?.code,
                   pickedUp: true,
-                  pickedUpAt: actualPickedUpAt || new Date().toISOString(),
+                  pickedUpAt: actualPickedUpAt, // ✅ بس التاريخ الحقيقي من timeline
                   lastUpdated: new Date().toISOString()
                 }
               });
