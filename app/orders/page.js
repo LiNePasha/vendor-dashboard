@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import usePOSStore from "@/app/stores/pos-store";
 import OrderDetailsModal from "@/components/OrderDetailsModal";
 import { BostaAPI } from "@/app/lib/bosta-api";
-import { getBostaSettings, validateInvoiceForBosta, formatBostaStatus, getBostaTrackingUrl, isOrderDelayed, getOrdersDeliveredToday } from "@/app/lib/bosta-helpers";
+import { getBostaSettings, validateInvoiceForBosta, formatBostaStatus, getBostaTrackingUrl, isOrderDelayed, getOrdersDeliveredToday, getOrdersDeliveredYesterday } from "@/app/lib/bosta-helpers";
 import localforage from 'localforage';
 import { invoiceStorage } from '@/app/lib/localforage';
 
@@ -1117,6 +1117,144 @@ function OrdersContent() {
     }
   };
   
+  // 🆕 تقرير الطلبات المُرسلة لبوسطة أمس
+  const handleYesterdayReport = async () => {
+    try {
+      // استخدام الأوردرات المحددة أو كل الأوردرات
+      const ordersToCheck = selectedOrders.length > 0 
+        ? orders.filter(o => selectedOrders.includes(o.id))
+        : orders;
+      
+      // جلب الأوردرات اللي مبعوتة لبوسطة أمس فقط
+      const sentToBosta = getOrdersDeliveredYesterday(ordersToCheck);
+      
+      if (sentToBosta.length === 0) {
+        setToast({ 
+          message: selectedOrders.length > 0 
+            ? '⚠️ لا توجد طلبات مُرسلة لبوسطة أمس من الطلبات المحددة' 
+            : '⚠️ لا توجد طلبات مُرسلة لبوسطة أمس',
+          type: 'warning' 
+        });
+        return;
+      }
+      
+      // تسجيل الأوردرات كفواتير (لو مش مسجلة)
+      const invoiceIdsToShow = [];
+      const existingInvoices = await invoiceStorage.getAllInvoices();
+      
+      for (const order of sentToBosta) {
+        // Check if already registered
+        let existingInvoice = existingInvoices.find(inv => inv.orderId === order.id);
+        
+        if (!existingInvoice) {
+          // تسجيل الطلب كفاتورة
+          const invoiceItems = order.line_items.map(item => ({
+            id: item.product_id || item.id,
+            name: item.name,
+            price: parseFloat(item.price),
+            quantity: item.quantity,
+            totalPrice: parseFloat(item.price) * item.quantity,
+            imageUrl: item.image_url || item.image?.src || '',
+            stock_quantity: null,
+            wholesalePrice: null,
+            profit: null
+          }));
+
+          const productsSubtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
+          const shippingFee = parseFloat(order.shipping_total || 0);
+          const discountAmount = parseFloat(order.discount_total || 0);
+          const orderTotal = parseFloat(order.total);
+          
+          const cityId = order.meta_data?.find(m => m.key === '_shipping_city_id')?.value || '';
+          const cityName = order.meta_data?.find(m => m.key === '_shipping_city_name')?.value || order.shipping?.city || '';
+          const districtId = order.meta_data?.find(m => m.key === '_shipping_district_id')?.value || '';
+          const districtName = order.meta_data?.find(m => m.key === '_shipping_district_name')?.value || order.shipping?.state || '';
+          
+          const vendorNoteMeta = order.meta_data?.find(m => m.key === '_vendor_note');
+          const vendorNote = vendorNoteMeta?.value || orderNotes[order.id] || '';
+          
+          const fullAddress = [
+            order.shipping?.address_1,
+            order.shipping?.address_2,
+            districtName,
+            cityName
+          ].filter(Boolean).join(' - ');
+          
+          const invoiceId = `order-${order.id}`;
+          
+          const invoice = {
+            id: invoiceId,
+            orderId: order.id,
+            date: order.date_created,
+            items: invoiceItems,
+            services: [],
+            orderType: 'delivery',
+            orderNotes: vendorNote,
+            customerNote: order.customer_note || '',
+            summary: {
+              productsSubtotal: productsSubtotal,
+              servicesTotal: 0,
+              subtotal: productsSubtotal,
+              discount: {
+                type: 'fixed',
+                value: discountAmount,
+                amount: discountAmount
+              },
+              extraFee: 0,
+              deliveryFee: shippingFee,
+              total: orderTotal,
+              totalProfit: 0,
+              profitItemsCount: 0
+            },
+            profitDetails: [],
+            paymentMethod: order.payment_method_title || 'غير محدد',
+            paymentStatus: 'partial',
+            customerInfo: {
+              name: `${order.billing.first_name} ${order.billing.last_name}`.trim() || 'عميل',
+              phone: order.billing.phone || '',
+              email: order.billing.email || ''
+            },
+            delivery: {
+              customer: {
+                name: `${order.shipping?.first_name || order.billing.first_name} ${order.shipping?.last_name || order.billing.last_name}`.trim(),
+                phone: order.billing.phone || order.shipping?.phone || '',
+                address: {
+                  firstLine: order.shipping?.address_1 || '',
+                  secondLine: order.shipping?.address_2 || '',
+                  city: cityName,
+                  cityId: cityId,
+                  district: districtName,
+                  districtId: districtId,
+                  fullAddress: fullAddress
+                }
+              },
+              fee: shippingFee
+            },
+            bosta: order.bosta || null
+          };
+          
+          await invoiceStorage.saveInvoice(invoice);
+          invoiceIdsToShow.push(invoice.id);
+        } else {
+          invoiceIdsToShow.push(existingInvoice.id);
+        }
+      }
+      
+      // فتح صفحة تقرير المبيعات
+      if (invoiceIdsToShow.length > 0) {
+        const idsParam = invoiceIdsToShow.join(',');
+        window.open(`/pos/invoices/daily-sales-report?ids=${idsParam}`, '_blank');
+      }
+      
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      setToast({ message: `✅ تقرير جاهز - ${sentToBosta.length} طلب مُرسل لبوسطة أمس (${yesterday.toLocaleDateString('ar-EG')})`, type: 'success' });
+    } catch (error) {
+      console.error('Yesterday report error:', error);
+      setToast({ message: '❌ فشل إنشاء تقرير أمس', type: 'error' });
+    }
+  };
+  
   // 🆕 حذف ملاحظة مستقلة
   const deleteStandaloneNote = async (noteId) => {
     try {
@@ -1469,42 +1607,49 @@ function OrdersContent() {
         let actualPickedUpAt = null;
         let actualDeliveredAt = null;
         
-        if (result.data.trackingHistory && Array.isArray(result.data.trackingHistory)) {
-          // 🔍 طباعة تفصيلية لكل event
-          console.log(`📋 trackingHistory:`, result.data.trackingHistory);
-          result.data.trackingHistory.forEach((event, index) => {
-            console.log(`  Event ${index + 1}:`, {
-              state: event.state?.value,
-              timestamp: event.timestamp,
-              hasPickedUp: event.state?.value?.toLowerCase().includes('picked'),
-              hasReceived: event.state?.value?.toLowerCase().includes('received'),
-              hasArabic: event.state?.value?.includes('استلام')
-            });
-          });
+        // 🔥 Bosta بترجع timeline مش trackingHistory
+        const timelineData = result.data.timeline || result.data.trackingHistory;
+        
+        if (timelineData && Array.isArray(timelineData)) {
+          console.log(`📋 Timeline data:`, timelineData);
           
           // البحث عن تاريخ الاستلام من المخزن (Picked Up)
-          const pickedUpEvent = result.data.trackingHistory.find(event => {
-            const stateLower = event.state?.value?.toLowerCase() || '';
-            return stateLower.includes('picked_up') || 
-                   stateLower.includes('picked up') ||
-                   stateLower.includes('picked') ||
-                   stateLower.includes('received at warehouse') ||
-                   stateLower.includes('received') ||
-                   event.state?.value?.includes('استلام') ||
-                   event.state?.value?.includes('ستلم');
+          const pickedUpEvent = timelineData.find(event => {
+            const value = (event.value || event.state?.value || '').toLowerCase();
+            return value.includes('picked_up') || 
+                   value.includes('picked up') ||
+                   value.includes('picked') ||
+                   event.code === 21; // Bosta code for picked_up
           });
-          if (pickedUpEvent && pickedUpEvent.timestamp) {
-            actualPickedUpAt = pickedUpEvent.timestamp;
-            console.log(`✅ Found picked up event:`, pickedUpEvent);
+          
+          if (pickedUpEvent) {
+            actualPickedUpAt = pickedUpEvent.date || pickedUpEvent.timestamp;
+            console.log(`✅ Found picked up event:`, {
+              value: pickedUpEvent.value,
+              date: actualPickedUpAt
+            });
           }
           
           // البحث عن تاريخ التسليم للعميل (Delivered)
-          const deliveredEvent = result.data.trackingHistory.find(event => 
-            event.state?.value?.toLowerCase().includes('delivered')
-          );
-          if (deliveredEvent && deliveredEvent.timestamp) {
-            actualDeliveredAt = deliveredEvent.timestamp;
+          const deliveredEvent = timelineData.find(event => {
+            const value = (event.value || event.state?.value || '').toLowerCase();
+            return value.includes('delivered') || event.code === 45;
+          });
+          
+          if (deliveredEvent) {
+            actualDeliveredAt = deliveredEvent.date || deliveredEvent.timestamp;
           }
+        }
+        
+        // 🆕 Fallback: استخدام state.receivedAtWarehouse.time لو مفيش timeline
+        if (!actualPickedUpAt && result.data.state?.receivedAtWarehouse?.time) {
+          actualPickedUpAt = result.data.state.receivedAtWarehouse.time;
+          console.log(`✅ Using receivedAtWarehouse.time as fallback:`, actualPickedUpAt);
+        }
+        
+        if (!actualDeliveredAt && result.data.state?.deliveryTime) {
+          actualDeliveredAt = result.data.state.deliveryTime;
+          console.log(`✅ Using state.deliveryTime as fallback:`, actualDeliveredAt);
         }
         
         // تحديث بيانات الفاتورة
@@ -1518,15 +1663,15 @@ function OrdersContent() {
           }
         };
         
-        // إضافة deliveredAt لو الطلب تم تسليمه (بس من timeline)
-        if (deliveryStatus === 'delivered' && actualDeliveredAt) {
-          updateData.bosta.deliveredAt = actualDeliveredAt;
-        }
-        
-        // إضافة pickedUpAt لو الطلب تم استلامه من المخزن (بس من timeline)
-        if (deliveryStatus === 'picked_up' && actualPickedUpAt) {
+        // 🆕 حفظ pickedUpAt لو موجود (من timeline أو receivedAtWarehouse)
+        if (actualPickedUpAt) {
           updateData.bosta.pickedUp = true;
           updateData.bosta.pickedUpAt = actualPickedUpAt;
+        }
+        
+        // 🆕 حفظ deliveredAt لو موجود (من timeline أو deliveryTime)
+        if (actualDeliveredAt) {
+          updateData.bosta.deliveredAt = actualDeliveredAt;
         }
         
         // Update invoice
@@ -1630,51 +1775,68 @@ function OrdersContent() {
           let actualPickedUpAt = null;
           let actualDeliveredAt = null;
           
-          if (result.data.trackingHistory && Array.isArray(result.data.trackingHistory)) {
-            console.log(`📋 trackingHistory for Order #${order.id}:`, result.data.trackingHistory);
+          // 🔥 Bosta بترجع timeline مش trackingHistory
+          const timelineData = result.data.timeline || result.data.trackingHistory;
+          
+          if (timelineData && Array.isArray(timelineData)) {
+            console.log(`📋 Timeline for Order #${order.id}:`, timelineData);
             
             // 🔍 طباعة تفصيلية لكل event
-            result.data.trackingHistory.forEach((event, index) => {
-              console.log(`  Event ${index + 1}:`, {
-                state: event.state?.value,
-                stateLower: event.state?.value?.toLowerCase(),
-                timestamp: event.timestamp,
-                hasPickedUp: event.state?.value?.toLowerCase().includes('picked'),
-                hasReceived: event.state?.value?.toLowerCase().includes('received'),
-                hasArabic: event.state?.value?.includes('استلام') || event.state?.value?.includes('ستلم')
+            timelineData.forEach((event, index) => {
+              console.log(`  Timeline ${index + 1}:`, {
+                value: event.value || event.state?.value,
+                code: event.code,
+                date: event.date || event.timestamp,
+                done: event.done
               });
             });
             
             // البحث عن تاريخ الاستلام من المخزن (Picked Up)
-            const pickedUpEvent = result.data.trackingHistory.find(event => {
-              const stateLower = event.state?.value?.toLowerCase() || '';
-              return stateLower.includes('picked_up') || 
-                     stateLower.includes('picked up') ||
-                     stateLower.includes('picked') ||
-                     stateLower.includes('received at warehouse') ||
-                     stateLower.includes('received') ||
-                     event.state?.value?.includes('استلام') || // نص عربي
-                     event.state?.value?.includes('ستلم');
+            const pickedUpEvent = timelineData.find(event => {
+              const value = (event.value || event.state?.value || '').toLowerCase();
+              return value.includes('picked_up') || 
+                     value.includes('picked up') ||
+                     value.includes('picked') ||
+                     event.code === 21; // Bosta code for picked_up
             });
-            if (pickedUpEvent && pickedUpEvent.timestamp) {
-              actualPickedUpAt = pickedUpEvent.timestamp;
-              console.log(`✅ Found picked up date from event:`, {
-                state: pickedUpEvent.state?.value,
-                timestamp: actualPickedUpAt
+            
+            if (pickedUpEvent) {
+              actualPickedUpAt = pickedUpEvent.date || pickedUpEvent.timestamp;
+              console.log(`✅ Found picked up date from timeline:`, {
+                value: pickedUpEvent.value || pickedUpEvent.state?.value,
+                date: actualPickedUpAt,
+                code: pickedUpEvent.code
               });
             } else {
               console.log(`⚠️ No picked up event found in timeline`);
             }
             
             // البحث عن تاريخ التسليم للعميل (Delivered)
-            const deliveredEvent = result.data.trackingHistory.find(event => 
-              event.state?.value?.toLowerCase().includes('delivered')
-            );
-            if (deliveredEvent && deliveredEvent.timestamp) {
-              actualDeliveredAt = deliveredEvent.timestamp;
+            const deliveredEvent = timelineData.find(event => {
+              const value = (event.value || event.state?.value || '').toLowerCase();
+              return value.includes('delivered') || event.code === 45; // Bosta code for delivered
+            });
+            
+            if (deliveredEvent) {
+              actualDeliveredAt = deliveredEvent.date || deliveredEvent.timestamp;
+              console.log(`✅ Found delivered date from timeline:`, {
+                value: deliveredEvent.value || deliveredEvent.state?.value,
+                date: actualDeliveredAt
+              });
             }
           } else {
-            console.log(`⚠️ No trackingHistory for Order #${order.id}`);
+            console.log(`⚠️ No timeline data for Order #${order.id}`);
+          }
+          
+          // 🆕 Fallback: استخدام state.receivedAtWarehouse.time لو مفيش timeline
+          if (!actualPickedUpAt && result.data.state?.receivedAtWarehouse?.time) {
+            actualPickedUpAt = result.data.state.receivedAtWarehouse.time;
+            console.log(`✅ Using receivedAtWarehouse.time as fallback for Order #${order.id}:`, actualPickedUpAt);
+          }
+          
+          if (!actualDeliveredAt && result.data.state?.deliveryTime) {
+            actualDeliveredAt = result.data.state.deliveryTime;
+            console.log(`✅ Using state.deliveryTime as fallback for Order #${order.id}:`, actualDeliveredAt);
           }
           
           console.log(`📦 Order #${order.id} - Final Timeline data:`, {
@@ -1771,31 +1933,58 @@ function OrdersContent() {
             }
           } else {
             // أي حالة أخرى (in_transit, out_for_delivery, etc)
-            // حفظ الحالة فقط بدون تعديل order status
+            // حفظ الحالة + timestamps لو موجودين
             if (typeof order.id === 'number') {
+              const bostaData = {
+                sent: true,
+                trackingNumber: trackingNumber,
+                orderId: result.data._id,
+                status: bostaStatusLabel, // 🔥 حفظ آخر حالة
+                statusCode: result.data.state?.code,
+                lastUpdated: new Date().toISOString()
+              };
+              
+              // 🆕 حفظ pickedUpAt لو موجود (من timeline أو receivedAtWarehouse)
+              if (actualPickedUpAt) {
+                bostaData.pickedUp = true;
+                bostaData.pickedUpAt = actualPickedUpAt;
+              }
+              
+              // 🆕 حفظ deliveredAt لو موجود
+              if (actualDeliveredAt) {
+                bostaData.deliveredAt = actualDeliveredAt;
+              }
+              
               await fetch('/api/orders/update-bosta', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   orderId: order.id,
-                  bostaData: {
-                    sent: true,
-                    trackingNumber: trackingNumber,
-                    orderId: result.data._id,
-                    status: bostaStatusLabel, // 🔥 حفظ آخر حالة
-                    statusCode: result.data.state?.code,
-                    lastUpdated: new Date().toISOString()
-                  }
+                  bostaData
                 })
               });
             } else {
+              // System order
+              const bostaUpdate = {
+                ...order.bosta,
+                status: bostaStatusLabel,
+                statusCode: result.data.state?.code,
+                lastUpdated: new Date().toISOString()
+              };
+              
+              // 🆕 حفظ pickedUpAt لو موجود
+              if (actualPickedUpAt) {
+                bostaUpdate.pickedUp = true;
+                bostaUpdate.pickedUpAt = actualPickedUpAt;
+              }
+              
+              // 🆕 حفظ deliveredAt لو موجود
+              if (actualDeliveredAt) {
+                bostaUpdate.deliveredAt = actualDeliveredAt;
+              }
+              
               await updatePOSInvoice(order.id, {
-                bosta: {
-                  ...order.bosta,
-                  status: bostaStatusLabel,
-                  statusCode: result.data.state?.code,
-                  lastUpdated: new Date().toISOString()
-                }
+                bosta: bostaUpdate
               });
             }
           }
@@ -2354,6 +2543,23 @@ function OrdersContent() {
                   {selectedOrders.length > 0 
                     ? `تقرير اليوم (${getOrdersDeliveredToday(orders.filter(o => selectedOrders.includes(o.id))).length})`
                     : `طلبات بوسطا اليوم (${getOrdersDeliveredToday(orders).length})`
+                  }
+                </span>
+              </button>
+            )}
+            
+            {/* 🆕 زر تقرير الطلبات المُرسلة لبوسطة امبارح */}
+            {bostaEnabled && activeTab === 'website' && (
+              <button
+                onClick={handleYesterdayReport}
+                className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-2"
+                title="تقرير بالطلبات المُرسلة لبوسطة أمس (من المحددة أو الكل)"
+              >
+                <span>📅</span>
+                <span>
+                  {selectedOrders.length > 0 
+                    ? `تقرير امبارح (${getOrdersDeliveredYesterday(orders.filter(o => selectedOrders.includes(o.id))).length})`
+                    : `طلبات بوسطا امبارح (${getOrdersDeliveredYesterday(orders).length})`
                   }
                 </span>
               </button>

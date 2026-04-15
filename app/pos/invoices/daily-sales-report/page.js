@@ -86,8 +86,8 @@ function DailySalesReportContent() {
   const logoSrc = getVendorLogo(vendorInfo?.id);
   const storeLink = getVendorStoreLink(vendorInfo?.id);
   
-  // حساب إجماليات التقرير
-  const totalSales = invoices.reduce((sum, inv) => sum + (inv.summary?.total || 0), 0);
+  // حساب إجماليات التقرير (بدون رسوم التوصيل)
+  const totalSales = invoices.reduce((sum, inv) => sum + (inv.summary?.productsSubtotal || 0), 0);
   const totalOrders = invoices.length;
   const totalProfit = invoices.reduce((sum, inv) => sum + (inv.summary?.totalProfit || 0), 0);
   const totalDeliveryFees = invoices.reduce((sum, inv) => sum + (inv.summary?.deliveryFee || 0), 0);
@@ -225,7 +225,7 @@ function DailySalesReportContent() {
             رسوم التوصيل
           </div>
           <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#78350f', marginTop: '8px' }}>
-            {totalDeliveryFees.toFixed(2)} ج.م
+            {totalOrders * 20} ج.م
           </div>
         </div>
       </div>

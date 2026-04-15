@@ -194,17 +194,31 @@ export function isOrderDelayed(order, bostaEnabled) {
 /**
  * 🆕 فلترة الأوردرات المُرسلة لبوسطة اليوم فقط
  */
-export function getOrdersDeliveredToday(orders) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0); // بداية اليوم
+/**
+ * 🆕 فلترة الأوردرات المُرسلة لبوسطة في تاريخ معين
+ */
+export function getOrdersDeliveredByDate(orders, targetDate) {
+  // استخراج السنة/الشهر/اليوم من التاريخ المستهدف (بالـ local timezone)
+  const targetYear = targetDate.getFullYear();
+  const targetMonth = targetDate.getMonth();
+  const targetDay = targetDate.getDate();
   
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1); // بداية اليوم التالي
-  
-  console.log('🔍 Filtering orders sent to Bosta TODAY:', {
+  console.log('🔍 Filtering orders sent to Bosta on:', {
     totalOrders: orders.length,
-    today: today.toISOString()
+    targetDate: targetDate.toLocaleDateString('ar-EG'),
+    targetYear,
+    targetMonth: targetMonth + 1, // +1 لأن الشهر يبدأ من 0
+    targetDay
   });
+  
+  // 🔍 أولاً: شوف كل الطلبات المبعوتة لبوسطة
+  const bostaOrders = orders.filter(order => {
+    const bostaSent = order.bosta?.sent || 
+                      order.meta_data?.find(m => m.key === '_bosta_sent')?.value === 'yes';
+    return bostaSent;
+  });
+  
+  console.log(`📦 Total orders sent to Bosta: ${bostaOrders.length}`);
   
   const result = orders.filter(order => {
     // لازم يكون مبعوت لبوسطة أصلاً
@@ -213,39 +227,90 @@ export function getOrdersDeliveredToday(orders) {
     
     if (!bostaSent) return false;
     
-    // أولوية 1: تاريخ الإرسال (sentAt)
+    // 🔍 Debug: شوف إيه البيانات اللي عند الطلب ده
     const sentAtStr = order.bosta?.sentAt || 
                      order.meta_data?.find(m => m.key === '_bosta_sent_at')?.value;
+    const pickedUpAtStr = order.bosta?.pickedUpAt || 
+                         order.meta_data?.find(m => m.key === '_bosta_picked_up_at')?.value;
     
+    console.log(`🔍 Order #${order.id}:`, {
+      hasSentAt: !!sentAtStr,
+      hasPickedUpAt: !!pickedUpAtStr,
+      sentAt: sentAtStr,
+      pickedUpAt: pickedUpAtStr,
+      bostaStatus: order.bosta?.status,
+      note: !pickedUpAtStr && order.bosta?.sent 
+        ? '⚠️ Order sent to Bosta but no pickedUpAt - needs sync!' 
+        : undefined
+    });
+    
+    // أولوية 1: تاريخ الإرسال (sentAt)
     if (sentAtStr) {
       const sentAt = new Date(sentAtStr);
-      if (sentAt >= today && sentAt < tomorrow) {
-        console.log(`✅ Order #${order.id} - Sent today via sentAt`);
+      // مقارنة التاريخ فقط (يوم/شهر/سنة) بالـ local timezone
+      if (sentAt.getFullYear() === targetYear && 
+          sentAt.getMonth() === targetMonth && 
+          sentAt.getDate() === targetDay) {
+        console.log(`✅ Order #${order.id} - Sent on target date via sentAt:`, sentAtStr);
         return true;
       }
     }
     
     // أولوية 2: تاريخ الاستلام من المخزن (pickedUpAt)
-    const pickedUpAtStr = order.bosta?.pickedUpAt || 
-                         order.meta_data?.find(m => m.key === '_bosta_picked_up_at')?.value;
-    
     if (pickedUpAtStr) {
       const pickedUpAt = new Date(pickedUpAtStr);
-      if (pickedUpAt >= today && pickedUpAt < tomorrow) {
-        console.log(`✅ Order #${order.id} - Picked up today via timeline`);
+      // مقارنة التاريخ فقط (يوم/شهر/سنة) بالـ local timezone
+      if (pickedUpAt.getFullYear() === targetYear && 
+          pickedUpAt.getMonth() === targetMonth && 
+          pickedUpAt.getDate() === targetDay) {
+        console.log(`✅ Order #${order.id} - Picked up on target date:`, {
+          pickedUpAtStr,
+          pickedUpLocalDate: pickedUpAt.toLocaleDateString('ar-EG'),
+          pickedUpLocalTime: pickedUpAt.toLocaleTimeString('ar-EG')
+        });
         return true;
       } else {
-        console.log(`⏭️ Order #${order.id} - Picked up on ${pickedUpAt.toLocaleDateString('ar-EG')}, not today`);
+        console.log(`⏭️ Order #${order.id} - Picked up on different date:`, {
+          pickedUpAtStr,
+          pickedUpDate: `${pickedUpAt.getDate()}/${pickedUpAt.getMonth() + 1}/${pickedUpAt.getFullYear()}`,
+          targetDate: `${targetDay}/${targetMonth + 1}/${targetYear}`
+        });
       }
     }
-    
-    // ✅ تم إزالة الأولوية 3 (lastUpdated check) لأنها كانت بتظهر طلبات قديمة
     
     return false;
   });
   
-  console.log(`✅ Found ${result.length} orders sent to Bosta TODAY`);
+  console.log(`✅ Found ${result.length} orders sent to Bosta on ${targetDate.toLocaleDateString('ar-EG')}`);
+  
+  // 🔔 تحذير لو في طلبات محتاجة sync
+  const needsSyncCount = bostaOrders.length - bostaOrders.filter(o => {
+    const pickedUpAtStr = o.bosta?.pickedUpAt || 
+                         o.meta_data?.find(m => m.key === '_bosta_picked_up_at')?.value;
+    return !!pickedUpAtStr;
+  }).length;
+  
+  if (needsSyncCount > 0) {
+    console.warn(`⚠️ ${needsSyncCount} orders sent to Bosta but missing pickedUpAt data - Please run Bosta sync!`);
+  }
+  
   return result;
+}
+
+/**
+ * فلترة الأوردرات المُرسلة لبوسطة اليوم
+ */
+export function getOrdersDeliveredToday(orders) {
+  return getOrdersDeliveredByDate(orders, new Date());
+}
+
+/**
+ * 🆕 فلترة الأوردرات المُرسلة لبوسطة أمس
+ */
+export function getOrdersDeliveredYesterday(orders) {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return getOrdersDeliveredByDate(orders, yesterday);
 }
 
 

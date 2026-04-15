@@ -238,31 +238,31 @@ export class BostaAPI {
     
     if (deliveryPayment) {
       if (deliveryPayment.status === 'cash_on_delivery') {
-        // دفع عند الاستلام - كامل المبلغ + 10 جنيه
-        codAmount = totalAmount + 10;
-        console.log('💵 COD Mode: Cash on delivery - Total amount + 10:', codAmount);
+        // دفع عند الاستلام - كامل المبلغ + 20 جنيه
+        codAmount = totalAmount + 20;
+        console.log('💵 COD Mode: Cash on delivery - Total amount + 20:', codAmount);
       } else if (deliveryPayment.status === 'half_paid') {
-        // نصف المبلغ مدفوع - الباقي COD + 10 جنيه
+        // نصف المبلغ مدفوع - الباقي COD + 20 جنيه
         const paidAmount = Math.round(deliveryPayment.paidAmount || 0);
-        codAmount = Math.max(0, totalAmount - paidAmount) + 10;
-        console.log('💵 COD Mode: Half paid - Remaining + 10:', codAmount);
+        codAmount = Math.max(0, totalAmount - paidAmount) + 20;
+        console.log('💵 COD Mode: Half paid - Remaining + 20:', codAmount);
       } else if (deliveryPayment.status === 'fully_paid_no_delivery') {
-        // 🔥 مدفوع كامل بدون توصيل - فقط رسوم التوصيل + 10 جنيه
-        codAmount = shippingFee + 10;
-        console.log('💵 COD Mode: Fully paid no delivery - Shipping fee + 10:', {
+        // 🔥 مدفوع كامل بدون توصيل - فقط رسوم التوصيل + 20 جنيه
+        codAmount = shippingFee + 20;
+        console.log('💵 COD Mode: Fully paid no delivery - Shipping fee + 20:', {
           shippingFee,
-          extraFee: 10,
+          extraFee: 20,
           codAmount
         });
       } else if (deliveryPayment.status === 'fully_paid') {
-        // ✅ مدفوع كامل - فقط 10 جنيه
-        codAmount = 10;
-        console.log('💵 COD Mode: Fully paid - Extra 10 EGP only');
+        // ✅ مدفوع كامل - فقط 20 جنيه
+        codAmount = 20;
+        console.log('💵 COD Mode: Fully paid - Extra 20 EGP only');
       }
     } else {
-      // لو مفيش deliveryPayment، افتراضي COD = 10
-      codAmount = 10;
-      console.log('💵 COD Mode: No payment info - Default 10');
+      // لو مفيش deliveryPayment، افتراضي COD = 20
+      codAmount = 20;
+      console.log('💵 COD Mode: No payment info - Default 20');
     }
     
     console.log('💰 Final COD Amount:', codAmount);
