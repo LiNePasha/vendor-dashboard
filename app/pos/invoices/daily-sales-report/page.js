@@ -222,7 +222,7 @@ function DailySalesReportContent() {
           border: '2px solid #f59e0b'
         }}>
           <div style={{ fontSize: '14px', color: '#92400e', fontWeight: 'bold' }}>
-            رسوم التوصيل
+            رسوم الخدمة
           </div>
           <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#78350f', marginTop: '8px' }}>
             {totalOrders * 20} ج.م
