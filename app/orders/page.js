@@ -22,6 +22,7 @@ const STATUS_OPTIONS = [
 // 🎛️ Feature Flags - التحكم في الميزات
 const FEATURES = {
   ENABLE_BOSTA_UNLINK: false, // إزالة الربط ببوسطة | غير إلى false لتعطيل الميزة
+  ENABLE_BOSTA_MANUAL_LINK: false, // ربط يدوي ببوسطة (إدخال رقم تتبع يدويًا)
 };
 
 function OrdersContent() {
@@ -2091,6 +2092,82 @@ function OrdersContent() {
     }
   };
 
+  const linkToBostaManually = async (order) => {
+    try {
+      const existingTracking = order.bosta?.trackingNumber || order.meta_data?.find(m => m.key === '_bosta_tracking_number')?.value;
+      if (existingTracking) {
+        const shouldReplace = window.confirm(`هذا الطلب مربوط بالفعل ببوسطة برقم: ${existingTracking}\n\nهل تريد استبدال الرقم يدويًا؟`);
+        if (!shouldReplace) return;
+      }
+
+      const input = window.prompt('اكتب رقم تتبع بوسطة يدويًا:', existingTracking || '');
+      if (input === null) return;
+
+      const trackingNumber = input.trim();
+      if (!trackingNumber) {
+        setToast({ message: '⚠️ رقم التتبع مطلوب', type: 'error' });
+        return;
+      }
+
+      const nowIso = new Date().toISOString();
+      const manualBostaData = {
+        sent: true,
+        trackingNumber,
+        orderId: order.bosta?.orderId || `manual-${trackingNumber}`,
+        status: 'manually_linked',
+        statusCode: 10,
+        sentAt: order.bosta?.sentAt || nowIso,
+        lastUpdated: nowIso,
+        manualLinked: true
+      };
+
+      if (typeof order.id === 'number') {
+        const response = await fetch('/api/orders/update-bosta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: order.id, bostaData: manualBostaData })
+        });
+
+        if (!response.ok) {
+          throw new Error('فشل حفظ الربط اليدوي في الطلب');
+        }
+      } else {
+        await updatePOSInvoice(order.id, {
+          bosta: manualBostaData,
+          deliveryStatus: order.deliveryStatus || 'pending'
+        });
+      }
+
+      const updatedOrders = usePOSStore.getState().orders.map(o => {
+        if (o.id === order.id) {
+          return {
+            ...o,
+            bosta: manualBostaData,
+            meta_data: [
+              ...(o.meta_data || []).filter(m => !['_bosta_sent','_bosta_tracking_number','_bosta_order_id','_bosta_status','_bosta_status_code','_bosta_sent_at','_bosta_last_updated'].includes(m.key)),
+              { key: '_bosta_sent', value: 'yes' },
+              { key: '_bosta_tracking_number', value: trackingNumber },
+              { key: '_bosta_order_id', value: manualBostaData.orderId },
+              { key: '_bosta_status', value: manualBostaData.status },
+              { key: '_bosta_status_code', value: String(manualBostaData.statusCode) },
+              { key: '_bosta_sent_at', value: manualBostaData.sentAt },
+              { key: '_bosta_last_updated', value: manualBostaData.lastUpdated }
+            ]
+          };
+        }
+        return o;
+      });
+
+      usePOSStore.setState({ orders: [...updatedOrders] });
+      setPosInvoices(prev => prev.map(o => o.id === order.id ? { ...o, bosta: manualBostaData } : o));
+      forceRefresh();
+
+      setToast({ message: `✅ تم ربط الطلب يدويًا مع بوسطة\nرقم التتبع: ${trackingNumber}`, type: 'success' });
+    } catch (error) {
+      console.error('Error linking to Bosta manually:', error);
+      setToast({ message: '❌ فشل الربط اليدوي مع بوسطة', type: 'error' });
+    }
+  };
 
   const unlinkFromBosta = async (order) => {
     try {
@@ -2257,6 +2334,46 @@ function OrdersContent() {
         meta_data: updatedOrder.meta_data || prev?.meta_data,
       }));
     }
+  };
+
+  // 🆕 تحديث meta_data محليًا بعد الحفظ من المودال
+  const handleOrderMetaUpdate = (orderId, metaUpdates = {}) => {
+    if (!orderId || !metaUpdates || typeof metaUpdates !== 'object') return;
+
+    const mergeMetaData = (existingMeta = []) => {
+      const map = new Map((existingMeta || []).map((m) => [m.key, m.value]));
+
+      Object.entries(metaUpdates).forEach(([key, value]) => {
+        if (!key) return;
+        if (value === '' || value === null || value === undefined) {
+          map.delete(key);
+        } else {
+          map.set(key, value);
+        }
+      });
+
+      return Array.from(map.entries()).map(([key, value]) => ({ key, value }));
+    };
+
+    const currentOrders = usePOSStore.getState().orders;
+    const updatedOrders = currentOrders.map((order) => {
+      if (order.id !== orderId) return order;
+      return {
+        ...order,
+        meta_data: mergeMetaData(order.meta_data || []),
+      };
+    });
+
+    usePOSStore.setState({ orders: updatedOrders });
+
+    if (selectedOrder && selectedOrder.id === orderId) {
+      setSelectedOrder((prev) => ({
+        ...prev,
+        meta_data: mergeMetaData(prev?.meta_data || []),
+      }));
+    }
+
+    forceRefresh();
   };
 
   const copyToClipboard = (text) => {
@@ -3360,16 +3477,29 @@ function OrdersContent() {
                             )}
                           </div>
                         ) : bostaEnabled ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              sendToBosta(order);
-                            }}
-                            disabled={sendingToBosta === order.id}
-                            className="text-xs bg-purple-500 hover:bg-purple-600 text-white px-2 py-1 rounded font-bold disabled:opacity-50"
-                          >
-                            {sendingToBosta === order.id ? '⏳' : '📦 إرسال'}
-                          </button>
+                          <div className="space-y-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                sendToBosta(order);
+                              }}
+                              disabled={sendingToBosta === order.id}
+                              className="text-xs bg-purple-500 hover:bg-purple-600 text-white px-2 py-1 rounded font-bold disabled:opacity-50 w-full"
+                            >
+                              {sendingToBosta === order.id ? '⏳' : '📦 إرسال'}
+                            </button>
+                            {FEATURES.ENABLE_BOSTA_MANUAL_LINK && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  linkToBostaManually(order);
+                                }}
+                                className="text-xs bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded font-bold w-full"
+                              >
+                                ✍️ ربط يدوي
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-xs text-gray-400">-</span>
                         )}
@@ -3412,6 +3542,8 @@ function OrdersContent() {
                         (m.key === '_delivery_type' && m.value === 'store_pickup')
                       ) ? 'pickup' : 'delivery';
                       const kashierTxId = order.meta_data?.find(m => m.key === '_kashier_transaction_id')?.value;
+                      const orderSource = order.meta_data?.find(m => m.key === '_order_source')?.value;
+                      const isSpare2AppOrder = orderSource === 'spare2app';
                       const bostaTracking = order.bosta?.trackingNumber || order.meta_data?.find(m => m.key === '_bosta_tracking_number')?.value;
                       const bostaStatus = order.bosta?.status || order.meta_data?.find(m => m.key === '_bosta_status')?.value;
                       const bostaActiveMeta = order.bosta?.active ?? order.meta_data?.find(m => m.key === '_bosta_active')?.value;
@@ -3464,6 +3596,11 @@ function OrdersContent() {
                               )}
                               {isNew && order.status !== 'pending' && (
                                 <span className="bg-red-500 text-white text-[9px] px-1.5 py-0.5 rounded-full animate-pulse">🔔 جديد</span>
+                              )}
+                              {isSpare2AppOrder && (
+                                <span className="bg-cyan-600 text-white text-[9px] px-1.5 py-0.5 rounded-full">
+                                  ✨ spare2app
+                                </span>
                               )}
                               {showBostaBadge && (
                                 <span className="bg-purple-600 text-white text-[9px] px-1.5 py-0.5 rounded-full">
@@ -3650,16 +3787,29 @@ function OrdersContent() {
                                   )}
                                 </div>
                               ) : (order.status === 'processing' || order.status === 'completed') && deliveryType !== 'pickup' ? (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    sendToBosta(order);
-                                  }}
-                                  disabled={sendingToBosta === order.id}
-                                  className="w-full bg-purple-500 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-purple-600 disabled:opacity-50"
-                                >
-                                  {sendingToBosta === order.id ? '⏳' : '📦 إرسال'}
-                                </button>
+                                <div className="space-y-1">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      sendToBosta(order);
+                                    }}
+                                    disabled={sendingToBosta === order.id}
+                                    className="w-full bg-purple-500 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-purple-600 disabled:opacity-50"
+                                  >
+                                    {sendingToBosta === order.id ? '⏳' : '📦 إرسال'}
+                                  </button>
+                                  {FEATURES.ENABLE_BOSTA_MANUAL_LINK && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        linkToBostaManually(order);
+                                      }}
+                                      className="w-full bg-amber-500 text-white px-2 py-1 rounded text-[10px] font-bold hover:bg-amber-600"
+                                    >
+                                      ✍️ ربط يدوي
+                                    </button>
+                                  )}
+                                </div>
                               ) : order.status === 'pending' || order.status === 'on-hold' ? (
                                 <span className="text-xs text-gray-400">معلق</span>
                               ) : (
@@ -4014,18 +4164,30 @@ function OrdersContent() {
                               </button>
                             </div>
                           ) : (
-                            // إذا لم يتم الإرسال - زر الإرسال
-                            <button
-                              onClick={() => sendToBosta(order)}
-                              disabled={sendingToBosta === order.id}
-                              className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 
-                                       text-white px-3 py-2 rounded-lg text-sm font-bold
-                                       hover:from-purple-600 hover:to-indigo-700 
-                                       disabled:opacity-50 disabled:cursor-not-allowed
-                                       transition-all shadow-md hover:shadow-lg"
-                            >
-                              {sendingToBosta === order.id ? '⏳ جاري الإرسال...' : '📦 إرسال لبوسطة'}
-                            </button>
+                            // إذا لم يتم الإرسال - زر الإرسال + الربط اليدوي
+                            <div className="space-y-2">
+                              <button
+                                onClick={() => sendToBosta(order)}
+                                disabled={sendingToBosta === order.id}
+                                className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 
+                                         text-white px-3 py-2 rounded-lg text-sm font-bold
+                                         hover:from-purple-600 hover:to-indigo-700 
+                                         disabled:opacity-50 disabled:cursor-not-allowed
+                                         transition-all shadow-md hover:shadow-lg"
+                              >
+                                {sendingToBosta === order.id ? '⏳ جاري الإرسال...' : '📦 إرسال لبوسطة'}
+                              </button>
+                              {FEATURES.ENABLE_BOSTA_MANUAL_LINK && (
+                                <button
+                                  onClick={() => linkToBostaManually(order)}
+                                  className="w-full bg-gradient-to-r from-amber-500 to-orange-600 
+                                           text-white px-3 py-2 rounded-lg text-sm font-bold
+                                           hover:from-amber-600 hover:to-orange-700 transition-all shadow-md hover:shadow-lg"
+                                >
+                                  ✍️ ربط يدوي برقم تتبع
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
                       )}
@@ -4058,6 +4220,8 @@ function OrdersContent() {
             
             // 🌐 عرض طلبات الموقع (WooCommerce)
             const statusObj = STATUS_OPTIONS.find((s) => s.value === order.status);
+            const orderSource = order.meta_data?.find(m => m.key === '_order_source')?.value;
+            const isSpare2AppOrder = orderSource === 'spare2app';
             
             // 🔥 تحديد الطلبات الجديدة فعلاً حسب التاريخ (اليوم فقط)
             const orderDate = new Date(order.date_created);
@@ -4175,6 +4339,11 @@ function OrdersContent() {
                         {isNew && order.status !== 'pending' && (
                           <span className="inline-flex items-center gap-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">
                             <span className="relative">🔔 جديد</span>
+                          </span>
+                        )}
+                        {isSpare2AppOrder && (
+                          <span className="inline-flex items-center gap-1 bg-cyan-600 text-white text-xs px-2 py-1 rounded-full">
+                            ✨ spare2app
                           </span>
                         )}
                         {(() => {
@@ -4545,18 +4714,30 @@ function OrdersContent() {
                             </button>
                           </div>
                         ) : (
-                          // إذا لم يتم الإرسال - زر الإرسال
-                          <button
-                            onClick={() => sendToBosta(order)}
-                            disabled={sendingToBosta === order.id}
-                            className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 
-                                     text-white px-3 py-2 rounded-lg text-sm font-bold
-                                     hover:from-purple-600 hover:to-indigo-700 
-                                     disabled:opacity-50 disabled:cursor-not-allowed
-                                     transition-all shadow-md hover:shadow-lg"
-                          >
-                            {sendingToBosta === order.id ? '⏳ جاري الإرسال...' : '📦 إرسال لبوسطة'}
-                          </button>
+                          // إذا لم يتم الإرسال - زر الإرسال + الربط اليدوي
+                          <div className="space-y-2">
+                            <button
+                              onClick={() => sendToBosta(order)}
+                              disabled={sendingToBosta === order.id}
+                              className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 
+                                       text-white px-3 py-2 rounded-lg text-sm font-bold
+                                       hover:from-purple-600 hover:to-indigo-700 
+                                       disabled:opacity-50 disabled:cursor-not-allowed
+                                       transition-all shadow-md hover:shadow-lg"
+                            >
+                              {sendingToBosta === order.id ? '⏳ جاري الإرسال...' : '📦 إرسال لبوسطة'}
+                            </button>
+                            {FEATURES.ENABLE_BOSTA_MANUAL_LINK && (
+                              <button
+                                onClick={() => linkToBostaManually(order)}
+                                className="w-full bg-gradient-to-r from-amber-500 to-orange-600 
+                                         text-white px-3 py-2 rounded-lg text-sm font-bold
+                                         hover:from-amber-600 hover:to-orange-700 transition-all shadow-md hover:shadow-lg"
+                              >
+                                ✍️ ربط يدوي برقم تتبع
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
@@ -4619,6 +4800,7 @@ function OrdersContent() {
             setNoteText('');
           }}
           onShippingUpdate={handleShippingUpdate}
+          onOrderMetaUpdate={handleOrderMetaUpdate}
         />
       )}
       

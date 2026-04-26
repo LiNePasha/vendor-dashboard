@@ -304,8 +304,8 @@ class Spare2App_Vendor_Analytics_Endpoint {
             
             $order_timestamp = $order_date->getTimestamp();
             
-            // Include order if in date range and has a valid paid status
-            $valid_statuses = array('processing', 'completed', 'on-hold', 'pending');
+            // Include order if in date range and has a valid paid status (only processing & completed)
+            $valid_statuses = array('processing', 'completed');
             $is_valid_status = in_array($order->get_status(), $valid_statuses);
             $is_in_range = $order_timestamp >= $start_timestamp && $order_timestamp <= $end_timestamp;
             

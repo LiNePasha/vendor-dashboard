@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { invoiceStorage } from "@/app/lib/localforage";
+import { uploadToCloudinary } from "@/app/lib/cloudinary";
 import BostaLocationSelector from "@/components/BostaLocationSelector";
 
 export default function OrderDetailsModal({ 
@@ -18,7 +19,8 @@ export default function OrderDetailsModal({
   onSaveNote,
   savingNote,
   onCancelNote,
-  onShippingUpdate
+  onShippingUpdate,
+  onOrderMetaUpdate
 }) {
   const modalRef = useRef(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -57,6 +59,11 @@ export default function OrderDetailsModal({
   const [selectedVariableProduct, setSelectedVariableProduct] = useState(null);
   const [showVariationsModal, setShowVariationsModal] = useState(false);
   const [selectedVariation, setSelectedVariation] = useState(null);
+  const [transferImageInput, setTransferImageInput] = useState("");
+  const [cashierCodeInput, setCashierCodeInput] = useState("");
+  const [savingOrderMeta, setSavingOrderMeta] = useState(false);
+  const [transferImageFile, setTransferImageFile] = useState(null);
+  const [uploadingTransferImage, setUploadingTransferImage] = useState(false);
 
   if (!isOpen || !order) return null;
 
@@ -74,7 +81,11 @@ export default function OrderDetailsModal({
   const paymentNote = getMetaValue('_payment_note');
   const instaPayProof = getMetaValue('_instapay_payment_proof');
   const orderImage = getMetaValue('order_image');
+  const orderSource = getMetaValue('_order_source');
+  const cashierCode = getMetaValue('_kashier_transaction_id');
   const shippingAddressIndex = getMetaValue('_shipping_address_index');
+  const isSpare2AppOrder = orderSource === 'spare2app';
+  const hasCashierCode = !!String(cashierCode || '').trim();
 
   const isHalfPayment = paymentType === 'half_payment';
   const isFullPayment = paymentType === 'full_payment';
@@ -112,7 +123,113 @@ export default function OrderDetailsModal({
     // 🆕 Initialize line items
     setLineItems(order?.line_items ? JSON.parse(JSON.stringify(order.line_items)) : []);
     setEditingItems(false);
+    setTransferImageInput(orderImage || '');
+    setCashierCodeInput(cashierCode || '');
+    setTransferImageFile(null);
   }, [order]);
+
+  const updateOrderMetaKey = async (key, value) => {
+    const response = await fetch('/api/orders/update-meta', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderId: order.id,
+        metaData: { key, value }
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData?.error || `فشل تحديث ${key}`);
+    }
+  };
+
+  const handleSaveTransferImage = async () => {
+    try {
+      setSavingOrderMeta(true);
+      await updateOrderMetaKey('order_image', transferImageInput.trim());
+
+      if (onOrderMetaUpdate) {
+        onOrderMetaUpdate(order.id, {
+          order_image: transferImageInput.trim()
+        });
+      }
+
+      if (showToast) showToast('✅ تم تحديث صورة التحويل');
+    } catch (error) {
+      console.error('Transfer image update error:', error);
+      if (showToast) showToast(error.message || '❌ فشل تحديث صورة التحويل', 'error');
+    } finally {
+      setSavingOrderMeta(false);
+    }
+  };
+
+  const handleUploadTransferImageFromDevice = async () => {
+    try {
+      if (!transferImageFile) {
+        if (showToast) showToast('⚠️ اختار صورة الأول', 'error');
+        return;
+      }
+
+      setUploadingTransferImage(true);
+      const uploadedUrl = await uploadToCloudinary(transferImageFile);
+
+      await updateOrderMetaKey('order_image', uploadedUrl);
+      setTransferImageInput(uploadedUrl);
+
+      if (onOrderMetaUpdate) {
+        onOrderMetaUpdate(order.id, {
+          order_image: uploadedUrl
+        });
+      }
+
+      setTransferImageFile(null);
+      if (showToast) showToast('✅ تم رفع الصورة وحفظها بنجاح');
+    } catch (error) {
+      console.error('Transfer image upload error:', error);
+      if (showToast) showToast(error.message || '❌ فشل رفع الصورة', 'error');
+    } finally {
+      setUploadingTransferImage(false);
+    }
+  };
+
+  const handleSaveCashierCode = async () => {
+    try {
+      const normalizedCode = cashierCodeInput.trim();
+      setSavingOrderMeta(true);
+
+      await updateOrderMetaKey('_kashier_transaction_id', normalizedCode);
+
+      // ✅ حسب الطلب: لو اتحط كود كاشير نمسح صورة التحويل
+      if (normalizedCode) {
+        await updateOrderMetaKey('order_image', '');
+        setTransferImageInput('');
+      }
+
+      if (onOrderMetaUpdate) {
+        onOrderMetaUpdate(order.id, normalizedCode
+          ? {
+              _kashier_transaction_id: normalizedCode,
+              order_image: ''
+            }
+          : {
+              _kashier_transaction_id: normalizedCode
+            }
+        );
+      }
+
+      if (showToast) {
+        showToast(normalizedCode
+          ? '✅ تم حفظ كود الكاشير وتم حذف صورة التحويل تلقائيًا'
+          : '✅ تم مسح كود الكاشير');
+      }
+    } catch (error) {
+      console.error('Cashier code update error:', error);
+      if (showToast) showToast(error.message || '❌ فشل حفظ كود الكاشير', 'error');
+    } finally {
+      setSavingOrderMeta(false);
+    }
+  };
 
   // Handle status change
   const handleStatusChange = async (newStatus) => {
@@ -691,6 +808,11 @@ export default function OrderDetailsModal({
                   }
                 })()}
               </p>
+              {isSpare2AppOrder && (
+                <span className="inline-flex mt-1 items-center gap-1 bg-cyan-500/90 text-white text-[11px] px-2 py-0.5 rounded-full font-bold">
+                  ✨ spare2app
+                </span>
+              )}
             </div>
           </div>
           <button
@@ -955,7 +1077,7 @@ export default function OrderDetailsModal({
           </section>
 
           {/* InstaPay Payment Proof */}
-          {instaPayProof && (
+          {instaPayProof && !hasCashierCode && (
             <section className="bg-indigo-50 rounded-lg sm:rounded-xl p-3 sm:p-4 text-gray-600">
               <h3 className="font-bold text-sm sm:text-base mb-2 sm:mb-3 flex items-center gap-2">
                 <span>📱</span> إثبات الدفع (InstaPay)
@@ -988,36 +1110,137 @@ export default function OrderDetailsModal({
             </section>
           )}
 
-          {/* Transfer Image (order_image) */}
-          {orderImage && (
+          {/* Spare2App Controls: Transfer Image + Cashier Code */}
+          {isSpare2AppOrder && (
             <section className="bg-blue-50 rounded-lg sm:rounded-xl p-3 sm:p-4 text-gray-600">
               <h3 className="font-bold text-sm sm:text-base mb-2 sm:mb-3 flex items-center gap-2">
-                <span>🖼️</span> صورة التحويل
+                <span>✨</span> أدوات Spare2App
               </h3>
-              <div className="relative group">
-                <img
-                  src={orderImage}
-                  alt="صورة التحويل"
-                  className="w-full max-w-sm sm:max-w-md rounded-lg border-2 border-blue-300 shadow-md hover:shadow-xl transition-all cursor-pointer"
-                  onClick={() => window.open(orderImage, '_blank')}
-                />
-                <div className="mt-2 flex flex-wrap gap-2">
+
+              {/* Transfer Image */}
+              {!hasCashierCode ? (
+                <div className="bg-white rounded-lg border border-blue-200 p-3 mb-3">
+                  <div className="text-xs sm:text-sm font-bold text-blue-800 mb-2">🖼️ صورة التحويل</div>
+
+                  {orderImage ? (
+                    <div className="relative group mb-2">
+                      <img
+                        src={orderImage}
+                        alt="صورة التحويل"
+                        className="w-full max-w-sm sm:max-w-md rounded-lg border-2 border-blue-300 shadow-md hover:shadow-xl transition-all cursor-pointer"
+                        onClick={() => window.open(orderImage, '_blank')}
+                      />
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button
+                          onClick={() => window.open(orderImage, '_blank')}
+                          className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium"
+                        >
+                          🔍 عرض بالحجم الكامل
+                        </button>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(orderImage);
+                            if (showToast) showToast("تم نسخ رابط الصورة!");
+                          }}
+                          className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium"
+                        >
+                          📋 نسخ الرابط
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-500 mb-2">لا توجد صورة تحويل حالياً</div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setTransferImageFile(file);
+                      }}
+                      className="flex-1 border border-blue-300 rounded-lg px-3 py-2 text-xs sm:text-sm bg-white"
+                      disabled={savingOrderMeta || uploadingTransferImage}
+                    />
+                    <button
+                      onClick={handleUploadTransferImageFromDevice}
+                      disabled={savingOrderMeta || uploadingTransferImage || !transferImageFile}
+                      className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs sm:text-sm font-bold disabled:opacity-50"
+                    >
+                      {uploadingTransferImage ? '⏳ جاري الرفع...' : '📤 رفع من الموبايل'}
+                    </button>
+                  </div>
+
+                  {transferImageFile && (
+                    <p className="text-[11px] text-gray-600 mt-2">
+                      الملف المختار: <span className="font-semibold">{transferImageFile.name}</span>
+                    </p>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                    <input
+                      type="url"
+                      value={transferImageInput}
+                      onChange={(e) => setTransferImageInput(e.target.value)}
+                      placeholder="https://... رابط صورة التحويل"
+                      className="flex-1 border border-blue-300 rounded-lg px-3 py-2 text-xs sm:text-sm"
+                      disabled={savingOrderMeta || uploadingTransferImage}
+                    />
+                    <button
+                      onClick={handleSaveTransferImage}
+                      disabled={savingOrderMeta || uploadingTransferImage}
+                      className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs sm:text-sm font-bold disabled:opacity-50"
+                    >
+                      {savingOrderMeta ? '⏳ جاري...' : '💾 حفظ الصورة'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTransferImageInput('');
+                      }}
+                      disabled={savingOrderMeta || uploadingTransferImage}
+                      className="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs sm:text-sm font-bold disabled:opacity-50"
+                    >
+                      مسح الحقل
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-100 border border-gray-300 rounded-lg p-3 mb-3">
+                  <p className="text-xs sm:text-sm text-gray-700 font-medium">
+                    ✅ تم الدفع
+                  </p>
+                </div>
+              )}
+
+              {/* Cashier Code */}
+              <div className="bg-white rounded-lg border border-purple-200 p-3">
+                <div className="text-xs sm:text-sm font-bold text-purple-800 mb-2">🔖 كود كاشير</div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={cashierCodeInput}
+                    onChange={(e) => setCashierCodeInput(e.target.value)}
+                    placeholder="اكتب كود كاشير"
+                    className="flex-1 border border-purple-300 rounded-lg px-3 py-2 text-xs sm:text-sm"
+                    disabled={savingOrderMeta}
+                  />
                   <button
-                    onClick={() => window.open(orderImage, '_blank')}
-                    className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium"
+                    onClick={handleSaveCashierCode}
+                    disabled={savingOrderMeta}
+                    className="px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs sm:text-sm font-bold disabled:opacity-50"
                   >
-                    🔍 عرض بالحجم الكامل
-                  </button>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(orderImage);
-                      if (showToast) showToast("تم نسخ رابط الصورة!");
-                    }}
-                    className="text-xs sm:text-sm px-2 sm:px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all font-medium"
-                  >
-                    📋 نسخ الرابط
+                    {savingOrderMeta ? '⏳ جاري...' : '💾 حفظ كود كاشير'}
                   </button>
                 </div>
+                <p className="text-[11px] text-gray-500 mt-2">
+                  ملحوظة: عند حفظ كود كاشير، صورة التحويل يتم حذفها تلقائيًا.
+                </p>
+                {cashierCode && (
+                  <p className="text-[11px] text-purple-700 mt-1">
+                    الحالي: <span className="font-mono font-bold">{cashierCode}</span>
+                  </p>
+                )}
               </div>
             </section>
           )}
