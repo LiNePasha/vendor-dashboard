@@ -73,7 +73,12 @@ export default function OrderDetailsModal({
   console.log('🔍 Customer Note:', order.customer_note);
 
   // 🆕 استخراج بيانات الدفع من meta_data
-  const getMetaValue = (key) => order.meta_data?.find(m => m.key === key)?.value;
+  // 🔥 FIX: نستخدم آخر entry بنفس الـ key (مش الأولى) عشان لو في duplicates تظهر الأحدث
+  const getMetaValue = (key) => {
+    const entries = order.meta_data?.filter(m => m.key === key);
+    if (!entries || entries.length === 0) return undefined;
+    return entries[entries.length - 1].value;
+  };
 
   const paymentType = getMetaValue('_payment_type');
   const paidAmount = getMetaValue('_paid_amount');
@@ -141,12 +146,20 @@ export default function OrderDetailsModal({
   }, [order]);
 
   const updateOrderMetaKey = async (key, value) => {
+    // 🔥 FIX: ابعت الـ id بتاع الـ meta entry عشان WooCommerce يعمل UPDATE مش INSERT
+    // لو بعتنا بدون id، WooCommerce بيضيف entry جديدة وبيخلي القديمة — فـ find() بترجع القديمة
+    const existingMeta = order.meta_data?.find(m => m.key === key);
+    const metaPayload = { key, value };
+    if (existingMeta?.id) {
+      metaPayload.id = existingMeta.id;
+    }
+
     const response = await fetch('/api/orders/update-meta', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         orderId: order.id,
-        metaData: { key, value }
+        metaData: metaPayload
       })
     });
 
@@ -1098,8 +1111,8 @@ export default function OrderDetailsModal({
             </div>
           </section>
 
-          {/* InstaPay Payment Proof */}
-          {instaPayProof && !hasCashierCode && (
+          {/* InstaPay Payment Proof - يظهر فقط لو مش Spare2App order (اللي عندها قسمها الخاص) */}
+          {instaPayProof && !hasCashierCode && !isSpare2AppOrder && (
             <section className="bg-indigo-50 rounded-lg sm:rounded-xl p-3 sm:p-4 text-gray-600">
               <h3 className="font-bold text-sm sm:text-base mb-2 sm:mb-3 flex items-center gap-2">
                 <span>📱</span> إثبات الدفع (InstaPay)
@@ -1143,6 +1156,19 @@ export default function OrderDetailsModal({
               {!hasCashierCode ? (
                 <div className="bg-white rounded-lg border border-blue-200 p-3 mb-3">
                   <div className="text-xs sm:text-sm font-bold text-blue-800 mb-2">🖼️ صورة التحويل</div>
+
+                  {/* لو العميل بعت InstaPay proof، اعرضها هنا */}
+                  {instaPayProof && !orderImage && (
+                    <div className="relative group mb-2">
+                      <p className="text-[11px] text-indigo-600 font-semibold mb-1">📱 إثبات دفع العميل (InstaPay):</p>
+                      <img
+                        src={instaPayProof}
+                        alt="إثبات الدفع InstaPay"
+                        className="w-full max-w-sm sm:max-w-md rounded-lg border-2 border-indigo-300 shadow-md hover:shadow-xl transition-all cursor-pointer"
+                        onClick={() => window.open(instaPayProof, '_blank')}
+                      />
+                    </div>
+                  )}
 
                   {orderImage ? (
                     <div className="relative group mb-2">

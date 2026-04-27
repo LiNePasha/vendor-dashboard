@@ -1,31 +1,23 @@
 /**
- * Upload image to Cloudinary via API route
+ * Upload image to Cloudinary via internal API route (server-side)
  * @param {File} file - The image file to upload
  * @returns {Promise<string>} - The uploaded image URL
  */
 export async function uploadToCloudinary(file) {
   const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || 'employees');
-  
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  
-  if (!cloudName) {
-    throw new Error('Cloudinary configuration missing');
-  }
+  formData.append('image', file);
 
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-    {
-      method: 'POST',
-      body: formData,
-    }
-  );
+  const response = await fetch('/api/upload-image', {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  });
 
   if (!response.ok) {
-    throw new Error('فشل رفع الصورة');
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.error || 'فشل رفع الصورة');
   }
 
   const data = await response.json();
-  return data.secure_url;
+  return data.url;
 }

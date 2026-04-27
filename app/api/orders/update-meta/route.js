@@ -24,6 +24,13 @@ export async function POST(req) {
     // تحديث meta_data للطلب
     const updateUrl = `${API_BASE}/wp-json/wc/v3/orders/${orderId}`;
     
+    // 🔥 FIX: لو في id → WooCommerce يعمل UPDATE للـ entry الموجودة
+    // لو مفيش id → WooCommerce يعمل INSERT entry جديدة (بيخلي القديمة!)
+    const metaEntry = { key: metaData.key, value: metaData.value };
+    if (metaData.id) {
+      metaEntry.id = metaData.id;
+    }
+    
     const res = await fetch(updateUrl, {
       method: 'PUT',
       headers: {
@@ -31,12 +38,7 @@ export async function POST(req) {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        meta_data: [
-          {
-            key: metaData.key,
-            value: metaData.value
-          }
-        ]
+        meta_data: [ metaEntry ]
       }),
       cache: "no-store",
     });
