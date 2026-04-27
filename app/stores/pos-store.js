@@ -984,6 +984,7 @@ const usePOSStore = create(persist((set, get) => ({
       if (filters.after) params.append('after', filters.after);
       if (filters.before) params.append('before', filters.before);
       if (filters.search) params.append('search', filters.search); // 🆕 دعم البحث
+      if (filters.vendor_id) params.append('vendor_id', filters.vendor_id); // 🆕 فلتر التاجر للأدمن
       
       const res = await fetch(`/api/orders?${params}`, {
         credentials: 'include',

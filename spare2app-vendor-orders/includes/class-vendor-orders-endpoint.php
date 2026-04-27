@@ -74,6 +74,11 @@ class Spare2App_Vendor_Orders_Endpoint {
                     'default' => 1,
                     'minimum' => 1,
                 ),
+                'vendor_id' => array(
+                    'description' => 'Filter by vendor ID (admin only)',
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
             ),
         ));
         
@@ -175,6 +180,14 @@ class Spare2App_Vendor_Orders_Endpoint {
         $max_total = $request->get_param('max_total');
         $per_page = $request->get_param('per_page') ?: 20;
         $page = $request->get_param('page') ?: 1;
+        $vendor_id = absint($request->get_param('vendor_id'));
+        $is_admin = current_user_can('manage_woocommerce');
+        
+        // 🔒 الأمان: التاجر يظل تاجر حتى لو عنده manage_woocommerce بسبب WCFM
+        // wcfm_is_vendor أدق وأحق من capability check
+        if ($is_admin && function_exists('wcfm_is_vendor') && wcfm_is_vendor($current_user_id)) {
+            $is_admin = false;
+        }
         
         // Debug logging
         error_log('📅 Spare2App Vendor Orders - Date Filters: after=' . $after . ', before=' . $before);
@@ -188,8 +201,15 @@ class Spare2App_Vendor_Orders_Endpoint {
         // Calculate offset
         $offset = ($page - 1) * $per_page;
         
-        // Get vendor orders from WCFM table
-        $vendor_order_ids = $this->get_vendor_order_ids($current_user_id);
+        // Get orders based on role:
+        // - Vendor: only their own orders
+        // - Admin: all orders, or specific vendor orders when vendor_id is provided
+        $target_vendor_id = $current_user_id;
+        if ($is_admin) {
+            $target_vendor_id = $vendor_id > 0 ? $vendor_id : 0;
+        }
+
+        $vendor_order_ids = $this->get_vendor_order_ids($target_vendor_id);
         
         if (empty($vendor_order_ids)) {
             return $this->prepare_response(array(), 0, $page, $per_page);
@@ -341,8 +361,32 @@ class Spare2App_Vendor_Orders_Endpoint {
     /**
      * Get vendor order IDs from WCFM
      */
-    private function get_vendor_order_ids($vendor_id) {
+    private function get_vendor_order_ids($vendor_id = 0) {
         global $wpdb;
+
+        // Admin without vendor filter => all orders
+        if ($vendor_id <= 0) {
+            // 🔒 الأمان: تحقق إنه أدمن فعلاً مش تاجر عنده manage_woocommerce
+            $current_uid = get_current_user_id();
+            $is_true_admin = current_user_can('manage_woocommerce') &&
+                             !(function_exists('wcfm_is_vendor') && wcfm_is_vendor($current_uid));
+            if (!$is_true_admin) {
+                // تاجر بدون ID = ممنوع يشوف كل الأوردرات
+                return array();
+            }
+            $args = array(
+                'limit' => -1,
+                'return' => 'ids',
+                'orderby' => 'date',
+                'order' => 'DESC',
+            );
+            return wc_get_orders($args);
+        }
+
+        $vendor_id = intval($vendor_id);
+        if ($vendor_id <= 0) {
+            return array();
+        }
         
         // Try WCFM table first
         $table_name = $wpdb->prefix . 'wcfm_marketplace_orders';
@@ -356,16 +400,42 @@ class Spare2App_Vendor_Orders_Endpoint {
                 $vendor_id
             ));
             
-            return array_map('intval', $order_ids);
+            if (!empty($order_ids)) {
+                return array_map('intval', $order_ids);
+            }
         }
-        
-        // Fallback: get all orders (for admin or non-WCFM setups)
+
+        // Fallback for admin: derive orders from product authors
         if (current_user_can('manage_woocommerce')) {
-            $args = array(
+            $all_order_ids = wc_get_orders(array(
                 'limit' => -1,
                 'return' => 'ids',
-            );
-            return wc_get_orders($args);
+                'orderby' => 'date',
+                'order' => 'DESC',
+            ));
+
+            $filtered = array();
+            foreach ($all_order_ids as $order_id) {
+                $order = wc_get_order($order_id);
+                if (!$order) {
+                    continue;
+                }
+
+                foreach ($order->get_items() as $item) {
+                    $product = $item->get_product();
+                    if (!$product) {
+                        continue;
+                    }
+
+                    $product_author = intval(get_post_field('post_author', $product->get_id()));
+                    if ($product_author === $vendor_id) {
+                        $filtered[] = intval($order_id);
+                        break;
+                    }
+                }
+            }
+
+            return $filtered;
         }
         
         return array();

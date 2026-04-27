@@ -94,6 +94,13 @@ export default function TopNavbar() {
   const vendorInfo = usePOSStore((s) => s.vendorInfo);
   const storeUrl = getVendorStoreLink(vendorInfo?.id);
   const storeLogo = getVendorLogo(vendorInfo?.id);
+
+  // قراءة دور المستخدم من الكوكي
+  const [userRoleLabel, setUserRoleLabel] = useState(null);
+  useEffect(() => {
+    const match = document.cookie.match(/(?:^|;\s*)userRole=([^;]*)/);
+    setUserRoleLabel(match ? match[1] : null);
+  }, []);
   
   // Mobile Menu State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -170,12 +177,32 @@ export default function TopNavbar() {
                         <p className="text-xs text-gray-500 flex items-center gap-1">
                           <span>المتجر</span>
                           <span className="text-[10px]">↗️</span>
+                          {userRoleLabel && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                              userRoleLabel === 'admin'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {userRoleLabel === 'admin' ? 'ادمن' : 'تاجر'}
+                            </span>
+                          )}
                         </p>
                       </a>
                     ) : (
                       <>
                         <h1 className="font-bold text-gray-800">Spare2App</h1>
-                        <p className="text-xs text-gray-500">لوحة التحكم</p>
+                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                          <span>لوحة التحكم</span>
+                          {userRoleLabel && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                              userRoleLabel === 'admin'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {userRoleLabel === 'admin' ? 'ادمن' : 'تاجر'}
+                            </span>
+                          )}
+                        </p>
                       </>
                     )}
                   </div>

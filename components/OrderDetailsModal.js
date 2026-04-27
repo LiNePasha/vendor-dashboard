@@ -83,6 +83,18 @@ export default function OrderDetailsModal({
   const orderImage = getMetaValue('order_image');
   const orderSource = getMetaValue('_order_source');
   const cashierCode = getMetaValue('_kashier_transaction_id');
+  const paymentUpdatedAt = getMetaValue('_payment_updated_at');
+
+  const formatPaymentDate = (isoStr) => {
+    if (!isoStr) return '';
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleString('ar-EG', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: true
+      });
+    } catch { return isoStr; }
+  };
   const shippingAddressIndex = getMetaValue('_shipping_address_index');
   const isSpare2AppOrder = orderSource === 'spare2app';
   const hasCashierCode = !!String(cashierCode || '').trim();
@@ -147,11 +159,14 @@ export default function OrderDetailsModal({
   const handleSaveTransferImage = async () => {
     try {
       setSavingOrderMeta(true);
+      const nowIso = new Date().toISOString();
       await updateOrderMetaKey('order_image', transferImageInput.trim());
+      await updateOrderMetaKey('_payment_updated_at', nowIso);
 
       if (onOrderMetaUpdate) {
         onOrderMetaUpdate(order.id, {
-          order_image: transferImageInput.trim()
+          order_image: transferImageInput.trim(),
+          _payment_updated_at: nowIso
         });
       }
 
@@ -174,12 +189,15 @@ export default function OrderDetailsModal({
       setUploadingTransferImage(true);
       const uploadedUrl = await uploadToCloudinary(transferImageFile);
 
+      const nowIso = new Date().toISOString();
       await updateOrderMetaKey('order_image', uploadedUrl);
+      await updateOrderMetaKey('_payment_updated_at', nowIso);
       setTransferImageInput(uploadedUrl);
 
       if (onOrderMetaUpdate) {
         onOrderMetaUpdate(order.id, {
-          order_image: uploadedUrl
+          order_image: uploadedUrl,
+          _payment_updated_at: nowIso
         });
       }
 
@@ -197,8 +215,10 @@ export default function OrderDetailsModal({
     try {
       const normalizedCode = cashierCodeInput.trim();
       setSavingOrderMeta(true);
+      const nowIso = new Date().toISOString();
 
       await updateOrderMetaKey('_kashier_transaction_id', normalizedCode);
+      await updateOrderMetaKey('_payment_updated_at', nowIso);
 
       // ✅ حسب الطلب: لو اتحط كود كاشير نمسح صورة التحويل
       if (normalizedCode) {
@@ -210,10 +230,12 @@ export default function OrderDetailsModal({
         onOrderMetaUpdate(order.id, normalizedCode
           ? {
               _kashier_transaction_id: normalizedCode,
-              order_image: ''
+              order_image: '',
+              _payment_updated_at: nowIso
             }
           : {
-              _kashier_transaction_id: normalizedCode
+              _kashier_transaction_id: normalizedCode,
+              _payment_updated_at: nowIso
             }
         );
       }
@@ -1206,9 +1228,9 @@ export default function OrderDetailsModal({
                   </div>
                 </div>
               ) : (
-                <div className="bg-gray-100 border border-gray-300 rounded-lg p-3 mb-3">
-                  <p className="text-xs sm:text-sm text-gray-700 font-medium">
-                    ✅ تم الدفع
+                <div className="bg-green-50 border border-green-300 rounded-lg p-3 mb-3">
+                  <p className="text-xs sm:text-sm text-green-800 font-bold">
+                    ✅ تم الدفع{paymentUpdatedAt ? ` — ${formatPaymentDate(paymentUpdatedAt)}` : ''}
                   </p>
                 </div>
               )}
@@ -1239,6 +1261,11 @@ export default function OrderDetailsModal({
                 {cashierCode && (
                   <p className="text-[11px] text-purple-700 mt-1">
                     الحالي: <span className="font-mono font-bold">{cashierCode}</span>
+                  </p>
+                )}
+                {paymentUpdatedAt && (
+                  <p className="text-[11px] text-green-700 mt-1 font-semibold">
+                    🕐 تم الدفع: {formatPaymentDate(paymentUpdatedAt)}
                   </p>
                 )}
               </div>

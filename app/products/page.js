@@ -115,6 +115,11 @@ export default function ProductsPage() {
   const [deletingProduct, setDeletingProduct] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Admin states
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [vendorsList, setVendorsList] = useState([]);
+  const [selectedVendorId, setSelectedVendorId] = useState("");
+
   // Get vendor info for logo fallback
   const vendorInfo = usePOSStore((s) => s.vendorInfo);
   const vendorLogo = getVendorLogo(vendorInfo?.id);
@@ -253,11 +258,33 @@ export default function ProductsPage() {
   // Initial load only - تحميل كل المنتجات مرة واحدة
   useEffect(() => {
     if (!initialized) {
+      // كشف الأدمن
+      const roleMatch = document.cookie.match(/(?:^|;\s*)userRole=([^;]*)/);
+      const isAdmin = roleMatch && roleMatch[1] === 'admin';
+      setIsAdminUser(isAdmin);
+
+      if (isAdmin) {
+        // جلب قائمة التجار
+        fetch('/api/vendors', { credentials: 'include' })
+          .then(r => r.ok ? r.json() : { vendors: [] })
+          .then(data => setVendorsList(data.vendors || []))
+          .catch(() => {});
+      }
+
       fetchProducts();
       setInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // إعادة تحميل المنتجات لما الأدمن يغير التاجر
+  useEffect(() => {
+    if (initialized) {
+      setPage(1); // 🆕 إعادة تعيين الـ page للـ 1
+      fetchProducts(true, selectedVendorId, 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVendorId]);
 
   // دالة تحميل الفئات من /api/categories
   const loadCategories = async () => {
@@ -283,18 +310,26 @@ export default function ProductsPage() {
   };
 
   // 🚀 تحميل كل المنتجات مرة واحدة (مثل الكاشير)
-  const fetchProducts = async (forceRefresh = false) => {
+  const fetchProducts = async (forceRefresh = false, vendorId = "", pageNum = 1) => {
     if (__products_fetch_in_flight && !forceRefresh) {
       return;
     }
     __products_fetch_in_flight = true;
     try {
-      // محاولة تحميل من الكاش أولاً
-      if (!forceRefresh) {
+      // 🆕 Logic للـ pagination:
+      // - لو vendorId موجود: حمل كل شيء بدون pagination (per_page عالي جداً)
+      // - لو بدون vendorId: استخدم pagination (50 منتج في الصفحة)
+      const isPaginationMode = !vendorId; // pagination فقط للكل
+      const currentPerPage = isPaginationMode ? 50 : 500; // 500 = "كل شيء" بدون pagination فعلية
+      
+      // 🆕 عند استخدام vendor_id، لا نستخدم الـ cache (لأنها قد تكون من vendor سابق)
+      if (!forceRefresh && !vendorId && pageNum === 1) {
         const cache = await productsCacheStorage.getCache();
         if (cache && cache.products && cache.products.length > 0) {
           setProducts(cache.products);
           setCategories(cache.categories || []);
+          setTotalPages(cache.pagination?.totalPages || 1);
+          setPage(1);
           setLoading(false);
           // تحقق من freshness
           const isStale = await productsCacheStorage.isCacheStale(3 * 60 * 1000);
@@ -310,9 +345,13 @@ export default function ProductsPage() {
         setLoading(true);
       }
       
-      // 🚀 استخدام Cashier API مع all=true - أسرع وأكثر كفاءة (نفس الكاشير)
+      // 🚀 استخدام Cashier API مع pagination عند الحاجة
       const timestamp = Date.now();
-      const res = await fetch(`/api/cashier/initial?all=true&_t=${timestamp}`, {
+      const apiUrl = vendorId
+        ? `/api/cashier/initial?all=true&vendor_id=${vendorId}&per_page=${currentPerPage}&page=1&_t=${timestamp}`
+        : `/api/cashier/initial?all=true&per_page=${currentPerPage}&page=${pageNum}&_t=${timestamp}`;
+      
+      const res = await fetch(apiUrl, {
         credentials: "include",
         cache: 'no-store',
         headers: {
@@ -327,23 +366,28 @@ export default function ProductsPage() {
       // Cashier API بيرجع البيانات مباشرة بدون success flag
       const allProducts = data.products || [];
       const allCategories = data.categories || [];
+      const pagination = data.pagination || {};
       
       // 🔥 إزالة المنتجات المكررة بناءً على ID
       const uniqueProducts = Array.from(
         new Map(allProducts.map(p => [p.id, p])).values()
       );
       
-      console.log(`✅ تم تحميل ${allProducts.length} منتج (${uniqueProducts.length} منتج فريد) من Cashier API`);
+      console.log(`✅ تم تحميل ${allProducts.length} منتج (${uniqueProducts.length} منتج فريد)${vendorId ? ` للتاجر ${vendorId}` : ` - الصفحة ${pageNum}/${pagination.totalPages || 1}`}`);
       
       setProducts(uniqueProducts);
       setCategories(allCategories);
+      setTotalPages(pagination.totalPages || 1);
+      setPage(pageNum);
       
-      // 💾 حفظ في الكاش
-      await productsCacheStorage.saveCache(
-          uniqueProducts,
-          allCategories,
-          { totalPages, total: uniqueProducts.length }
-      );
+      // 💾 حفظ في الـ cache - 🆕 فقط لما تكون الصفحة الأولى وبدون vendor_id
+      if (!vendorId && pageNum === 1) {
+        await productsCacheStorage.saveCache(
+            uniqueProducts,
+            allCategories,
+            { totalPages: pagination.totalPages || 1, total: pagination.total || uniqueProducts.length }
+        );
+      }
 
       setLoading(false);
     } catch (error) {
@@ -630,7 +674,10 @@ export default function ProductsPage() {
               <select
                 className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white font-medium text-sm"
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => {
+                  setFilterStatus(e.target.value);
+                  setPage(1);
+                }}
               >
                 <option value="all">📊 كل الحالات</option>
                 <option value="publish">✓ منشور</option>
@@ -642,18 +689,35 @@ export default function ProductsPage() {
               <select
                 className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white font-medium text-sm"
                 value={filterImages}
-                onChange={(e) => setFilterImages(e.target.value)}
+                onChange={(e) => {
+                  setFilterImages(e.target.value);
+                  setPage(1);
+                }}
               >
                 <option value="all">🖼️ كل المنتجات</option>
                 <option value="no-images">🚫 بدون صور</option>
               </select>
+              {/* Admin: Vendor Selector */}
+              {isAdminUser && (
+                <select
+                  className="border border-red-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent bg-red-50 font-medium text-sm text-red-800"
+                  value={selectedVendorId}
+                  onChange={(e) => setSelectedVendorId(e.target.value)}
+                >
+                  <option value="">👑 كل التجار (أدمن)</option>
+                  {vendorsList.map((vendor) => (
+                    <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
+                  ))}
+                </select>
+              )}
               <button
                 onClick={() => {
                   setSearch('');
                   setCategory('all');
                   setFilterStatus('all');
                   setFilterImages('all');
-                  fetchProducts(true); // 🔥 Force refresh
+                  setPage(1); // 🆕 إعادة تعيين الـ page للـ 1
+                  fetchProducts(true, selectedVendorId, 1); // 🔥 Force refresh
                 }}
                 disabled={loading}
                 className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all font-medium text-sm"
@@ -921,10 +985,54 @@ export default function ProductsPage() {
       )}
 
       {/* Pagination */}
-      {/* عدد المنتجات المعروضة */}
-      <div className="flex justify-center items-center gap-4 mt-8 mb-4">
-        <div className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold shadow-md">
-          📦 عدد المنتجات: {filteredProducts.length} من {products.length}
+      {/* عدد المنتجات المعروضة + Pagination Controls */}
+      <div className="flex flex-col gap-4 mt-8 mb-4">
+        <div className="flex justify-center items-center flex-wrap gap-4">
+          <div className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold shadow-md">
+            📦 عدد المنتجات: {filteredProducts.length} من {products.length}
+          </div>
+          
+          {/* 🆕 Pagination Controls - فقط لما تكون بدون vendor_id */}
+          {!selectedVendorId && totalPages > 1 && (
+            <div className="flex items-center gap-2 bg-white rounded-xl shadow-md px-4 py-3 border border-gray-200">
+              <button
+                onClick={() => {
+                  if (page > 1) {
+                    setPage(page - 1);
+                    fetchProducts(false, selectedVendorId, page - 1);
+                  }
+                }}
+                disabled={page === 1 || loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all font-medium text-sm"
+              >
+                ← السابق
+              </button>
+              
+              <div className="px-4 py-2 text-center min-w-[120px] font-semibold text-gray-700">
+                صفحة <span className="text-blue-600">{page}</span> من <span className="text-blue-600">{totalPages}</span>
+              </div>
+              
+              <button
+                onClick={() => {
+                  if (page < totalPages) {
+                    setPage(page + 1);
+                    fetchProducts(false, selectedVendorId, page + 1);
+                  }
+                }}
+                disabled={page === totalPages || loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all font-medium text-sm"
+              >
+                التالي →
+              </button>
+            </div>
+          )}
+          
+          {/* لما تكون vendor محدد - لا pagination */}
+          {selectedVendorId && (
+            <div className="px-6 py-3 bg-gradient-to-r from-orange-600 to-red-700 text-white rounded-xl font-semibold shadow-md text-sm">
+              ✓ تم تحميل كل منتجات هذا التاجر ({products.length} منتج)
+            </div>
+          )}
         </div>
       </div>
 
@@ -953,8 +1061,7 @@ export default function ProductsPage() {
         onSuccess={(data) => {
           setToast({ message: '✅ تم تعديل المنتج بنجاح', type: 'success' });
           setTimeout(() => setToast(null), 3000);
-          // 🔥 Force refresh من السيرفر
-          fetchProducts(page, perPage, search, filterStatus, category, true);
+          fetchProducts(true, selectedVendorId, page);
         }}
       />
 
@@ -966,8 +1073,8 @@ export default function ProductsPage() {
         onSuccess={(data) => {
           setToast({ message: '✅ تم إضافة المنتج بنجاح', type: 'success' });
           setTimeout(() => setToast(null), 3000);
-          // 🔥 Force refresh من السيرفر
-          fetchProducts(page, perPage, search, filterStatus, category, true);
+          // 🔥 Force refresh - لو تاجر محدد نرجع صفحة 1، وإلا نفس الصفحة الحالية
+          fetchProducts(true, selectedVendorId, selectedVendorId ? 1 : page);
         }}
       />
 

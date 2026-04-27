@@ -4,11 +4,19 @@ export async function POST(req) {
   const { username, password } = await req.json();
 
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://api.spare2app.com';
-  const res = await fetch(`${API_BASE}/wp-json/jwt-auth/v1/token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
-  });
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/wp-json/jwt-auth/v1/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    console.error("Login fetch error:", err);
+    return NextResponse.json({ error: "تعذّر الاتصال بالخادم، حاول مرة أخرى" }, { status: 503 });
+  }
 
   const data = await res.json();
 
@@ -36,6 +44,17 @@ export async function POST(req) {
       maxAge: 60 * 60 * 24,
     });
   }
+
+  // ✅ حفظ دور المستخدم (ادمن أو تاجر)
+  const roles = data.roles || [];
+  const isAdmin = roles.includes("administrator") || roles.includes("shop_manager");
+  const userRole = isAdmin ? "admin" : "vendor";
+  response.cookies.set("userRole", userRole, {
+    httpOnly: false,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24,
+  });
 
   return response;
 }

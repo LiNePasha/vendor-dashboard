@@ -27,6 +27,7 @@ export async function POST(req) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
+    const userRoleCookie = cookieStore.get('userRole')?.value;
 
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -43,13 +44,25 @@ export async function POST(req) {
     }
 
     const decoded = decodeToken(token);
-    const vendorId = decoded?.data?.user?.id;
+    const ownVendorId = decoded?.data?.user?.id;
+    const roles = decoded?.data?.user?.roles || [];
 
     const body = await req.json();
-    const { name, sku, type = 'simple', sellingPrice, salePrice, purchasePrice, stock, categories, images, attributes } = body;
+    const { name, sku, type = 'simple', sellingPrice, salePrice, purchasePrice, stock, categories, images, attributes, vendor_id } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+    }
+
+    // ✅ كشف الأدمن والحصول على vendor_id النهائي
+    const isAdmin = userRoleCookie === 'admin' ||
+      roles.includes('administrator') ||
+      roles.includes('shop_manager');
+
+    let vendorId = ownVendorId;
+    if (isAdmin && vendor_id) {
+      vendorId = vendor_id;
+      console.log(`👑 Admin creating product for vendor: ${vendor_id}`);
     }
 
     // Validation for simple products
@@ -111,12 +124,21 @@ export async function POST(req) {
     }
 
     // 3. إنشاء المنتج
-    const createRes = await fetch(`${API_BASE}/wp-json/wc/v3/products`, {
+    // ✅ لما الأدمن يضيف لتاجر معين، استخدم consumer key عشان WooCommerce
+    //    لا يسجل المنتج باسم الأدمن (JWT) بل يعتمد على _wcfm_product_author
+    let createHeaders = { 'Content-Type': 'application/json' };
+    let createUrl = `${API_BASE}/wp-json/wc/v3/products`;
+    
+    if (isAdmin && vendor_id) {
+      // استخدام consumer key auth لتجاوز تسجيل user الـ JWT
+      createUrl += `?consumer_key=${process.env.WC_CONSUMER_KEY}&consumer_secret=${process.env.WC_CONSUMER_SECRET}`;
+    } else {
+      createHeaders['Authorization'] = `Bearer ${token}`;
+    }
+
+    const createRes = await fetch(createUrl, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: createHeaders,
       body: JSON.stringify(productPayload),
     });
 
@@ -126,6 +148,22 @@ export async function POST(req) {
     }
 
     const newProduct = await createRes.json();
+
+    // ✅ لما الأدمن يضيف لتاجر معين، نحدث post_author عبر WP REST API
+    // WCFM بيعتمد على post_author مش بس _wcfm_product_author
+    if (isAdmin && vendor_id && newProduct.id) {
+      try {
+        const wpUrl = `${API_BASE}/wp-json/wp/v2/product/${newProduct.id}?consumer_key=${process.env.WC_CONSUMER_KEY}&consumer_secret=${process.env.WC_CONSUMER_SECRET}`;
+        await fetch(wpUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ author: parseInt(vendor_id) })
+        });
+        console.log(`✅ Set post_author=${vendor_id} for product ${newProduct.id}`);
+      } catch (e) {
+        console.error('⚠️ Failed to set post_author:', e);
+      }
+    }
 
     return NextResponse.json({
       success: true,

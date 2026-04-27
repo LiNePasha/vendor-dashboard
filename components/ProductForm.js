@@ -36,6 +36,11 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   const [images, setImages] = useState([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   
+  // 🆕 Admin & Vendor Selection
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [vendorsList, setVendorsList] = useState([]);
+  const [selectedVendorId, setSelectedVendorId] = useState('');
+  
   // Form State
   const [syncToApi, setSyncToApi] = useState(true);
   const [form, setForm] = useState({
@@ -66,6 +71,18 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   useEffect(() => {
     loadSuppliers();
     loadCategories();
+    
+    // كشف الأدمن وجلب قائمة التجار
+    const roleMatch = document.cookie.match(/(?:^|;\s*)userRole=([^;]*)/);
+    const isAdmin = roleMatch && roleMatch[1] === 'admin';
+    setIsAdminUser(isAdmin);
+
+    if (isAdmin) {
+      fetch('/api/vendors', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : { vendors: [] })
+        .then(data => setVendorsList(data.vendors || []))
+        .catch(() => {});
+    }
     
     // Load product data if in edit mode
     if (mode === 'edit' && productId) {
@@ -469,6 +486,12 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // 🆕 التحقق من اختيار التاجر للأدمن
+    if (isAdminUser && !selectedVendorId) {
+      alert('⚠️ يجب اختيار التاجر أولاً');
+      return;
+    }
+    
     // Validation
     if (form.productType === 'simple') {
       if (!form.name || !form.sellingPrice) {
@@ -564,19 +587,26 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     
     const method = mode === 'edit' ? 'PATCH' : 'POST';
 
+    const payload = {
+      name: form.name,
+      sku: form.sku,
+      sellingPrice: parseFloat(form.sellingPrice),
+      salePrice: form.salePrice || '',
+      purchasePrice: parseFloat(form.purchasePrice) || 0,
+      stock: parseInt(form.apiStock) || 0,
+      categories: form.categories.length > 0 ? form.categories : null,
+      images: images.filter(img => !img.uploading).map(img => img.url)
+    };
+
+    // 🆕 إضافة vendor_id للأدمن
+    if (isAdminUser && selectedVendorId) {
+      payload.vendor_id = selectedVendorId;
+    }
+
     const response = await fetch(endpoint, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: form.name,
-        sku: form.sku,
-        sellingPrice: parseFloat(form.sellingPrice),
-        salePrice: form.salePrice || '',
-        purchasePrice: parseFloat(form.purchasePrice) || 0,
-        stock: parseInt(form.apiStock) || 0,
-        categories: form.categories.length > 0 ? form.categories : null,
-        images: images.filter(img => !img.uploading).map(img => img.url)
-      })
+      body: JSON.stringify(payload)
     });
 
     const result = await response.json();
@@ -922,6 +952,30 @@ export default function ProductForm({ mode = 'create', productId = null, initial
             💡 <strong>منتج بسيط:</strong> مثل قلم، كتاب | <strong>منتج متعدد:</strong> مثل تيشيرت (أحمر/أزرق، S/M/L)
           </p>
         </div>
+
+        {/* 🆕 Admin: Vendor Selector */}
+        {isAdminUser && (
+          <div className="md:col-span-2 border-2 border-red-300 rounded-xl p-4 bg-gradient-to-r from-red-50 to-orange-50">
+            <label className="block text-sm font-semibold mb-3 text-red-900">👑 اختر التاجر</label>
+            {selectedVendorId && !vendorsList.find(v => v.id === parseInt(selectedVendorId)) && (
+              <p className="text-xs text-red-600 mb-2">⚠️ يجب تحديد التاجر لإضافة المنتج</p>
+            )}
+            <select
+              value={selectedVendorId}
+              onChange={(e) => setSelectedVendorId(e.target.value)}
+              className="w-full px-4 py-2 border-2 border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent bg-white font-medium text-red-900"
+              required={isAdminUser}
+            >
+              <option value="">-- اختر تاجر --</option>
+              {vendorsList.map((vendor) => (
+                <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
+              ))}
+            </select>
+            {selectedVendorId && (
+              <p className="text-xs text-red-700 mt-2">✓ سيتم إضافة المنتج لـ: <strong>{vendorsList.find(v => v.id === parseInt(selectedVendorId))?.name}</strong></p>
+            )}
+          </div>
+        )}
 
         {/* Product Images - 🆕 Multiple Images */}
         <div className="md:col-span-2">

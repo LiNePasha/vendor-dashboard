@@ -42,6 +42,9 @@ function OrdersContent() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [toast, setToast] = useState(null);
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [vendorsList, setVendorsList] = useState([]);
+  const [selectedVendorId, setSelectedVendorId] = useState("");
   
   // 🆕 Advanced Filters State
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -118,6 +121,37 @@ function OrdersContent() {
     }
   }, [toast]);
 
+  // 🆕 تحديد نوع المستخدم + تحميل قائمة التجار للأدمن
+  useEffect(() => {
+    const roleMatch = document.cookie.match(/(?:^|;\s*)userRole=([^;]*)/);
+    const isAdmin = (roleMatch ? roleMatch[1] : '') === 'admin';
+    setIsAdminUser(isAdmin);
+
+    if (!isAdmin) {
+      // 🔥 تاجر: نحمّل أوردراته فوراً (مع ضمان عدم vendor_id)
+      loadOrders(1, false);
+      loadBostaSettings();
+      return;
+    }
+
+    // 🔥 أدمن: نحمّل بعد ما نعرف الـ role
+    loadOrders(1, false);
+    loadBostaSettings();
+
+    const loadVendors = async () => {
+      try {
+        const res = await fetch('/api/vendors', { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        setVendorsList(data.vendors || []);
+      } catch (error) {
+        console.error('Error loading vendors list:', error);
+      }
+    };
+
+    loadVendors();
+  }, []);
+
   // 🆕 حفظ viewMode في localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -189,13 +223,10 @@ function OrdersContent() {
     return () => clearInterval(interval);
   }, [activeTab]);
   
-  // 🔥 Auto-refresh orders - معطّل حالياً
+  // 🔥 Auto-refresh orders - الـ initial load بيتم في useEffect الـ role
   useEffect(() => {
-    // جلب الطلبات أول مرة
-    loadOrders(1, false);
-    
-    // تحميل إعدادات Bosta
-    loadBostaSettings();
+    // تم نقل loadOrders الأولى لـ useEffect تحديد الـ role
+    // عشان نضمن معرفة isAdmin قبل أي request
 
     // تحديث تلقائي كل دقيقة - معطّل
     // const interval = setInterval(() => {
@@ -220,7 +251,15 @@ function OrdersContent() {
   }, [fetchOrders]);
   
   // 🆕 دالة جلب الطلبات مع Pagination والفلاتر
-  const loadOrders = async (page = currentPage, append = false) => {
+  const loadOrders = async (page = currentPage, append = false, overrideIsAdmin = null) => {
+    // 🔥 FIX: قرأ الـ role مباشرة من الـ cookie عشان نتجنب race condition مع state
+    const roleMatch = typeof document !== 'undefined'
+      ? document.cookie.match(/(?:^|;\s*)userRole=([^;]*)/)
+      : null;
+    const resolvedIsAdmin = overrideIsAdmin !== null
+      ? overrideIsAdmin
+      : (roleMatch ? roleMatch[1] : '') === 'admin';
+
     const filters = {
       per_page: perPage, // 100 طلب في كل مرة
       page: page,
@@ -244,6 +283,11 @@ function OrdersContent() {
     // 🆕 فلاتر السعر
     if (minPrice) filters.min_total = minPrice;
     if (maxPrice) filters.max_total = maxPrice;
+
+    // 🆕 فلتر التاجر (أدمن فقط) - استخدم resolvedIsAdmin مش isAdminUser state
+    if (resolvedIsAdmin && selectedVendorId) {
+      filters.vendor_id = selectedVendorId;
+    }
     
     const result = await fetchOrders(filters);
     
@@ -273,7 +317,7 @@ function OrdersContent() {
     // عند تغيير أي فلتر، ارجع للصفحة الأولى وأعد التحميل
     setCurrentPage(1);
     loadOrders(1, false);
-  }, [statusFilter, searchTerm, dateFrom, dateTo, minPrice, maxPrice]);
+  }, [statusFilter, searchTerm, dateFrom, dateTo, minPrice, maxPrice, selectedVendorId, isAdminUser]);
   
   // 🆕 تحميل إعدادات Bosta
   const loadBostaSettings = async () => {
@@ -2474,7 +2518,7 @@ function OrdersContent() {
                 <>
                   {filteredOrders.length} طلب
                   {hasMore && <span className="text-blue-600 font-medium"> • يوجد المزيد</span>}
-                  {(searchTerm || statusFilter || dateFrom || dateTo) && (
+                  {(searchTerm || statusFilter || dateFrom || dateTo || selectedVendorId) && (
                     <span className="text-orange-600 font-medium"> (مفلتر)</span>
                   )}
                 </>
@@ -2579,6 +2623,21 @@ function OrdersContent() {
                 ))}
               </select>
             )}
+
+            {activeTab === 'website' && isAdminUser && (
+              <select
+                className="border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white min-w-[220px]"
+                value={selectedVendorId}
+                onChange={(e) => setSelectedVendorId(e.target.value)}
+              >
+                <option value="">👑 كل التجار (أدمن)</option>
+                {vendorsList.map((vendor) => (
+                  <option key={vendor.id} value={String(vendor.id)}>
+                    {vendor.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Date Filter Row */}
@@ -2616,7 +2675,7 @@ function OrdersContent() {
               <span className="text-xs">{showAdvancedFilters ? '▲' : '▼'}</span>
             </button>
             
-            {(searchTerm || statusFilter || dateFrom || dateTo || minPrice || maxPrice) && (
+            {(searchTerm || statusFilter || dateFrom || dateTo || minPrice || maxPrice || selectedVendorId) && (
               <button
                 onClick={() => {
                   setSearchTerm("");
@@ -2626,6 +2685,7 @@ function OrdersContent() {
                   setDateTo("");
                   setMinPrice("");
                   setMaxPrice("");
+                  setSelectedVendorId("");
                   router.push('/orders');
                   setCurrentPage(1);
                   loadOrders(1); // جلب جميع الطلبات من جديد
@@ -2727,7 +2787,7 @@ function OrdersContent() {
           )}
 
           {/* Active Filters Display */}
-          {(searchTerm || statusFilter || dateFrom || dateTo || minPrice || maxPrice) && (
+          {(searchTerm || statusFilter || dateFrom || dateTo || minPrice || maxPrice || selectedVendorId) && (
             <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
               <span className="text-xs text-gray-500 font-medium">الفلاتر النشطة:</span>
               {searchTerm && (
@@ -2764,6 +2824,12 @@ function OrdersContent() {
                 <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
                   💰 إلى: {maxPrice}
                   <button onClick={() => setMaxPrice("")} className="hover:text-amber-900">×</button>
+                </span>
+              )}
+              {isAdminUser && selectedVendorId && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                  👤 التاجر: {vendorsList.find(v => String(v.id) === String(selectedVendorId))?.name || selectedVendorId}
+                  <button onClick={() => setSelectedVendorId("")} className="hover:text-indigo-900">×</button>
                 </span>
               )}
             </div>
@@ -3873,7 +3939,7 @@ function OrdersContent() {
             <p className="text-gray-500 text-lg mb-2">
               {currentOrders.length === 0 ? 'لا توجد طلبات' : 'لا توجد طلبات مطابقة للبحث'}
             </p>
-            {searchTerm || statusFilter || dateFrom || dateTo ? (
+            {searchTerm || statusFilter || dateFrom || dateTo || selectedVendorId ? (
               <button
                 onClick={() => {
                   setSearchTerm('');
@@ -3881,6 +3947,7 @@ function OrdersContent() {
                   setStatusFilter('');
                   setDateFrom('');
                   setDateTo('');
+                  setSelectedVendorId('');
                   router.push('/orders');
                   if (activeTab === 'website') {
                     setCurrentPage(1);
