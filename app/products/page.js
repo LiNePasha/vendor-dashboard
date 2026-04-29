@@ -102,7 +102,7 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [filterImages, setFilterImages] = useState("all"); // all, no-images
+  const [filterImages, setFilterImages] = useState("all"); // all, no-images, no-images-with-stock, no-images-out-of-stock
   const [toast, setToast] = useState(null);
   const [imageModal, setImageModal] = useState(null);
   const [initialized, setInitialized] = useState(false);
@@ -146,7 +146,7 @@ export default function ProductsPage() {
     }
 
     // 🖼️ فلترة حسب الصور - المنتجات بدون صور
-    if (filterImages === 'no-images') {
+    if (filterImages !== 'all') {
       filtered = filtered.filter(product => {
         // تحقق بس من صورة المنتج الأساسية (مش المتغيرات لأنها مش محملة في الليست)
         const hasNoImage = !product.images || 
@@ -154,13 +154,26 @@ export default function ProductsPage() {
                          !product.images[0]?.src || 
                          product.images[0].src === '';
         
-        if (hasNoImage) {
-          console.log('✅ منتج بدون صورة:', product.name, product.id, 'type:', product.type);
+        if (!hasNoImage) return false; // الفلترة تبدأ: يجب يكون بدون صورة
+        
+        // دلوقتي filterImages القيمة يعني نوع من بدون صور
+        if (filterImages === 'no-images') {
+          // بدون صور فقط (أي نوع)
+          return true;
         }
         
-        return hasNoImage;
+        // لو كمان محتاج stock filter
+        const stock = product.stock_quantity || 0;
+        if (filterImages === 'no-images-with-stock') {
+          return stock > 0; // بدون صور وفيه كمية
+        }
+        if (filterImages === 'no-images-out-of-stock') {
+          return stock === 0; // بدون صور ونفذت الكمية
+        }
+        
+        return true;
       });
-      console.log(`🖼️ فلتر بدون صور: وجدنا ${filtered.length} منتج`);
+      console.log(`🖼️ فلتر الصور (${filterImages}): وجدنا ${filtered.length} منتج`);
     }
 
     // فلترة حسب البحث - نسخة محسّنة مع Scoring والترتيب حسب الدقة + معالجة الأحرف العربية
@@ -695,7 +708,9 @@ export default function ProductsPage() {
                 }}
               >
                 <option value="all">🖼️ كل المنتجات</option>
-                <option value="no-images">🚫 بدون صور</option>
+                <option value="no-images">🚫 بدون صور (الكل)</option>
+                <option value="no-images-with-stock">🚫📦 بدون صور وفيه كمية</option>
+                <option value="no-images-out-of-stock">🚫❌ بدون صور ونفذت الكمية</option>
               </select>
               {/* Admin: Vendor Selector */}
               {isAdminUser && (
