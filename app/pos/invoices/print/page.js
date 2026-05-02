@@ -706,7 +706,7 @@ function PrintInvoiceContent() {
               <>
                 <div style={{ marginTop: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000', fontSize: '10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm' }}>
-                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>✓ المدفوع (ثمن المنتجات):</span>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>✓ تم دفع (ثمن المنتجات):</span>
                     <span style={{ fontWeight: 'bold', color: '#16a34a' }}>
                       {(Number(invoice.summary.total) - Number(invoice.summary.deliveryFee || 0)).toFixed(2)} ج.م
                     </span>
@@ -731,7 +731,7 @@ function PrintInvoiceContent() {
               <>
                 <div style={{ marginTop: '1mm', paddingTop: '1mm', borderTop: '1px dashed #000', fontSize: '10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1mm' }}>
-                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>✓ المدفوع (ثمن المنتجات):</span>
+                    <span style={{ fontWeight: 'bold', color: '#16a34a' }}>✓ تم دفع (ثمن المنتجات):</span>
                     <span style={{ fontWeight: 'bold', color: '#16a34a' }}>
                       {(Number(invoice.summary.total) - Number(invoice.summary.deliveryFee || 0)).toFixed(2)} ج.م
                     </span>

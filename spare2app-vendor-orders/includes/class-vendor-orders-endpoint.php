@@ -81,6 +81,44 @@ class Spare2App_Vendor_Orders_Endpoint {
                 ),
             ),
         ));
+
+        // 🆕 Weekly spare2app fees report endpoint
+        register_rest_route('spare2app/v1', '/vendor-orders/spare2app-fees-report', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_spare2app_fees_report'),
+            'permission_callback' => array($this, 'check_vendor_permission'),
+            'args' => array(
+                'source_filter' => array(
+                    'description' => 'Order source filter: spare2app, non_spare2app, all',
+                    'type' => 'string',
+                    'default' => 'spare2app',
+                    'enum' => array('spare2app', 'non_spare2app', 'all'),
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'period' => array(
+                    'description' => 'Report period (week, today, month, custom)',
+                    'type' => 'string',
+                    'default' => 'week',
+                    'enum' => array('week', 'today', 'month', 'custom'),
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'after' => array(
+                    'description' => 'Custom period start date (ISO 8601)',
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'before' => array(
+                    'description' => 'Custom period end date (ISO 8601)',
+                    'type' => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'vendor_id' => array(
+                    'description' => 'Filter by vendor ID (admin only)',
+                    'type' => 'integer',
+                    'sanitize_callback' => 'absint',
+                ),
+            ),
+        ));
         
         // Single order endpoint
         register_rest_route('spare2app/v1', '/vendor-orders/(?P<id>\d+)', array(
@@ -567,6 +605,208 @@ class Spare2App_Vendor_Orders_Endpoint {
                 'total_pages' => $total_pages,
                 'has_more' => $has_more,
             ),
+        );
+    }
+
+    /**
+     * 🆕 Weekly spare2app fees report
+     */
+    public function get_spare2app_fees_report($request) {
+        $current_user_id = get_current_user_id();
+        $period = $request->get_param('period') ?: 'week';
+        $source_filter = strtolower(trim((string) $request->get_param('source_filter')));
+        if (empty($source_filter)) {
+            $source_filter = 'spare2app';
+        }
+        $after = $request->get_param('after');
+        $before = $request->get_param('before');
+        $vendor_id = absint($request->get_param('vendor_id'));
+
+        $is_admin = current_user_can('manage_woocommerce');
+
+        // 🔒 الأمان: التاجر يظل تاجر حتى لو عنده manage_woocommerce بسبب WCFM
+        if ($is_admin && function_exists('wcfm_is_vendor') && wcfm_is_vendor($current_user_id)) {
+            $is_admin = false;
+        }
+
+        $target_vendor_id = $current_user_id;
+        if ($is_admin) {
+            $target_vendor_id = $vendor_id > 0 ? $vendor_id : 0;
+        }
+
+        $vendor_order_ids = $this->get_vendor_order_ids($target_vendor_id);
+
+        $range = $this->resolve_report_period_range($period, $after, $before);
+        $from_timestamp = $range['from'];
+        $to_timestamp = $range['to'];
+
+        if (empty($vendor_order_ids)) {
+            return array(
+                'success' => true,
+                'period' => $period,
+                'source_filter' => $source_filter,
+                'from' => wp_date('c', $from_timestamp),
+                'to' => wp_date('c', $to_timestamp),
+                'rows' => array(),
+                'summary' => array(
+                    'total_orders' => 0,
+                    'total_order_amount' => 0,
+                    'total_paid' => 0,
+                    'total_fees_above_order' => 0,
+                    'total_service_fee' => 0,
+                    'total_transfer_fee' => 0,
+                    'mismatch_count' => 0,
+                ),
+            );
+        }
+
+        $rows = array();
+
+        foreach ($vendor_order_ids as $order_id) {
+            $order = wc_get_order($order_id);
+            if (!$order) {
+                continue;
+            }
+
+            $created_date = $order->get_date_created();
+            if (!$created_date) {
+                continue;
+            }
+
+            $created_ts = $created_date->getTimestamp();
+            if ($created_ts < $from_timestamp || $created_ts > $to_timestamp) {
+                continue;
+            }
+
+            $order_source = strtolower(trim((string) $order->get_meta('_order_source', true)));
+            if ($source_filter === 'spare2app' && $order_source !== 'spare2app') {
+                continue;
+            }
+            if ($source_filter === 'non_spare2app' && $order_source === 'spare2app') {
+                continue;
+            }
+
+            $order_amount_meta = floatval($order->get_meta('_order_amount', true));
+            $service_fee = floatval($order->get_meta('_service_fee', true));
+            $transfer_fee = floatval($order->get_meta('_transfer_fee', true));
+            $total_paid_meta = floatval($order->get_meta('_total_paid', true));
+            $instapay_amount = floatval($order->get_meta('_instapay_payment_amount', true));
+
+            $order_total = floatval($order->get_total());
+            $shipping_total = floatval($order->get_shipping_total());
+            $order_amount_fallback = max($order_total - $shipping_total, 0);
+            $order_amount = $order_amount_meta > 0 ? $order_amount_meta : $order_amount_fallback;
+
+            if ($total_paid_meta > 0) {
+                $total_paid = $total_paid_meta;
+            } elseif ($instapay_amount > 0) {
+                $total_paid = $instapay_amount;
+            } else {
+                $total_paid = $order_amount + $service_fee + $transfer_fee;
+            }
+
+            $fees_above_order = max($total_paid - $order_amount, 0);
+            $known_fees = $service_fee + $transfer_fee;
+            $fee_diff = abs($fees_above_order - $known_fees);
+
+            $rows[] = array(
+                'order_id' => $order->get_id(),
+                'order_number' => $order->get_order_number(),
+                'date_created' => $created_date->date('c'),
+                'status' => $order->get_status(),
+                'customer_name' => trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
+                'phone' => $order->get_billing_phone(),
+                'payment_method_title' => $order->get_payment_method_title(),
+                'order_amount' => $order_amount,
+                'total_paid' => $total_paid,
+                'fees_above_order' => $fees_above_order,
+                'service_fee' => $service_fee,
+                'transfer_fee' => $transfer_fee,
+                'known_fees' => $known_fees,
+                'fee_diff' => $fee_diff,
+            );
+        }
+
+        usort($rows, function($a, $b) {
+            return strtotime($b['date_created']) - strtotime($a['date_created']);
+        });
+
+        $summary = array(
+            'total_orders' => count($rows),
+            'total_order_amount' => 0,
+            'total_paid' => 0,
+            'total_fees_above_order' => 0,
+            'total_service_fee' => 0,
+            'total_transfer_fee' => 0,
+            'mismatch_count' => 0,
+        );
+
+        foreach ($rows as $row) {
+            $summary['total_order_amount'] += floatval($row['order_amount']);
+            $summary['total_paid'] += floatval($row['total_paid']);
+            $summary['total_fees_above_order'] += floatval($row['fees_above_order']);
+            $summary['total_service_fee'] += floatval($row['service_fee']);
+            $summary['total_transfer_fee'] += floatval($row['transfer_fee']);
+            if (floatval($row['fee_diff']) > 0.009) {
+                $summary['mismatch_count'] += 1;
+            }
+        }
+
+        return array(
+            'success' => true,
+            'period' => $period,
+            'source_filter' => $source_filter,
+            'from' => wp_date('c', $from_timestamp),
+            'to' => wp_date('c', $to_timestamp),
+            'rows' => $rows,
+            'summary' => $summary,
+        );
+    }
+
+    /**
+     * Resolve report period to timestamp range
+     */
+    private function resolve_report_period_range($period, $after = '', $before = '') {
+        $now = current_time('timestamp');
+
+        switch ($period) {
+            case 'today':
+                $from = strtotime('today', $now);
+                $to = $now;
+                break;
+
+            case 'month':
+                $from = strtotime(date('Y-m-01 00:00:00', $now));
+                $to = $now;
+                break;
+
+            case 'custom':
+                $from = !empty($after) ? strtotime($after) : strtotime('-7 days', $now);
+                $to = !empty($before) ? strtotime($before) : $now;
+                if (!$from) {
+                    $from = strtotime('-7 days', $now);
+                }
+                if (!$to) {
+                    $to = $now;
+                }
+                break;
+
+            case 'week':
+            default:
+                $from = strtotime('-7 days', $now);
+                $to = $now;
+                break;
+        }
+
+        if ($from > $to) {
+            $tmp = $from;
+            $from = $to;
+            $to = $tmp;
+        }
+
+        return array(
+            'from' => $from,
+            'to' => $to,
         );
     }
     

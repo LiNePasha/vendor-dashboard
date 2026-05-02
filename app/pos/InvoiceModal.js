@@ -133,7 +133,7 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
                 {invoice.deliveryPayment.status === 'fully_paid' && invoice.summary.deliveryFee > 0 && (
                   <div className="mt-2 p-2 bg-green-50 rounded border border-green-200">
                     <div className="flex justify-between items-center mb-1">
-                      <span className="font-semibold text-green-700">✓ المدفوع (ثمن المنتجات):</span>
+                      <span className="font-semibold text-green-700">✓ تم دفع (ثمن المنتجات):</span>
                       <span className="font-bold text-green-700 text-base">
                         {(invoice.summary.total - invoice.summary.deliveryFee).toFixed(2)} ج.م
                       </span>
@@ -151,7 +151,7 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
                 {invoice.deliveryPayment.status === 'fully_paid_no_delivery' && invoice.deliveryPayment.remainingAmount > 0 && (
                   <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
                     <div className="flex justify-between items-center mb-1">
-                      <span className="font-semibold text-green-700">✓ المدفوع (ثمن المنتجات):</span>
+                      <span className="font-semibold text-green-700">✓ تم دفع (ثمن المنتجات):</span>
                       <span className="font-bold text-green-700 text-base">
                         {(invoice.summary.total - invoice.deliveryPayment.remainingAmount).toFixed(2)} ج.م
                       </span>

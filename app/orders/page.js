@@ -1299,6 +1299,28 @@ function OrdersContent() {
       setToast({ message: '❌ فشل إنشاء تقرير أمس', type: 'error' });
     }
   };
+
+  // 🆕 تقرير أسبوعي للأوردرات حسب مصدر الطلب (spare2app / غير spare2app)
+  const openSourceFeesReport = (sourceFilter = 'spare2app') => {
+    const params = new URLSearchParams();
+    params.set('period', 'week');
+    params.set('source_filter', sourceFilter);
+
+    // للأدمن: لو محدد تاجر، التقرير يشتغل على التاجر المحدد فقط
+    if (isAdminUser && selectedVendorId) {
+      params.set('vendor_id', selectedVendorId);
+    }
+
+    const query = params.toString();
+    const reportUrl = query
+      ? `/orders/spare2app-fees-report?${query}`
+      : '/orders/spare2app-fees-report';
+
+    window.open(reportUrl, '_blank');
+  };
+
+  const openSpare2appFeesReport = () => openSourceFeesReport('spare2app');
+  const openNonSpare2appFeesReport = () => openSourceFeesReport('non_spare2app');
   
   // 🆕 حذف ملاحظة مستقلة
   const deleteStandaloneNote = async (noteId) => {
@@ -2740,6 +2762,29 @@ function OrdersContent() {
                   }
                 </span>
               </button>
+            )}
+
+            {/* 🆕 تقرير كامل لأوردرات spare2app والـ fees */}
+            {activeTab === 'website' && (
+              <>
+                <button
+                  onClick={openSpare2appFeesReport}
+                  className="px-4 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-700 hover:to-blue-800 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-2"
+                  title="تقرير أسبوعي بكل أوردرات spare2app مع إجمالي الرسوم المدفوعة فوق قيمة الأوردر"
+                >
+                  <span>📑</span>
+                  <span>تقرير أسبوعي spare2app fees</span>
+                </button>
+
+                <button
+                  onClick={openNonSpare2appFeesReport}
+                  className="px-4 py-2.5 bg-gradient-to-r from-slate-600 to-gray-700 hover:from-slate-700 hover:to-gray-800 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-2"
+                  title="تقرير أسبوعي بكل الأوردرات غير spare2app مع إجمالي الرسوم المدفوعة فوق قيمة الأوردر"
+                >
+                  <span>📊</span>
+                  <span>تقرير أسبوعي غير spare2app</span>
+                </button>
+              </>
             )}
           </div>
           
