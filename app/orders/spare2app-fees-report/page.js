@@ -24,6 +24,22 @@ function formatDate(dateStr) {
   return d.toLocaleString('ar-EG');
 }
 
+const TRANSFER_METHOD_LABELS = {
+  vodafone_cash: '📱 فودافون كاش',
+  instapay: '💳 انستاباي',
+  orange_cash: '🟠 أورانج كاش',
+  etisalat_cash: '🔵 اتصالات كاش',
+  we_pay: '🟣 WE Pay',
+  fawry: '🟡 فوري',
+  bank_transfer: '🏦 تحويل بنكي',
+  cash: '💵 كاش',
+};
+
+function formatTransferMethod(value) {
+  if (!value) return '-';
+  return TRANSFER_METHOD_LABELS[value] || value;
+}
+
 function Spare2appFeesReportContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -75,6 +91,7 @@ function Spare2appFeesReportContent() {
           transferFee: toNumber(row?.transfer_fee),
           knownFees: toNumber(row?.known_fees),
           feeDiff: toNumber(row?.fee_diff),
+          transferMethod: row?.transfer_method || '',
         }));
 
         setRows(reportRows);
@@ -209,11 +226,11 @@ function Spare2appFeesReportContent() {
             <p className="text-2xl font-black text-fuchsia-700">{formatMoney(summary.totalFeesAbove)}</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500">إجمالي Service Fee</p>
+            <p className="text-xs text-gray-500">إجمالي رسوم الموقع </p>
             <p className="text-2xl font-black text-orange-700">{formatMoney(summary.totalServiceFees)}</p>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <p className="text-xs text-gray-500">إجمالي Transfer Fee</p>
+            <p className="text-xs text-gray-500">إجمالي رسوم التحويل</p>
             <p className="text-2xl font-black text-violet-700">{formatMoney(summary.totalTransferFees)}</p>
           </div>
         </div>
@@ -238,11 +255,12 @@ function Spare2appFeesReportContent() {
                   <th className="px-3 py-2 text-right">العميل</th>
                   <th className="px-3 py-2 text-right">الموبايل</th>
                   <th className="px-3 py-2 text-right">طريقة الدفع</th>
+                  <th className="px-3 py-2 text-right">طريقة التحويل</th>
                   <th className="px-3 py-2 text-right">قيمة الأوردر</th>
                   <th className="px-3 py-2 text-right">المدفوع</th>
-                  <th className="px-3 py-2 text-right">Fees فوق الأوردر</th>
-                  <th className="px-3 py-2 text-right">Service Fee</th>
-                  <th className="px-3 py-2 text-right">Transfer Fee</th>
+                  {/* <th className="px-3 py-2 text-right">رسوم فوق الأوردر</th> */}
+                  <th className="px-3 py-2 text-right">رسوم الموقع</th>
+                  <th className="px-3 py-2 text-right">رسوم تحويل</th>
                 </tr>
               </thead>
               <tbody>
@@ -261,9 +279,10 @@ function Spare2appFeesReportContent() {
                       <td className="px-3 py-2">{row.customerName}</td>
                       <td className="px-3 py-2">{row.phone}</td>
                       <td className="px-3 py-2">{row.paymentMethod}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{formatTransferMethod(row.transferMethod)}</td>
                       <td className="px-3 py-2 font-semibold">{formatMoney(row.orderAmount)}</td>
                       <td className="px-3 py-2 font-semibold text-emerald-700">{formatMoney(row.totalPaid)}</td>
-                      <td className="px-3 py-2 font-bold text-fuchsia-700">{formatMoney(row.feeAboveOrder)}</td>
+                      {/* <td className="px-3 py-2 font-bold text-fuchsia-700">{formatMoney(row.feeAboveOrder)}</td> */}
                       <td className="px-3 py-2 text-orange-700">{formatMoney(row.serviceFee)}</td>
                       <td className="px-3 py-2 text-violet-700">{formatMoney(row.transferFee)}</td>
                     </tr>
@@ -273,10 +292,10 @@ function Spare2appFeesReportContent() {
               {rows.length > 0 && (
                 <tfoot>
                   <tr className="border-t-2 border-gray-300 bg-gray-50 font-black">
-                    <td className="px-3 py-3" colSpan={6}>الإجمالي</td>
+                    <td className="px-3 py-3" colSpan={7}>الإجمالي</td>
                     <td className="px-3 py-3 text-blue-700">{formatMoney(summary.totalOrderAmount)}</td>
                     <td className="px-3 py-3 text-emerald-700">{formatMoney(summary.totalPaid)}</td>
-                    <td className="px-3 py-3 text-fuchsia-700">{formatMoney(summary.totalFeesAbove)}</td>
+                    {/* <td className="px-3 py-3 text-fuchsia-700">{formatMoney(summary.totalFeesAbove)}</td> */}
                     <td className="px-3 py-3 text-orange-700">{formatMoney(summary.totalServiceFees)}</td>
                     <td className="px-3 py-3 text-violet-700">{formatMoney(summary.totalTransferFees)}</td>
                   </tr>

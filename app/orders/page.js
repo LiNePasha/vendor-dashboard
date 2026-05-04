@@ -34,6 +34,7 @@ function OrdersContent() {
   const ordersLoading = usePOSStore((state) => state.ordersLoading);
   const fetchOrders = usePOSStore((state) => state.fetchOrders);
   const updateOrderStatus = usePOSStore((state) => state.updateOrderStatus);
+  const vendorInfo = usePOSStore((state) => state.vendorInfo);
   
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -2773,7 +2774,7 @@ function OrdersContent() {
                   title="تقرير أسبوعي بكل أوردرات spare2app مع إجمالي الرسوم المدفوعة فوق قيمة الأوردر"
                 >
                   <span>📑</span>
-                  <span>تقرير أسبوعي spare2app fees</span>
+                  <span> اسبوعي spare2app</span>
                 </button>
 
                 <button
@@ -2782,7 +2783,7 @@ function OrdersContent() {
                   title="تقرير أسبوعي بكل الأوردرات غير spare2app مع إجمالي الرسوم المدفوعة فوق قيمة الأوردر"
                 >
                   <span>📊</span>
-                  <span>تقرير أسبوعي غير spare2app</span>
+                  <span> اسبوعي  {vendorInfo?.name ? ` - ${vendorInfo.name}` : ''}</span>
                 </button>
               </>
             )}

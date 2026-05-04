@@ -709,6 +709,8 @@ class Spare2App_Vendor_Orders_Endpoint {
             $known_fees = $service_fee + $transfer_fee;
             $fee_diff = abs($fees_above_order - $known_fees);
 
+            $transfer_method = strtolower(trim((string) $order->get_meta('_transfer_method', true)));
+
             $rows[] = array(
                 'order_id' => $order->get_id(),
                 'order_number' => $order->get_order_number(),
@@ -724,6 +726,7 @@ class Spare2App_Vendor_Orders_Endpoint {
                 'transfer_fee' => $transfer_fee,
                 'known_fees' => $known_fees,
                 'fee_diff' => $fee_diff,
+                'transfer_method' => $transfer_method,
             );
         }
 
