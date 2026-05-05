@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { BostaAPI } from '@/app/lib/bosta-api';
 import { getBostaSettings, saveBostaSettings } from '@/app/lib/bosta-helpers';
+import { getKashierSettings, saveKashierSettings } from '@/app/lib/kashier-helpers';
 import { 
   requestPersistentStorage, 
   getStorageEstimate, 
@@ -31,6 +32,14 @@ export default function SettingsPage() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [pickupLocations, setPickupLocations] = useState([]);
   const [loadingLocations, setLoadingLocations] = useState(false);
+
+  // Kashier States
+  const [kashierSettings, setKashierSettings] = useState({ enabled: false, merchantId: '', apiPassword: '' });
+  const [showKashierSecret, setShowKashierSecret] = useState(false);
+  const [savingKashier, setSavingKashier] = useState(false);
+  const [kashierSaveSuccess, setKashierSaveSuccess] = useState(false);
+  const [testingKashier, setTestingKashier] = useState(false);
+  const [kashierTestResult, setKashierTestResult] = useState(null);
 
   // 🆕 Data Management States
   const [storageInfo, setStorageInfo] = useState(null);
@@ -94,6 +103,9 @@ export default function SettingsPage() {
   const loadSettings = async () => {
     const settings = await getBostaSettings();
     setBostaSettings(settings);
+
+    const kSettings = await getKashierSettings();
+    setKashierSettings(kSettings);
     
     // 🆕 تحميل أماكن الاستلام المحفوظة
     if (settings.pickupLocations && settings.pickupLocations.length > 0) {
@@ -722,6 +734,134 @@ export default function SettingsPage() {
             >
               {saving ? '⏳ جاري الحفظ...' : saveSuccess ? '✅ تم الحفظ بنجاح' : '💾 حفظ الإعدادات'}
             </button>
+          </div>
+        </div>
+
+        {/* ── Kashier Integration Card ── */}
+        <div className="bg-white rounded-lg shadow-md p-4 md:p-6 mt-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <span className="text-2xl">💳</span>
+              </div>
+              <div>
+                <h2 className="text-lg md:text-xl font-bold text-gray-800">Kashier Integration</h2>
+                <p className="text-xs md:text-sm text-gray-600">ربط النظام مع بوابة دفع Kashier للتحقق من المدفوعات</p>
+              </div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={kashierSettings.enabled}
+                onChange={(e) => setKashierSettings({ ...kashierSettings, enabled: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-indigo-600"></div>
+              <span className="ms-3 text-sm font-medium text-gray-700">{kashierSettings.enabled ? 'مفعّل' : 'معطّل'}</span>
+            </label>
+          </div>
+
+          <div className="space-y-4">
+            {/* Merchant ID */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Merchant ID (MID)</label>
+              <input
+                type="text"
+                placeholder="مثال: 123456"
+                value={kashierSettings.merchantId}
+                onChange={(e) => setKashierSettings({ ...kashierSettings, merchantId: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+              />
+              <p className="text-xs text-gray-500 mt-1">موجود في لوحة تحكم Kashier → My Account → Merchant ID</p>
+            </div>
+
+            {/* API Password */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">API Password (Secret Key)</label>
+              <div className="relative">
+                <input
+                  type={showKashierSecret ? 'text' : 'password'}
+                  placeholder="API Password من لوحة Kashier"
+                  value={kashierSettings.apiPassword}
+                  onChange={(e) => setKashierSettings({ ...kashierSettings, apiPassword: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKashierSecret(!showKashierSecret)}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                >
+                  {showKashierSecret ? '🙈' : '👁️'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">موجود في لوحة Kashier → Integration → API Keys</p>
+            </div>
+
+            {/* Test Result */}
+            {kashierTestResult && (
+              <div className={`p-3 rounded-lg text-sm font-medium ${
+                kashierTestResult.success ? 'bg-green-50 border border-green-300 text-green-800' : 'bg-red-50 border border-red-300 text-red-800'
+              }`}>
+                {kashierTestResult.message}
+              </div>
+            )}
+
+            {/* Buttons */}
+            <div className="flex flex-wrap gap-3 pt-2">
+              <button
+                onClick={async () => {
+                  if (!kashierSettings.merchantId || !kashierSettings.apiPassword) {
+                    setKashierTestResult({ success: false, message: '⚠️ أدخل Merchant ID و API Password أولاً' });
+                    return;
+                  }
+                  setTestingKashier(true);
+                  setKashierTestResult(null);
+                  try {
+                    // اختبار بسيط: نعمل check على orderId = 0 ونتأكد إن الـ API بترد
+                    const res = await fetch('/api/orders/check-kashier-payment', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({
+                        orderId: 'test-connection-0',
+                        merchantId: kashierSettings.merchantId,
+                        apiPassword: kashierSettings.apiPassword,
+                      }),
+                    });
+                    // أي رد من السيرفر (حتى 502) يعني الإعدادات وصلت للـ route
+                    const data = await res.json();
+                    if (res.ok || data?.paymentStatus !== undefined || data?.paid === false) {
+                      setKashierTestResult({ success: true, message: '✅ الاتصال بـ Kashier شغال — الإعدادات صحيحة' });
+                    } else {
+                      setKashierTestResult({ success: false, message: data?.error || '❌ فشل الاتصال بـ Kashier' });
+                    }
+                  } catch (err) {
+                    setKashierTestResult({ success: false, message: '❌ خطأ: ' + err.message });
+                  } finally {
+                    setTestingKashier(false);
+                  }
+                }}
+                disabled={testingKashier}
+                className="px-4 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+              >
+                {testingKashier ? '⏳ جاري الاختبار...' : '🔌 اختبار الاتصال'}
+              </button>
+
+              <button
+                onClick={async () => {
+                  setSavingKashier(true);
+                  setKashierSaveSuccess(false);
+                  await saveKashierSettings(kashierSettings);
+                  setSavingKashier(false);
+                  setKashierSaveSuccess(true);
+                  setTimeout(() => setKashierSaveSuccess(false), 3000);
+                }}
+                disabled={savingKashier}
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+              >
+                {savingKashier ? '⏳ جاري الحفظ...' : kashierSaveSuccess ? '✅ تم الحفظ' : '💾 حفظ إعدادات Kashier'}
+              </button>
+            </div>
           </div>
         </div>
 

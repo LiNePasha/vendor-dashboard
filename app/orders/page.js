@@ -6,6 +6,7 @@ import usePOSStore from "@/app/stores/pos-store";
 import OrderDetailsModal from "@/components/OrderDetailsModal";
 import { BostaAPI } from "@/app/lib/bosta-api";
 import { getBostaSettings, validateInvoiceForBosta, formatBostaStatus, getBostaTrackingUrl, isOrderDelayed, getOrdersDeliveredToday, getOrdersDeliveredYesterday } from "@/app/lib/bosta-helpers";
+import { getKashierSettings } from "@/app/lib/kashier-helpers";
 import localforage from 'localforage';
 import { invoiceStorage } from '@/app/lib/localforage';
 
@@ -113,6 +114,13 @@ function OrdersContent() {
   
   // 🆕 Sync Progress State
   const [syncProgress, setSyncProgress] = useState(null); // { current: 0, total: 0 }
+
+  // Kashier State
+  const [kashierEnabled, setKashierEnabled] = useState(false);
+  const [kashierConfig, setKashierConfig] = useState({ merchantId: '', apiPassword: '' });
+  const [checkingKashierPayment, setCheckingKashierPayment] = useState(null); // orderId being checked
+  const [kashierCheckResults, setKashierCheckResults] = useState({}); // { [orderId]: result }
+  const [runningKashierScan, setRunningKashierScan] = useState(false);
   
   // 🆕 Auto-hide toast
   useEffect(() => {
@@ -132,12 +140,14 @@ function OrdersContent() {
       // 🔥 تاجر: نحمّل أوردراته فوراً (مع ضمان عدم vendor_id)
       loadOrders(1, false);
       loadBostaSettings();
+      loadKashierConfig();
       return;
     }
 
     // 🔥 أدمن: نحمّل بعد ما نعرف الـ role
     loadOrders(1, false);
     loadBostaSettings();
+    loadKashierConfig();
 
     const loadVendors = async () => {
       try {
@@ -154,6 +164,49 @@ function OrdersContent() {
   }, []);
 
   // 🆕 حفظ viewMode في localStorage
+
+  // 💳 فحص يدوي لكل الأوردرات المعلقة عبر Kashier
+  const handleKashierScanAll = async () => {
+    if (runningKashierScan) return;
+    const pendingOrders = orders.filter(o => o.status === 'pending');
+    if (pendingOrders.length === 0) {
+      setToast({ message: 'ℹ️ لا توجد أوردرات معلقة للفحص', type: 'info' });
+      return;
+    }
+    setRunningKashierScan(true);
+    let paidCount = 0;
+    for (const order of pendingOrders) {
+      try {
+        const res = await fetch('/api/orders/check-kashier-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            orderId: String(order.id),
+            merchantId: kashierConfig.merchantId,
+            apiPassword: kashierConfig.apiPassword,
+          }),
+        });
+        const data = await res.json();
+        if (data.paid) {
+          paidCount++;
+          setKashierCheckResults(prev => ({ ...prev, [order.id]: data }));
+        }
+      } catch {
+        // تجاهل أخطاء الأوردرات الفردية
+      }
+    }
+    setRunningKashierScan(false);
+    if (paidCount > 0) {
+      setToast({
+        message: `✅ تم اكتشاف ${paidCount} أوردر مدفوع عن طريق Kashier وتم تحديثه`,
+        type: 'success',
+      });
+      loadOrders(1, false);
+    } else {
+      setToast({ message: `⏳ تم الفحص — لا توجد مدفوعات جديدة من Kashier`, type: 'warning' });
+    }
+  };
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('orders-view-mode', viewMode);
@@ -324,6 +377,50 @@ function OrdersContent() {
   const loadBostaSettings = async () => {
     const settings = await getBostaSettings();
     setBostaEnabled(settings.enabled && settings.apiKey);
+  };
+
+  // 💳 تحميل إعدادات Kashier
+  const loadKashierConfig = async () => {
+    const settings = await getKashierSettings();
+    setKashierEnabled(settings.enabled && !!settings.merchantId && !!settings.apiPassword);
+    setKashierConfig({ merchantId: settings.merchantId, apiPassword: settings.apiPassword });
+  };
+
+  // 🔍 فحص حالة الدفع من Kashier
+  const handleCheckKashierPayment = async (order) => {
+    if (!kashierConfig.merchantId || !kashierConfig.apiPassword) {
+      setToast({ message: '⚠️ فعّل Kashier من صفحة الإعدادات أولاً', type: 'warning' });
+      return;
+    }
+    setCheckingKashierPayment(order.id);
+    setKashierCheckResults(prev => ({ ...prev, [order.id]: null }));
+    try {
+      const res = await fetch('/api/orders/check-kashier-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          orderId: String(order.id),
+          merchantId: kashierConfig.merchantId,
+          apiPassword: kashierConfig.apiPassword,
+        }),
+      });
+      const data = await res.json();
+      setKashierCheckResults(prev => ({ ...prev, [order.id]: data }));
+      if (data.paid) {
+        setToast({ message: data.message || '✅ الدفع تم بنجاح', type: 'success' });
+        if (data.updated) {
+          // reload orders to reflect new status
+          loadOrders(1, false);
+        }
+      } else {
+        setToast({ message: data.message || '⏳ لم يتم الدفع بعد', type: 'warning' });
+      }
+    } catch (err) {
+      setToast({ message: '❌ خطأ: ' + err.message, type: 'error' });
+    } finally {
+      setCheckingKashierPayment(null);
+    }
   };
   
   // 🆕 دالة البحث عند الضغط على الزر
@@ -2664,129 +2761,134 @@ function OrdersContent() {
           </div>
 
           {/* Date Filter Row */}
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 flex items-center gap-2">
-              <label className="text-sm text-gray-600 font-medium whitespace-nowrap">📅 من:</label>
-              <input
-                type="date"
-                className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-              />
-            </div>
-            <div className="flex-1 flex items-center gap-2">
-              <label className="text-sm text-gray-600 font-medium whitespace-nowrap">📅 إلى:</label>
-              <input
-                type="date"
-                className="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-              />
-            </div>
-            
-            {/* 🆕 Advanced Filters Toggle */}
-            <button
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className={`px-4 py-2.5 rounded-lg transition-all font-medium whitespace-nowrap flex items-center gap-2 ${
-                showAdvancedFilters 
-                  ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                  : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <span>⚙️</span>
-              <span>فلاتر متقدمة</span>
-              <span className="text-xs">{showAdvancedFilters ? '▲' : '▼'}</span>
-            </button>
-            
-            {(searchTerm || statusFilter || dateFrom || dateTo || minPrice || maxPrice || selectedVendorId) && (
+          {/* Date Filter Row */}
+          <div className="flex flex-col gap-2">
+            {/* Row 1: Date inputs + utility buttons */}
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="flex items-center gap-2 flex-1 min-w-[150px]">
+                <label className="text-sm text-gray-600 font-medium whitespace-nowrap">📅 من:</label>
+                <input
+                  type="date"
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-2 flex-1 min-w-[150px]">
+                <label className="text-sm text-gray-600 font-medium whitespace-nowrap">📅 إلى:</label>
+                <input
+                  type="date"
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+              </div>
               <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setSearchInput("");
-                  setStatusFilter("");
-                  setDateFrom("");
-                  setDateTo("");
-                  setMinPrice("");
-                  setMaxPrice("");
-                  setSelectedVendorId("");
-                  router.push('/orders');
-                  setCurrentPage(1);
-                  loadOrders(1); // جلب جميع الطلبات من جديد
-                }}
-                className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium whitespace-nowrap"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={`px-3 py-2 rounded-lg transition-all font-medium whitespace-nowrap flex items-center gap-1 text-sm ${
+                  showAdvancedFilters
+                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
               >
-                🔄 مسح الفلاتر
+                <span>⚙️</span>
+                <span>فلاتر</span>
+                <span className="text-xs">{showAdvancedFilters ? '▲' : '▼'}</span>
               </button>
-            )}
-            
-            {/* 🔥 Bosta Sync All Button */}
-            {bostaEnabled && activeTab === 'website' && (
-              <button
-                onClick={syncAllOrdersFromBosta}
-                className="px-4 py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-2"
-                title="مزامنة جميع الأوردرات من بوسطة"
-              >
-                <span>🔄</span>
-                <span>مزامنة Bosta</span>
-              </button>
-            )}
-            
-            {/* 🆕 زر تقرير الطلبات المُرسلة لبوسطة اليوم */}
-            {bostaEnabled && activeTab === 'website' && (
-              <button
-                onClick={handleDailySalesReport}
-                className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-2"
-                title="تقرير بالطلبات المُرسلة لبوسطة اليوم (من المحددة أو الكل)"
-              >
-                <span>📊</span>
-                <span>
-                  {selectedOrders.length > 0 
-                    ? `تقرير اليوم (${getOrdersDeliveredToday(orders.filter(o => selectedOrders.includes(o.id))).length})`
-                    : `طلبات بوسطا اليوم (${getOrdersDeliveredToday(orders).length})`
-                  }
-                </span>
-              </button>
-            )}
-            
-            {/* 🆕 زر تقرير الطلبات المُرسلة لبوسطة امبارح */}
-            {bostaEnabled && activeTab === 'website' && (
-              <button
-                onClick={handleYesterdayReport}
-                className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-2"
-                title="تقرير بالطلبات المُرسلة لبوسطة أمس (من المحددة أو الكل)"
-              >
-                <span>📅</span>
-                <span>
-                  {selectedOrders.length > 0 
-                    ? `تقرير امبارح (${getOrdersDeliveredYesterday(orders.filter(o => selectedOrders.includes(o.id))).length})`
-                    : `طلبات بوسطا امبارح (${getOrdersDeliveredYesterday(orders).length})`
-                  }
-                </span>
-              </button>
-            )}
-
-            {/* 🆕 تقرير كامل لأوردرات spare2app والـ fees */}
-            {activeTab === 'website' && (
-              <>
+              {(searchTerm || statusFilter || dateFrom || dateTo || minPrice || maxPrice || selectedVendorId) && (
                 <button
-                  onClick={openSpare2appFeesReport}
-                  className="px-4 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-700 hover:to-blue-800 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-2"
-                  title="تقرير أسبوعي بكل أوردرات spare2app مع إجمالي الرسوم المدفوعة فوق قيمة الأوردر"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSearchInput("");
+                    setStatusFilter("");
+                    setDateFrom("");
+                    setDateTo("");
+                    setMinPrice("");
+                    setMaxPrice("");
+                    setSelectedVendorId("");
+                    router.push('/orders');
+                    setCurrentPage(1);
+                    loadOrders(1);
+                  }}
+                  className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium whitespace-nowrap text-sm"
                 >
-                  <span>📑</span>
-                  <span> اسبوعي spare2app</span>
+                  🔄 مسح
                 </button>
+              )}
+            </div>
 
+            {/* Row 2: Action buttons — wrappable */}
+            <div className="flex flex-wrap gap-2">
+              {bostaEnabled && activeTab === 'website' && (
                 <button
-                  onClick={openNonSpare2appFeesReport}
-                  className="px-4 py-2.5 bg-gradient-to-r from-slate-600 to-gray-700 hover:from-slate-700 hover:to-gray-800 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-2"
-                  title="تقرير أسبوعي بكل الأوردرات غير spare2app مع إجمالي الرسوم المدفوعة فوق قيمة الأوردر"
+                  onClick={syncAllOrdersFromBosta}
+                  className="px-3 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-1 text-sm"
+                  title="مزامنة جميع الأوردرات من بوسطة"
+                >
+                  <span>🔄</span>
+                  <span>مزامنة Bosta</span>
+                </button>
+              )}
+              {bostaEnabled && activeTab === 'website' && (
+                <button
+                  onClick={handleDailySalesReport}
+                  className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-1 text-sm"
+                  title="تقرير بالطلبات المُرسلة لبوسطة اليوم"
                 >
                   <span>📊</span>
-                  <span> اسبوعي  {vendorInfo?.name ? ` - ${vendorInfo.name}` : ''}</span>
+                  <span>
+                    {selectedOrders.length > 0
+                      ? `اليوم (${getOrdersDeliveredToday(orders.filter(o => selectedOrders.includes(o.id))).length})`
+                      : `بوسطا اليوم (${getOrdersDeliveredToday(orders).length})`}
+                  </span>
                 </button>
-              </>
-            )}
+              )}
+              {bostaEnabled && activeTab === 'website' && (
+                <button
+                  onClick={handleYesterdayReport}
+                  className="px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-1 text-sm"
+                  title="تقرير بالطلبات المُرسلة لبوسطة أمس"
+                >
+                  <span>📅</span>
+                  <span>
+                    {selectedOrders.length > 0
+                      ? `امبارح (${getOrdersDeliveredYesterday(orders.filter(o => selectedOrders.includes(o.id))).length})`
+                      : `بوسطا امبارح (${getOrdersDeliveredYesterday(orders).length})`}
+                  </span>
+                </button>
+              )}
+              {activeTab === 'website' && (
+                <>
+                  <button
+                    onClick={openSpare2appFeesReport}
+                    className="px-3 py-2 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-700 hover:to-blue-800 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-1 text-sm"
+                    title="تقرير أسبوعي spare2app"
+                  >
+                    <span>📑</span>
+                    <span>أسبوعي spare2app</span>
+                  </button>
+                  <button
+                    onClick={openNonSpare2appFeesReport}
+                    className="px-3 py-2 bg-gradient-to-r from-slate-600 to-gray-700 hover:from-slate-700 hover:to-gray-800 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-1 text-sm"
+                    title="تقرير أسبوعي غير spare2app"
+                  >
+                    <span>📊</span>
+                    <span>أسبوعي{vendorInfo?.name ? ` - ${vendorInfo.name}` : ''}</span>
+                  </button>
+                </>
+              )}
+              {kashierEnabled && (
+                <button
+                  onClick={handleKashierScanAll}
+                  disabled={runningKashierScan || ordersLoading}
+                  className="px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-700 hover:from-indigo-700 hover:to-purple-800 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-1 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  title="فحص مدفوعات Kashier على الأوردرات المعلقة"
+                >
+                  <span>{runningKashierScan ? '⏳' : '🔍'}</span>
+                  <span>{runningKashierScan ? 'جاري الفحص...' : 'فحص Kashier'}</span>
+                </button>
+              )}
+            </div>
           </div>
           
           {/* 🆕 Advanced Filters Section */}
@@ -3932,16 +4034,35 @@ function OrdersContent() {
 
                           {/* Actions */}
                           <td className="px-2 py-3">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedOrder(order);
-                              }}
-                              className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-bold w-full"
-                              title="التفاصيل"
-                            >
-                              📄 تفاصيل
-                            </button>
+                            <div className="space-y-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedOrder(order);
+                                }}
+                                className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-bold w-full"
+                                title="التفاصيل"
+                              >
+                                📄 تفاصيل
+                              </button>
+                              {order.status === 'pending' && kashierEnabled && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleCheckKashierPayment(order); }}
+                                  disabled={checkingKashierPayment === order.id}
+                                  className="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-xs font-bold w-full disabled:opacity-50"
+                                  title="فحص حالة الدفع من Kashier"
+                                >
+                                  {checkingKashierPayment === order.id ? '⏳ جاري...' : '🔍 فحص الدفع'}
+                                </button>
+                              )}
+                              {kashierCheckResults[order.id] && (
+                                <div className={`text-[9px] px-1.5 py-1 rounded font-bold ${
+                                  kashierCheckResults[order.id].paid ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                  {kashierCheckResults[order.id].paid ? '✅ مدفوع' : '⏳ لم يُدفع'}
+                                </div>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -4792,6 +4913,29 @@ function OrdersContent() {
 
                   {/* Actions */}
                   <div className="space-y-2 px-1" onClick={(e) => e.stopPropagation()}>
+                    {/* 🔍 Kashier Payment Check - for pending orders */}
+                    {order.status === 'pending' && kashierEnabled && (
+                      <div>
+                        <button
+                          onClick={() => handleCheckKashierPayment(order)}
+                          disabled={checkingKashierPayment === order.id}
+                          className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white px-3 py-2 rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          <span>{checkingKashierPayment === order.id ? '⏳' : '🔍'}</span>
+                          <span>{checkingKashierPayment === order.id ? 'جاري التحقق...' : 'فحص حالة الدفع (Kashier)'}</span>
+                        </button>
+                        {kashierCheckResults[order.id] && (
+                          <div className={`mt-1 text-xs px-2 py-1.5 rounded-lg font-bold ${
+                            kashierCheckResults[order.id].paid
+                              ? 'bg-green-50 border border-green-300 text-green-800'
+                              : 'bg-amber-50 border border-amber-300 text-amber-800'
+                          }`}>
+                            {kashierCheckResults[order.id].message}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* 🆕 Bosta Section - لكل الطلبات ماعدا الاستلام والمعلق */}
                     {bostaEnabled && 
                      order.status !== 'pending' && 
