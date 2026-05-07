@@ -21,12 +21,23 @@ export default function DashboardPage() {
   const [customDates, setCustomDates] = useState({ start: "", end: "" });
   const [analytics, setAnalytics] = useState(null);
   const [chartData, setChartData] = useState(null);
+  const [canAccessWebikersVideos, setCanAccessWebikersVideos] = useState(false);
 
   useEffect(() => {
     if (!vendorInfo) {
       getVendorInfo();
     }
   }, [vendorInfo, getVendorInfo]);
+
+  useEffect(() => {
+    const roleMatch = typeof document !== "undefined"
+      ? document.cookie.match(/(?:^|;\s*)userRole=([^;]*)/)
+      : null;
+    const userRole = roleMatch ? decodeURIComponent(roleMatch[1]) : "";
+    const isAdmin = userRole === "admin";
+    const isAllowedVendor = Number(vendorInfo?.id) === 5453;
+    setCanAccessWebikersVideos(isAdmin || isAllowedVendor);
+  }, [vendorInfo]);
 
   useEffect(() => {
     loadAnalytics();
@@ -140,7 +151,7 @@ export default function DashboardPage() {
         <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
           <span>⚡</span> إجراءات سريعة
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className={`grid grid-cols-2 ${canAccessWebikersVideos ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-4`}>
           <button
             onClick={() => router.push('/products')}
             className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl p-4 hover:scale-105 transition-all shadow-md hover:shadow-lg"
@@ -176,6 +187,15 @@ export default function DashboardPage() {
             <div className="text-4xl mb-2">⚙️</div>
             <p className="font-medium text-sm">الإعدادات</p>
           </button>
+          {canAccessWebikersVideos && (
+            <button
+              onClick={() => router.push('/webikers-videos')}
+              className="bg-gradient-to-r from-rose-500 to-pink-600 text-white rounded-xl p-4 hover:scale-105 transition-all shadow-md hover:shadow-lg"
+            >
+              <div className="text-4xl mb-2">🎬</div>
+              <p className="font-medium text-sm">فيديوهات Webikers</p>
+            </button>
+          )}
         </div>
       </div>
 

@@ -64,6 +64,12 @@ const menuItems = [
     badge: null,
   },
   {
+    title: "فيديوهات Webikers",
+    icon: "🎬",
+    href: "/webikers-videos",
+    badge: null,
+  },
+  {
     title: "الفواتير",
     icon: "📄",
     href: "/pos/invoices",

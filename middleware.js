@@ -1,5 +1,16 @@
 import { NextResponse } from "next/server";
 
+function decodeTokenPayload(token) {
+  try {
+    const payloadBase64Url = token.split(".")[1] || "";
+    const payloadBase64 = payloadBase64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const json = atob(payloadBase64);
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
 // Global auth protection middleware
 // - Redirects unauthenticated users to /login for all app pages
 // - Skips public assets, images, and API routes (APIs handle auth themselves)
@@ -7,6 +18,7 @@ import { NextResponse } from "next/server";
 export function middleware(request) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("token")?.value;
+  const userRole = request.cookies.get("userRole")?.value;
 
   // Public routes/assets that should bypass auth checks
   const isPublicPath =
@@ -28,6 +40,23 @@ export function middleware(request) {
   // لو مسجل دخول وداخل /login رجّعه للرئيسية
   if (token && pathname === "/login") {
     return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  // Webikers videos page protection: only admin OR vendor 5453
+  if (token && pathname.startsWith("/webikers-videos")) {
+    const decoded = decodeTokenPayload(token);
+    const user = decoded?.data?.user || {};
+    const userId = Number(user?.id);
+    const roles = Array.isArray(user?.roles) ? user.roles : [];
+    const isAdmin =
+      userRole === "admin" ||
+      roles.includes("administrator") ||
+      roles.includes("shop_manager");
+    const isAllowedVendor = userId === 5453;
+
+    if (!isAdmin && !isAllowedVendor) {
+      return NextResponse.redirect(new URL("/?blocked=webikers-videos", request.url));
+    }
   }
 
   // Cashier Mode Protection
