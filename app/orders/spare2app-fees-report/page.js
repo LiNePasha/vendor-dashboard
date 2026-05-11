@@ -46,6 +46,8 @@ function Spare2appFeesReportContent() {
   const vendorId = searchParams.get('vendor_id') || '';
   const period = searchParams.get('period') || 'week';
   const sourceFilter = searchParams.get('source_filter') || 'spare2app';
+  const after = searchParams.get('after') || '';
+  const before = searchParams.get('before') || '';
 
   const [loading, setLoading] = useState(true);
   const [loadingText, setLoadingText] = useState('جاري تحميل البيانات...');
@@ -65,6 +67,12 @@ function Spare2appFeesReportContent() {
         params.set('source_filter', sourceFilter);
         if (vendorId) {
           params.set('vendor_id', vendorId);
+        }
+        if (after) {
+          params.set('after', after);
+        }
+        if (before) {
+          params.set('before', before);
         }
 
         const response = await fetch(`/api/orders/spare2app-fees-report?${params.toString()}`, {
@@ -106,9 +114,14 @@ function Spare2appFeesReportContent() {
     };
 
     loadReport();
-  }, [vendorId, period, sourceFilter]);
+  }, [vendorId, period, sourceFilter, after, before]);
 
-  const sourceLabel = sourceFilter === 'non_spare2app' ? 'غير spare2app' : 'spare2app';
+  const sourceLabel =
+    sourceFilter === 'non_spare2app'
+      ? 'غير spare2app'
+      : sourceFilter === 'all'
+        ? 'كل الأوردرات'
+        : 'spare2app';
 
   const computedSummary = useMemo(() => {
     const totalOrders = rows.length;
@@ -179,9 +192,13 @@ function Spare2appFeesReportContent() {
             <div>
               <h1 className="text-2xl font-black text-gray-900">📑 تقرير أوردرات {sourceLabel} + Fees</h1>
               <p className="text-sm text-gray-600 mt-1">
-                تقرير <span className="font-bold text-cyan-700">أسبوعي</span> لكل الأوردرات اللي مصدرها
+                تقرير <span className="font-bold text-cyan-700">{period === 'custom' ? 'حسب نطاق التاريخ' : 'أسبوعي'}</span> لكل الأوردرات اللي مصدرها
                 {' '}<span className="font-bold text-cyan-700">
-                  {sourceFilter === 'non_spare2app' ? '_order_source ≠ spare2app' : '_order_source = spare2app'}
+                  {sourceFilter === 'non_spare2app'
+                    ? '_order_source ≠ spare2app'
+                    : sourceFilter === 'all'
+                      ? 'كل المصادر'
+                      : '_order_source = spare2app'}
                 </span>
                 {' '}+ إجمالي الرسوم المدفوعة فوق قيمة الأوردر
               </p>

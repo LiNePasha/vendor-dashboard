@@ -1398,10 +1398,19 @@ function OrdersContent() {
     }
   };
 
-  // 🆕 تقرير أسبوعي للأوردرات حسب مصدر الطلب (spare2app / غير spare2app)
+  // 🆕 تقرير للأوردرات حسب مصدر الطلب (spare2app / غير spare2app / الكل)
   const openSourceFeesReport = (sourceFilter = 'spare2app') => {
     const params = new URLSearchParams();
-    params.set('period', 'week');
+    const hasCustomRange = !!dateFrom || !!dateTo;
+
+    if (hasCustomRange) {
+      params.set('period', 'custom');
+      if (dateFrom) params.set('after', `${dateFrom}T00:00:00`);
+      if (dateTo) params.set('before', `${dateTo}T23:59:59`);
+    } else {
+      params.set('period', 'week');
+    }
+
     params.set('source_filter', sourceFilter);
 
     // للأدمن: لو محدد تاجر، التقرير يشتغل على التاجر المحدد فقط
@@ -1419,6 +1428,7 @@ function OrdersContent() {
 
   const openSpare2appFeesReport = () => openSourceFeesReport('spare2app');
   const openNonSpare2appFeesReport = () => openSourceFeesReport('non_spare2app');
+  const openAllOrdersFeesReport = () => openSourceFeesReport('all');
   
   // 🆕 حذف ملاحظة مستقلة
   const deleteStandaloneNote = async (noteId) => {
@@ -2862,18 +2872,26 @@ function OrdersContent() {
                   <button
                     onClick={openSpare2appFeesReport}
                     className="px-3 py-2 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-700 hover:to-blue-800 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-1 text-sm"
-                    title="تقرير أسبوعي spare2app"
+                    title={dateFrom || dateTo ? 'تقرير spare2app حسب التاريخ المحدد' : 'تقرير أسبوعي spare2app'}
                   >
                     <span>📑</span>
-                    <span>أسبوعي spare2app</span>
+                    <span>{dateFrom || dateTo ? 'تقرير spare2app' : 'أسبوعي spare2app'}</span>
                   </button>
                   <button
                     onClick={openNonSpare2appFeesReport}
                     className="px-3 py-2 bg-gradient-to-r from-slate-600 to-gray-700 hover:from-slate-700 hover:to-gray-800 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-1 text-sm"
-                    title="تقرير أسبوعي غير spare2app"
+                    title={dateFrom || dateTo ? 'تقرير غير spare2app حسب التاريخ المحدد' : 'تقرير أسبوعي غير spare2app'}
                   >
                     <span>📊</span>
-                    <span>أسبوعي{vendorInfo?.name ? ` - ${vendorInfo.name}` : ''}</span>
+                    <span>{dateFrom || dateTo ? 'تقرير غير spare2app' : 'أسبوعي غير spare2app'}{vendorInfo?.name ? ` - ${vendorInfo.name}` : ''}</span>
+                  </button>
+                  <button
+                    onClick={openAllOrdersFeesReport}
+                    className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-1 text-sm"
+                    title={dateFrom || dateTo ? 'تقرير كل الأوردرات حسب التاريخ المحدد' : 'تقرير أسبوعي لكل الأوردرات'}
+                  >
+                    <span>🧾</span>
+                    <span>{dateFrom || dateTo ? 'تقرير كل الأوردرات' : 'أسبوعي كل الأوردرات'}</span>
                   </button>
                 </>
               )}
