@@ -151,7 +151,7 @@ export default function DashboardPage() {
         <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
           <span>⚡</span> إجراءات سريعة
         </h2>
-        <div className={`grid grid-cols-2 ${canAccessWebikersVideos ? 'md:grid-cols-6' : 'md:grid-cols-5'} gap-4`}>
+        <div className={`grid grid-cols-2 ${canAccessWebikersVideos ? 'md:grid-cols-7' : 'md:grid-cols-5'} gap-4`}>
           <button
             onClick={() => router.push('/products')}
             className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl p-4 hover:scale-105 transition-all shadow-md hover:shadow-lg"
@@ -194,6 +194,15 @@ export default function DashboardPage() {
             >
               <div className="text-4xl mb-2">🎬</div>
               <p className="font-medium text-sm">فيديوهات Webikers</p>
+            </button>
+          )}
+          {canAccessWebikersVideos && (
+            <button
+              onClick={() => router.push('/scooters')}
+              className="bg-gradient-to-r from-cyan-500 to-teal-600 text-white rounded-xl p-4 hover:scale-105 transition-all shadow-md hover:shadow-lg"
+            >
+              <div className="text-4xl mb-2">🛵</div>
+              <p className="font-medium text-sm">إسكوترات Webikers</p>
             </button>
           )}
         </div>

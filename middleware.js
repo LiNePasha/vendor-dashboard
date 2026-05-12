@@ -59,6 +59,23 @@ export function middleware(request) {
     }
   }
 
+  // Scooters page protection: only admin OR vendor 5453
+  if (token && pathname.startsWith("/scooters")) {
+    const decoded = decodeTokenPayload(token);
+    const user = decoded?.data?.user || {};
+    const userId = Number(user?.id);
+    const roles = Array.isArray(user?.roles) ? user.roles : [];
+    const isAdmin =
+      userRole === "admin" ||
+      roles.includes("administrator") ||
+      roles.includes("shop_manager");
+    const isAllowedVendor = userId === 5453;
+
+    if (!isAdmin && !isAllowedVendor) {
+      return NextResponse.redirect(new URL("/?blocked=scooters", request.url));
+    }
+  }
+
   // Cashier Mode Protection
   // الصفحات الممنوعة على الكاشير
   const cashierBlockedPages = ['warehouse', 'suppliers', 'creditors', 'employees'];

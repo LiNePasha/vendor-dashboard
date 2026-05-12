@@ -70,6 +70,12 @@ const menuItems = [
     badge: null,
   },
   {
+    title: "إسكوترات Webikers",
+    icon: "🛵",
+    href: "/scooters",
+    badge: null,
+  },
+  {
     title: "الفواتير",
     icon: "📄",
     href: "/pos/invoices",

@@ -1,0 +1,117 @@
+[
+  {
+    "key": "group_spare2app_scooter_details",
+    "title": "تفاصيل الإسكوتر",
+    "fields": [
+      {
+        "key": "field_scooter_brand",
+        "label": "الماركة",
+        "name": "brand",
+        "type": "text",
+        "required": 1,
+        "show_in_rest": 1,
+        "placeholder": "Yamaha / Honda / Vespa / Kymco"
+      },
+      {
+        "key": "field_scooter_model",
+        "label": "الموديل",
+        "name": "model",
+        "type": "text",
+        "required": 1,
+        "show_in_rest": 1,
+        "placeholder": "NMAX 155 / PCX 160 / GTS 300"
+      },
+      {
+        "key": "field_scooter_year",
+        "label": "سنة الصنع",
+        "name": "year",
+        "type": "number",
+        "required": 0,
+        "show_in_rest": 1,
+        "min": 1990,
+        "max": 2030,
+        "step": 1,
+        "placeholder": "2024"
+      },
+      {
+        "key": "field_scooter_price",
+        "label": "السعر (جنيه)",
+        "name": "price",
+        "type": "number",
+        "required": 1,
+        "show_in_rest": 1,
+        "min": 0,
+        "step": 1,
+        "placeholder": "0"
+      },
+      {
+        "key": "field_scooter_color",
+        "label": "اللون",
+        "name": "color",
+        "type": "text",
+        "required": 0,
+        "show_in_rest": 1,
+        "placeholder": "أحمر / أبيض / أسود / فضي"
+      },
+      {
+        "key": "field_scooter_engine_cc",
+        "label": "حجم المحرك (cc)",
+        "name": "engine_cc",
+        "type": "number",
+        "required": 0,
+        "show_in_rest": 1,
+        "min": 50,
+        "max": 1000,
+        "step": 1,
+        "placeholder": "150"
+      },
+      {
+        "key": "field_scooter_mileage",
+        "label": "الكيلومترات",
+        "name": "mileage",
+        "type": "number",
+        "required": 0,
+        "show_in_rest": 1,
+        "min": 0,
+        "step": 1,
+        "placeholder": "0",
+        "instructions": "للإسكوترات المستعملة فقط"
+      },
+      {
+        "key": "field_scooter_images",
+        "label": "الصور",
+        "name": "images",
+        "type": "textarea",
+        "required": 0,
+        "show_in_rest": 1,
+        "rows": 2,
+        "instructions": "يُخزَّن تلقائياً كمصفوفة JSON من روابط الصور – لا تعدّله يدوياً.",
+        "new_lines": "br"
+      }
+    ],
+    "location": [
+      [
+        {
+          "param": "post_type",
+          "operator": "==",
+          "value": "new_scooter"
+        }
+      ],
+      [
+        {
+          "param": "post_type",
+          "operator": "==",
+          "value": "used_scooter"
+        }
+      ]
+    ],
+    "menu_order": 0,
+    "position": "normal",
+    "style": "default",
+    "label_placement": "top",
+    "instruction_placement": "label",
+    "show_in_rest": 1,
+    "active": 1,
+    "description": "حقول مشتركة للإسكوترات الجديدة والمستعملة"
+  }
+]
