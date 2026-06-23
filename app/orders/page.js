@@ -20,10 +20,10 @@ const STATUS_OPTIONS = [
   { value: "failed", label: "فشل", color: "bg-red-500" },
 ];
 
-// 🎛️ Feature Flags - التحكم في الميزات
+// 🎛️ Feature Flags التحكم في الميزات
 const FEATURES = {
-  ENABLE_BOSTA_UNLINK: false, // إزالة الربط ببوسطة | غير إلى false لتعطيل الميزة
-  ENABLE_BOSTA_MANUAL_LINK: false, // ربط يدوي ببوسطة (إدخال رقم تتبع يدويًا)
+  ENABLE_BOSTA_UNLINK: true, // إزالة الربط ببوسطة | غير إلى false لتعطيل الميزة
+  ENABLE_BOSTA_MANUAL_LINK: true, // ربط يدوي ببوسطة (إدخال رقم تتبع يدويًا)
 };
 
 function OrdersContent() {

@@ -34,6 +34,12 @@ const menuItems = [
     badge: null,
   },
   {
+    title: "عرض تقديمي",
+    icon: "📑",
+    href: "/presentation",
+    badge: null,
+  },
+  {
     title: "الكاشير",
     icon: "🛒",
     href: "/pos",
