@@ -267,6 +267,10 @@ export class BostaAPI {
     
     console.log('💰 Final COD Amount:', codAmount);
 
+    // 🛡️ حساب قيمة التأمين (goodsInfo amount) - القيمة الحقيقية للمنتجات بدون الشحن
+    const insuranceAmount = Math.round(invoice.summary?.subtotal || (totalAmount - shippingFee));
+    console.log('🛡️ Insurance Amount (goodsInfo.amount):', insuranceAmount);
+
     const payload = {
       type: 10, // Fixed value
       specs: {
@@ -278,6 +282,10 @@ export class BostaAPI {
         }
       },
       cod: codAmount, // المبلغ المطلوب تحصيله
+      // 🛡️ إضافة goodsInfo لتفعيل التأمين التلقائي من Bosta
+      goodsInfo: {
+        amount: insuranceAmount > 0 ? insuranceAmount : totalAmount // ✅ قيمة المنتجات للتأمين
+      },
       notes: invoice.orderNotes || invoice.delivery?.notes || '',
       dropOffAddress: {
         city: address.city || '', // ✅ اسم المدينة
@@ -521,6 +529,10 @@ export class BostaAPI {
     
     // حساب COD = shipping_total (لأن العميل دفع ثمن المنتجات)
     const codAmount = shippingTotal;
+    
+    // 🛡️ حساب قيمة التأمين (goodsInfo amount) - القيمة الحقيقية للمنتجات بدون الشحن
+    const insuranceAmount = Math.round(total - shippingTotal);
+    console.log('🛡️ Website Order Insurance Amount (goodsInfo.amount):', insuranceAmount);
 
     // تقسيم الاسم
     const fullName = `${order.billing.first_name} ${order.billing.last_name}`.trim();
@@ -550,6 +562,10 @@ export class BostaAPI {
         }
       },
       cod: codAmount,
+      // 🛡️ إضافة goodsInfo لتفعيل التأمين التلقائي من Bosta
+      goodsInfo: {
+        amount: insuranceAmount > 0 ? insuranceAmount : total // ✅ قيمة المنتجات للتأمين
+      },
       notes: order.customer_note || '',
       dropOffAddress: {
         city: order.shipping.city || order.billing.city || '',
