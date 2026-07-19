@@ -1005,7 +1005,9 @@ export default function POSPage() {
       setToast({ message: 'تم إنشاء الفاتورة ✅ جاري التحديث في الخلفية...', type: 'success' });
       
       // 🔥 إضافة المنتجات المؤقتة للسيستم في الخلفية (بدون انتظار)
-      const tempProducts = activeTab.cart.filter(item => item.is_temp_product);
+      const tempProducts = activeTab.cart.filter(
+        (item) => item.is_temp_product && (item.sync_to_system ?? true) && item.temp_data
+      );
       if (tempProducts.length > 0) {
         console.log('🔄 Adding temp products to system:', tempProducts.length);
         

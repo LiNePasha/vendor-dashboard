@@ -50,6 +50,9 @@ export async function POST(request) {
         { key: '_bosta_order_id', value: bostaData.orderId },
         { key: '_bosta_status', value: bostaData.status },
         { key: '_bosta_status_code', value: String(bostaData.statusCode) },
+        { key: '_bosta_selected_shipment_category', value: String(bostaData.selectedShipmentCategory || '') },
+        { key: '_bosta_pricing_size_used', value: String(bostaData.pricingSizeUsed || '') },
+        { key: '_bosta_estimated_shipping_fee', value: String(bostaData.estimatedShippingFee ?? '') },
         { key: '_bosta_sent_at', value: bostaData.sentAt },
         { key: '_bosta_last_updated', value: bostaData.lastUpdated }
       ];

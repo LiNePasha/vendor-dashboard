@@ -7,6 +7,7 @@ import OrderDetailsModal from "@/components/OrderDetailsModal";
 import { BostaAPI } from "@/app/lib/bosta-api";
 import { getBostaSettings, validateInvoiceForBosta, formatBostaStatus, getBostaTrackingUrl, isOrderDelayed, getOrdersDeliveredToday, getOrdersDeliveredYesterday } from "@/app/lib/bosta-helpers";
 import { getKashierSettings } from "@/app/lib/kashier-helpers";
+import { getCitiesCache } from "@/app/lib/bosta-locations-cache";
 import localforage from 'localforage';
 import { invoiceStorage } from '@/app/lib/localforage';
 
@@ -25,6 +26,39 @@ const FEATURES = {
   ENABLE_BOSTA_UNLINK: false, // إزالة الربط ببوسطة | غير إلى false لتعطيل الميزة
   ENABLE_BOSTA_MANUAL_LINK: false, // ربط يدوي ببوسطة (إدخال رقم تتبع يدويًا)
 };
+
+const BOSTA_SHIPMENT_CATEGORIES = [
+  {
+    value: 'SMALL',
+    label: 'SMALL',
+    arabicLabel: 'صغير',
+    hint: 'شحنة صغيرة - أقل تكلفة من الأكبر'
+  },
+  {
+    value: 'MEDIUM',
+    label: 'MEDIUM',
+    arabicLabel: 'متوسط',
+    hint: 'شحنة متوسطة - تكلفة أعلى من SMALL'
+  },
+  {
+    value: 'LARGE',
+    label: 'LARGE',
+    arabicLabel: 'كبير',
+    hint: 'شحنة كبيرة - تكلفة أعلى من MEDIUM'
+  },
+  {
+    value: 'Light Bulky',
+    label: 'Light Bulky',
+    arabicLabel: 'حزمة خفيفة ضخمة',
+    hint: 'للأحجام الكبيرة الخفيفة (Bulky)'
+  },
+  {
+    value: 'Heavy Bulky',
+    label: 'Heavy Bulky',
+    arabicLabel: 'حزمة ثقيلة ضخمة',
+    hint: 'للأحجام/الأوزان الكبيرة جدًا - أعلى تكلفة'
+  }
+];
 
 function OrdersContent() {
   const router = useRouter();
@@ -80,6 +114,8 @@ function OrdersContent() {
   // 🆕 Bosta State
   const [bostaEnabled, setBostaEnabled] = useState(false);
   const [sendingToBosta, setSendingToBosta] = useState(null); // ID of order being sent
+  const [bostaShipmentModal, setBostaShipmentModal] = useState(null); // { order, packageType, size }
+  const [estimatingBostaShipping, setEstimatingBostaShipping] = useState(false);
   
   // 🆕 Tracking Modal State
   const [trackingModal, setTrackingModal] = useState(null); // { trackingNumber, data, loading }
@@ -1478,8 +1514,313 @@ function OrdersContent() {
     }
   };
   
+  // 🆕 فتح مودال اختيار فئة الشحنة قبل الإرسال لبوسطة
+  const openBostaShipmentModal = async (order) => {
+    try {
+      const settings = await getBostaSettings();
+      const packageType = order.bostaPackageType || settings.defaultPackageType || 'Parcel';
+      const size = '';
+
+      setBostaShipmentModal({
+        order,
+        packageType,
+        size
+      });
+    } catch (error) {
+      console.error('Error opening Bosta shipment modal:', error);
+      setToast({ message: '❌ تعذر فتح اختيار فئة الشحنة', type: 'error' });
+    }
+  };
+
+  // 🆕 تأكيد الاختيار ثم الإرسال
+  const confirmBostaShipmentAndSend = async () => {
+    if (!bostaShipmentModal?.order) {
+      return;
+    }
+
+    if (!bostaShipmentModal?.size) {
+      setToast({ message: '⚠️ لازم تختار فئة الشحنة قبل الإرسال', type: 'error' });
+      return;
+    }
+
+    try {
+      setEstimatingBostaShipping(true);
+
+      const orderWithShipmentCategory = {
+        ...bostaShipmentModal.order,
+        bostaPackageType: bostaShipmentModal.packageType || 'Parcel',
+        bostaSize: bostaShipmentModal.size
+      };
+
+      const estimatedShippingFee = await calculateBostaShippingEstimateForOrder(orderWithShipmentCategory);
+      if (
+        estimatedShippingFee === null ||
+        estimatedShippingFee === undefined ||
+        Number.isNaN(Number(estimatedShippingFee))
+      ) {
+        setToast({ message: '❌ تعذر حساب شحن بوسطة للفئة المختارة', type: 'error' });
+        return;
+      }
+
+      const orderWithEstimatedShipping = applyEstimatedShippingFeeToOrder(orderWithShipmentCategory, estimatedShippingFee);
+      orderWithEstimatedShipping.bostaEstimatedShipping = Number(estimatedShippingFee);
+      orderWithEstimatedShipping.bostaPricingSize = normalizeBostaSizeForPricing(orderWithShipmentCategory.bostaSize);
+
+      setToast({
+        message: `💰 تم تحديث الشحن حسب الفئة المختارة: ${estimatedShippingFee.toFixed(2)} ج.م`,
+        type: 'success'
+      });
+
+      setBostaShipmentModal(null);
+      await executeSendToBosta(orderWithEstimatedShipping);
+    } catch (error) {
+      console.error('Error estimating Bosta shipping before send:', error);
+      setToast({ message: `❌ فشل حساب الشحن: ${error.message}`, type: 'error' });
+    } finally {
+      setEstimatingBostaShipping(false);
+    }
+  };
+
   // 🆕 إرسال طلب لبوسطة
   const sendToBosta = async (order) => {
+    await openBostaShipmentModal(order);
+  };
+
+  const normalizeBostaSizeForPricing = (size) => {
+    const normalized = String(size || '').trim();
+    const lower = normalized.toLowerCase();
+
+    if (lower === 'heavy bulky') {
+      return 'Heavy Bulky';
+    }
+
+    if (lower === 'light bulky') {
+      return 'Light Bulky';
+    }
+
+    // 🔥 مهم: LARGE لازم يكون Tier أعلى من Normal
+    // عشان الشحن ما يفضلش ثابت مع SMALL/MEDIUM/LARGE
+    if (lower === 'large') {
+      return 'Light Bulky';
+    }
+
+    // SMALL / MEDIUM -> Normal
+    return 'Normal';
+  };
+
+  const isLikelyBostaId = (value) => {
+    const v = String(value || '').trim();
+    if (!v) return false;
+    // غالبًا IDs بتكون حروف/أرقام طويلة بدون مسافات
+    return /^[A-Za-z0-9_-]{8,}$/.test(v) && !/\s/.test(v);
+  };
+
+  const parseBostaCitiesList = (result) => {
+    if (!result) return [];
+    if (Array.isArray(result)) return result;
+    if (result.success && Array.isArray(result?.data?.list)) return result.data.list;
+    if (result.success && Array.isArray(result?.data)) return result.data;
+    if (Array.isArray(result?.data)) return result.data;
+    return [];
+  };
+
+  const resolveCityNamesByIds = async (bostaAPI, cityIds = []) => {
+    const normalizedIds = [...new Set(cityIds.map(v => String(v || '').trim()).filter(Boolean))];
+    if (normalizedIds.length === 0) return [];
+
+    let cities = [];
+    try {
+      cities = await getCitiesCache();
+    } catch (error) {
+      console.warn('⚠️ تعذر قراءة cache المدن، سيتم المحاولة من API', error);
+    }
+
+    if (!Array.isArray(cities) || cities.length === 0) {
+      const citiesResponse = await bostaAPI.getCities();
+      cities = parseBostaCitiesList(citiesResponse);
+    }
+
+    const names = [];
+    for (const cityId of normalizedIds) {
+      const match = (Array.isArray(cities) ? cities : []).find(city => {
+        const candidateId = String(city?._id || city?.cityId || '').trim();
+        return candidateId && candidateId === cityId;
+      });
+
+      if (match) {
+        const englishName = String(match.name || match.cityName || '').trim();
+        const arabicName = String(match.nameAr || match.cityOtherName || '').trim();
+        if (englishName) names.push(englishName);
+        if (arabicName) names.push(arabicName);
+      }
+    }
+
+    return [...new Set(names.filter(Boolean))];
+  };
+
+  const extractShippingFeeFromPricingResponse = (result) => {
+    const candidates = [
+      result?.data?.shippingFees,
+      result?.data?.shippingFee,
+      result?.data?.fees?.shipping,
+      result?.data?.fees?.shippingFees,
+      result?.data?.amount,
+      result?.data?.total,
+      result?.shippingFees,
+      result?.shippingFee,
+      result?.fees?.shipping,
+      result?.amount,
+      result?.total,
+      result?.price
+    ];
+
+    for (const value of candidates) {
+      const num = Number(value);
+      if (!Number.isNaN(num) && num >= 0) {
+        return num;
+      }
+    }
+
+    return null;
+  };
+
+  const calculateBostaShippingEstimateForOrder = async (order) => {
+    const settings = await getBostaSettings();
+    if (!settings?.enabled || !settings?.apiKey) {
+      throw new Error('يجب تفعيل Bosta وإدخال API Key أولاً');
+    }
+
+    const bostaAPI = new BostaAPI(settings.apiKey, settings.businessLocationId);
+    const address = order?.delivery?.customer?.address || {};
+    const getMetaValue = (key) => order?.meta_data?.find(m => m.key === key)?.value;
+
+    const rawDropOffCityCandidates = [
+      address.cityNameEn,
+      getMetaValue('_shipping_city_name_en'),
+      getMetaValue('shipping_city_name_en'),
+      address.city,
+      order?.shipping?.city,
+      order?.billing?.city
+    ]
+      .map(v => String(v || '').trim())
+      .filter(Boolean);
+
+    const cityIdCandidates = [
+      address.cityId,
+      getMetaValue('_shipping_city_id'),
+      getMetaValue('shipping_city_id')
+    ]
+      .map(v => String(v || '').trim())
+      .filter(Boolean);
+
+    const textCityCandidates = rawDropOffCityCandidates.filter(v => !isLikelyBostaId(v));
+    const resolvedCityNames = await resolveCityNamesByIds(bostaAPI, cityIdCandidates);
+    const uniqueDropOffCities = [...new Set([...resolvedCityNames, ...textCityCandidates])];
+
+    const pickupCityCandidates = [
+      settings.pickupCity,
+      'Cairo'
+    ]
+      .map(v => String(v || '').trim())
+      .filter(v => !isLikelyBostaId(v))
+      .filter(Boolean);
+
+    const uniquePickupCities = [...new Set(pickupCityCandidates)];
+
+    const pricingSize = normalizeBostaSizeForPricing(order?.bostaSize);
+    // 🔒 لا نعمل fallback لـ Normal في الفئات الكبيرة/البلكي حتى لا يرجع السعر ثابت
+    const sizeCandidates = pricingSize === 'Normal'
+      ? ['Normal']
+      : [pricingSize];
+
+    if (uniqueDropOffCities.length === 0) {
+      throw new Error('مدينة العميل غير موجودة لحساب الشحن');
+    }
+
+    const estimatedCod = Number(
+      order?.summary?.total ||
+      order?.total ||
+      0
+    );
+
+    const sanitizedCod = !Number.isNaN(estimatedCod) ? estimatedCod : 0;
+    const errors = [];
+
+    for (const dropOffCity of uniqueDropOffCities) {
+      for (const pickupCity of uniquePickupCities) {
+        for (const size of sizeCandidates) {
+          const pricingResult = await bostaAPI.calculateShippingFees({
+            cod: sanitizedCod,
+            dropOffCity,
+            pickupCity,
+            size,
+            type: 'SEND'
+          });
+
+          if (pricingResult?.error) {
+            errors.push(`dropOffCity=${dropOffCity}, pickupCity=${pickupCity}, size=${size} -> ${pricingResult.error}`);
+            continue;
+          }
+
+          const fee = extractShippingFeeFromPricingResponse(pricingResult);
+          if (fee === null || fee === undefined || Number.isNaN(Number(fee))) {
+            errors.push(`dropOffCity=${dropOffCity}, pickupCity=${pickupCity}, size=${size} -> invalid fee response`);
+            continue;
+          }
+
+          return Number(fee);
+        }
+      }
+    }
+
+    const lastError = errors[errors.length - 1] || 'unknown pricing failure';
+    throw new Error(`تعذر حساب الشحن من بوسطة. آخر محاولة: ${lastError}`);
+  };
+
+  const applyEstimatedShippingFeeToOrder = (order, estimatedShippingFee) => {
+    const normalizedFee = Number(Number(estimatedShippingFee).toFixed(2));
+
+    const currentSummary = order.summary || {};
+    const oldShipping = Number(
+      currentSummary.shipping ?? order.delivery?.fee ?? order.shipping_total ?? 0
+    ) || 0;
+
+    const derivedSubtotal = Number(
+      currentSummary.subtotal ??
+      ((Number(currentSummary.total || order.total || 0) || 0) - oldShipping)
+    ) || 0;
+
+    const newTotal = Number((derivedSubtotal + normalizedFee).toFixed(2));
+
+    const updatedOrder = {
+      ...order,
+      summary: {
+        ...currentSummary,
+        subtotal: derivedSubtotal,
+        shipping: normalizedFee,
+        total: newTotal
+      }
+    };
+
+    // مهم: ما ننشئش delivery جزئية بدون customer لأن ده يكسر validation لاحقًا
+    if (order.delivery) {
+      updatedOrder.delivery = {
+        ...order.delivery,
+        fee: normalizedFee
+      };
+    }
+
+    if (updatedOrder.deliveryPayment?.status === 'fully_paid_no_delivery') {
+      updatedOrder.deliveryPayment = {
+        ...updatedOrder.deliveryPayment,
+        remainingAmount: normalizedFee
+      };
+    }
+
+    return updatedOrder;
+  };
+
+  const executeSendToBosta = async (order) => {
     if (order.bosta?.sent) {
       setToast({ message: 'تم إرسال هذا الطلب لبوسطة مسبقاً', type: 'info' });
       return;
@@ -1488,16 +1829,22 @@ function OrdersContent() {
     setSendingToBosta(order.id);
     
     try {
-      // 🆕 تحديد نوع الطلب (للطلبات من الموقع)
+      // 🆕 تحديد نوع الطلب (للطلبات من الموقع) إذا غير موجود
       if (!order.orderType && order.meta_data) {
         const isPickup = order.meta_data.some(m => 
           (m.key === '_is_store_pickup' && m.value === 'yes') || 
           (m.key === '_delivery_type' && m.value === 'store_pickup')
         );
         order.orderType = isPickup ? 'pickup' : 'delivery';
-        
-        // بناء بيانات التوصيل من WooCommerce order
-        if (!order.delivery && order.billing && order.shipping) {
+
+      }
+
+      const effectiveShippingFee = Number(
+        order.delivery?.fee ?? order.summary?.shipping ?? parseFloat(order.shipping_total || 0)
+      ) || 0;
+
+      // 🧩 تجهيز بيانات الطلب قبل validation (حتى لو orderType موجود بالفعل)
+      if ((!order.delivery || !order.delivery.customer) && order.billing && order.shipping) {
         // استخراج البيانات من meta_data
         const cityId = order.meta_data?.find(m => m.key === '_shipping_city_id')?.value || '';
         const cityName = order.meta_data?.find(m => m.key === '_shipping_city_name')?.value || order.shipping.city || '';
@@ -1522,58 +1869,70 @@ function OrdersContent() {
               landmark: ''
             }
           },
-          fee: parseFloat(order.shipping_total || 0)
+          fee: effectiveShippingFee
         };
       }
+
+      // بناء items من line_items
+      if (!order.items && order.line_items) {
+        order.items = order.line_items.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: parseFloat(item.price || 0)
+        }));
+      }
+
+      // بناء summary
+      if (!order.summary) {
+        order.summary = {
+          total: parseFloat(order.total || 0),
+          subtotal: parseFloat(order.total || 0) - parseFloat(order.shipping_total || 0),
+          shipping: parseFloat(order.shipping_total || 0)
+        };
+      }
+
+      // 🔁 توحيد قيمة الشحن المستخدمة في كل مسار الإرسال
+      if (order.summary) {
+        order.summary.shipping = Number(order.summary.shipping ?? effectiveShippingFee) || 0;
+      }
+      if (order.delivery) {
+        order.delivery.fee = Number(order.delivery.fee ?? order.summary?.shipping ?? effectiveShippingFee) || 0;
+      }
+
+      const shippingForCollection = Number(order.delivery?.fee ?? order.summary?.shipping ?? effectiveShippingFee) || 0;
+      const totalForCollection = Number(order.summary?.total ?? order.total ?? 0) || 0;
+      const subtotalForCollection = Number(order.summary?.subtotal ?? (totalForCollection - shippingForCollection)) || 0;
+
+      // 🔥 بناء deliveryPayment (مهم لحساب COD صح!)
+      if (!order.deliveryPayment) {
+        const paymentMethod = order.payment_method?.toLowerCase() || '';
+        const isPaid = order.status === 'completed' || order.status === 'processing';
         
-        // بناء items من line_items
-        if (!order.items && order.line_items) {
-          order.items = order.line_items.map(item => ({
-            name: item.name,
-            quantity: item.quantity,
-            price: parseFloat(item.price || 0)
-          }));
-        }
-        
-        // بناء summary
-        if (!order.summary) {
-          order.summary = {
-            total: parseFloat(order.total || 0),
-            subtotal: parseFloat(order.total || 0) - parseFloat(order.shipping_total || 0),
-            shipping: parseFloat(order.shipping_total || 0)
+        if (paymentMethod === 'cod' || paymentMethod === 'cash_on_delivery') {
+          // دفع عند الاستلام - COD كامل
+          order.deliveryPayment = {
+            status: 'cash_on_delivery',
+            paidAmount: 0,
+            remainingAmount: Math.max(0, subtotalForCollection)
+          };
+        } else if (isPaid) {
+          // مدفوع أونلاين - بدون توصيل
+          order.deliveryPayment = {
+            status: 'fully_paid_no_delivery',
+            paidAmount: Math.max(0, subtotalForCollection),
+            // ✅ المتبقي للتحصيل = الشحن الفعلي بعد اختيار الفئة
+            remainingAmount: Math.max(0, shippingForCollection)
+          };
+        } else {
+          // حالة افتراضية
+          order.deliveryPayment = {
+            status: 'cash_on_delivery',
+            paidAmount: 0,
+            remainingAmount: Math.max(0, subtotalForCollection)
           };
         }
         
-        // 🔥 بناء deliveryPayment (مهم لحساب COD صح!)
-        if (!order.deliveryPayment) {
-          const paymentMethod = order.payment_method?.toLowerCase() || '';
-          const isPaid = order.status === 'completed' || order.status === 'processing';
-          
-          if (paymentMethod === 'cod' || paymentMethod === 'cash_on_delivery') {
-            // دفع عند الاستلام - COD كامل
-            order.deliveryPayment = {
-              status: 'cash_on_delivery',
-              paidAmount: 0,
-              remainingAmount: parseFloat(order.total || 0) - parseFloat(order.shipping_total || 0)
-            };
-          } else if (isPaid) {
-            // مدفوع أونلاين - بدون توصيل
-            order.deliveryPayment = {
-              status: 'fully_paid_no_delivery',
-              paidAmount: parseFloat(order.total || 0) - parseFloat(order.shipping_total || 0),
-              remainingAmount: 0 // المبلغ المتبقي غير الشحن
-            };
-          } else {
-            // حالة افتراضية
-            order.deliveryPayment = {
-              status: 'cash_on_delivery',
-              paidAmount: 0,
-              remainingAmount: parseFloat(order.total || 0) - parseFloat(order.shipping_total || 0)
-            };
-          }
-          
-          console.log('💰 Built deliveryPayment for WooCommerce order:', order.deliveryPayment);
-        }
+        console.log('💰 Built deliveryPayment for WooCommerce order:', order.deliveryPayment);
       }
       
       // 1. التحقق من صحة البيانات
@@ -1611,6 +1970,9 @@ function OrdersContent() {
         orderId: result.data?._id || result._id,
         status: result.data?.state?.value || result.state?.value || 'created',
         statusCode: result.data?.state?.code || result.state?.code || 10,
+        selectedShipmentCategory: order.bostaSize || null,
+        pricingSizeUsed: order.bostaPricingSize || normalizeBostaSizeForPricing(order.bostaSize),
+        estimatedShippingFee: Number(order.delivery?.fee ?? order.summary?.shipping ?? 0),
         sentAt: new Date().toISOString(),
         lastUpdated: new Date().toISOString()
       };
@@ -1660,7 +2022,10 @@ function OrdersContent() {
             meta_data: [
               ...(o.meta_data || []).filter(m => !m.key?.startsWith('_bosta')),
               { key: '_bosta_sent', value: 'yes' },
-              { key: '_bosta_tracking_number', value: order.bosta.trackingNumber }
+              { key: '_bosta_tracking_number', value: order.bosta.trackingNumber },
+              { key: '_bosta_selected_shipment_category', value: String(order.bosta.selectedShipmentCategory || '') },
+              { key: '_bosta_pricing_size_used', value: String(order.bosta.pricingSizeUsed || '') },
+              { key: '_bosta_estimated_shipping_fee', value: String(order.bosta.estimatedShippingFee ?? '') }
             ]
           };
         }
@@ -1685,6 +2050,8 @@ function OrdersContent() {
       setSendingToBosta(null);
     }
   };
+
+  const isPickupOrder = (order) => order.meta_data?.find(m => m.key === '_delivery_type')?.value === 'pickup';
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -4414,6 +4781,14 @@ function OrdersContent() {
                               >
                                 📋 نسخ لينك للعميل
                               </button>
+                              {FEATURES.ENABLE_BOSTA_UNLINK && (
+                                <button
+                                  onClick={() => unlinkFromBosta(order)}
+                                  className="w-full mt-2 bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg"
+                                >
+                                  🗑️ إزالة الربط
+                                </button>
+                              )}
                             </div>
                           ) : (
                             // إذا لم يتم الإرسال - زر الإرسال + الربط اليدوي
@@ -4959,7 +5334,7 @@ function OrdersContent() {
                      order.status !== 'pending' && 
                      order.status !== 'on-hold' &&
                      (order.status === 'processing' || order.status === 'completed') && 
-                     order.meta_data?.find(m => m.key === '_delivery_type')?.value !== 'pickup' && (
+                     !isPickupOrder(order) && (
                       <div>
                         {order.bosta?.sent && order.bosta?.trackingNumber ? (
                           // إذا تم الإرسال - عرض معلومات التتبع
@@ -4987,6 +5362,14 @@ function OrdersContent() {
                             >
                               📋 نسخ لينك للعميل
                             </button>
+                            {FEATURES.ENABLE_BOSTA_UNLINK && (
+                              <button
+                                onClick={() => unlinkFromBosta(order)}
+                                className="w-full mt-2 bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold transition-all shadow-md hover:shadow-lg"
+                              >
+                                🗑️ إزالة الربط
+                              </button>
+                            )}
                           </div>
                         ) : (
                           // إذا لم يتم الإرسال - زر الإرسال + الربط اليدوي
@@ -5020,7 +5403,7 @@ function OrdersContent() {
                     {/* رسالة "معلق" لو الحالة pending/on-hold */}
                     {bostaEnabled && 
                      (order.status === 'pending' || order.status === 'on-hold') &&
-                     order.meta_data?.find(m => m.key === '_delivery_type')?.value !== 'pickup' && (
+                     !isPickupOrder(order) && (
                       <div className="bg-gray-100 border border-gray-300 rounded-lg p-3 text-center">
                         <p className="text-gray-500 text-sm font-medium">⏸️ معلق</p>
                       </div>
@@ -5694,6 +6077,107 @@ function OrdersContent() {
                   <span>تحديث حالة الطلب من Bosta</span>
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bosta Shipment Category Modal */}
+      {bostaShipmentModal && (
+        <div className="fixed inset-0 z-[80] bg-black/60 backdrop-blur-[1px] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-lg sm:w-full rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-4 sm:p-4 shrink-0">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold">📦 اختيار فئة الشحنة</h2>
+                  <p className="text-xs sm:text-sm opacity-90 mt-1">
+                اختيار الفئة إجباري قبل الإرسال لتفادي فرق تكلفة الشحن
+                  </p>
+                </div>
+                <button
+                  onClick={() => setBostaShipmentModal(null)}
+                  disabled={sendingToBosta === bostaShipmentModal.order?.id}
+                  className="w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-white/15 hover:bg-white/25 active:bg-white/30 transition-all text-white text-xl leading-none flex items-center justify-center disabled:opacity-50"
+                  aria-label="إغلاق"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-800">
+                الطلب: <span className="font-bold">#{bostaShipmentModal.order?.id}</span>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs sm:text-sm text-amber-900 space-y-1.5">
+                <p className="font-bold">📌 حسب Bosta:</p>
+                <p>• السعر يتأثر بـ <strong>المكان + نوع الأوردر + حجم/فئة الشحنة</strong>.</p>
+                <p>• فئات <strong>Light Bulky / Heavy Bulky</strong> مخصصة للشحنات الضخمة وغالبًا أعلى سعرًا.</p>
+                <p>• لازم تختار الفئة المطابقة لتقرير بوسطة لتجنب فروقات التحصيل.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">نوع الشحنة</label>
+                <select
+                  value={bostaShipmentModal.packageType || 'Parcel'}
+                  onChange={(e) => setBostaShipmentModal(prev => ({ ...prev, packageType: e.target.value }))}
+                  className="w-full px-4 py-3.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-base bg-white"
+                >
+                  <option value="Parcel">Parcel (طرد)</option>
+                  <option value="Document">Document (مستند)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">فئة الحجم <span className="text-red-600">*</span></label>
+                <div className="space-y-2.5">
+                  {BOSTA_SHIPMENT_CATEGORIES.map((category) => (
+                    <button
+                      key={category.value}
+                      type="button"
+                      onClick={() => setBostaShipmentModal(prev => ({ ...prev, size: category.value }))}
+                      className={`w-full text-right border rounded-xl p-3.5 sm:p-3.5 transition-all min-h-[64px] active:scale-[0.99] ${
+                        bostaShipmentModal.size === category.value
+                          ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-200'
+                          : 'border-gray-200 hover:border-purple-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] sm:text-xs font-mono text-gray-500">{category.label}</span>
+                        <span className="font-bold text-gray-800 text-sm sm:text-base">{category.arabicLabel}</span>
+                      </div>
+                      <p className="text-[11px] sm:text-xs text-gray-600 mt-1.5">{category.hint}</p>
+                    </button>
+                  ))}
+                </div>
+                {!bostaShipmentModal.size && (
+                  <p className="text-xs text-red-600 mt-2 font-medium">⚠️ اختيار فئة الشحنة مطلوب</p>
+                )}
+              </div>
+
+              <div className="sticky bottom-0 bg-white/95 backdrop-blur border-t border-gray-100 -mx-4 sm:-mx-5 px-4 sm:px-5 py-3 mt-2">
+                <div className="flex flex-col-reverse sm:flex-row gap-2">
+                  <button
+                    onClick={() => setBostaShipmentModal(null)}
+                    disabled={sendingToBosta === bostaShipmentModal.order?.id}
+                    className="w-full sm:w-auto sm:px-5 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-medium disabled:opacity-50"
+                  >
+                    إلغاء
+                  </button>
+                <button
+                  onClick={confirmBostaShipmentAndSend}
+                  disabled={estimatingBostaShipping || sendingToBosta === bostaShipmentModal.order?.id || !bostaShipmentModal.size}
+                    className="w-full sm:flex-1 bg-gradient-to-r from-purple-500 to-indigo-600 text-white py-3 rounded-xl font-bold hover:from-purple-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                >
+                  {estimatingBostaShipping
+                    ? '🧮 جاري حساب شحن بوسطة...'
+                    : sendingToBosta === bostaShipmentModal.order?.id
+                      ? '⏳ جاري الإرسال...'
+                      : '✅ تأكيد وإرسال'}
+                </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

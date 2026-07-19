@@ -35,6 +35,31 @@ export default function ClientLayout({ children }) {
     initDataPersistence();
   }, []); // Run once on mount
 
+  // 🧹 Dev-only cleanup for old Service Workers/caches to prevent stale Next chunks
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'development') return;
+
+    const cleanupServiceWorkers = async () => {
+      try {
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map((reg) => reg.unregister()));
+          console.log(`🧹 Unregistered ${registrations.length} service worker(s) in development`);
+        }
+
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map((name) => caches.delete(name)));
+          console.log(`🧹 Cleared ${cacheNames.length} cache storage entries in development`);
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to cleanup service workers/caches in development:', error);
+      }
+    };
+
+    cleanupServiceWorkers();
+  }, []);
+
   useEffect(() => {
     // Avoid fetching vendor info on the login page to prevent unnecessary 401s
     const isLogin = pathname === '/login';

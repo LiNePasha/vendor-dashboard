@@ -4,6 +4,14 @@ const withPWA = withPWAInit({
   dest: "public",
   register: true,
   skipWaiting: true,
+  runtimeCaching: [
+    // 🔒 Avoid stale JS/CSS chunks that cause "Failed to load chunk" after deploys/navigation
+    {
+      urlPattern: /^https:\/\/.*\/_next\/static\/.*\.(?:js|css)$/i,
+      handler: "NetworkOnly",
+      method: "GET",
+    },
+  ],
   // Allow disabling PWA with env var during build if needed
   disable: process.env.NODE_ENV === "development" || process.env.NEXT_DISABLE_PWA === "1",
 });

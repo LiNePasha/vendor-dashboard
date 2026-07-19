@@ -227,6 +227,8 @@ export class BostaAPI {
     const deliveryPayment = invoice.deliveryPayment;
     const totalAmount = Math.round(invoice.summary?.total || 0);
     const shippingFee = Math.round(invoice.delivery?.fee || invoice.summary?.shipping || 0);
+    const remainingAmount = Math.round(Number(deliveryPayment?.remainingAmount || 0));
+    const hasRemainingAmount = Number.isFinite(remainingAmount) && remainingAmount > 0;
     
     console.log('💰 Payment Calculation:', {
       status: deliveryPayment?.status,
@@ -244,20 +246,37 @@ export class BostaAPI {
       } else if (deliveryPayment.status === 'half_paid') {
         // نصف المبلغ مدفوع - الباقي COD + 20 جنيه
         const paidAmount = Math.round(deliveryPayment.paidAmount || 0);
-        codAmount = Math.max(0, totalAmount - paidAmount) + 20;
+        const calculatedRemaining = Math.max(0, totalAmount - paidAmount);
+        const remainingForCollection = hasRemainingAmount ? remainingAmount : calculatedRemaining;
+        codAmount = remainingForCollection + 20;
         console.log('💵 COD Mode: Half paid - Remaining + 20:', codAmount);
       } else if (deliveryPayment.status === 'fully_paid_no_delivery') {
-        // 🔥 مدفوع كامل بدون توصيل - فقط رسوم التوصيل + 20 جنيه
-        codAmount = shippingFee + 20;
+        // 🔥 مدفوع كامل بدون توصيل - المتبقي (أو الشحن) + 20 جنيه
+        const remainingForCollection = hasRemainingAmount ? remainingAmount : shippingFee;
+        codAmount = remainingForCollection + 20;
         console.log('💵 COD Mode: Fully paid no delivery - Shipping fee + 20:', {
           shippingFee,
+          remainingAmount,
           extraFee: 20,
           codAmount
         });
       } else if (deliveryPayment.status === 'fully_paid') {
-        // ✅ مدفوع كامل - فقط 20 جنيه
-        codAmount = 20;
-        console.log('💵 COD Mode: Fully paid - Extra 20 EGP only');
+        // ✅ مدفوع كامل - لو فيه متبقي/شحن للتحصيل اجمعه، وإلا 20 فقط
+        const remainingForCollection = hasRemainingAmount ? remainingAmount : shippingFee;
+        codAmount = remainingForCollection > 0 ? (remainingForCollection + 20) : 20;
+        console.log('💵 COD Mode: Fully paid - Dynamic collection:', {
+          remainingAmount,
+          shippingFee,
+          codAmount
+        });
+      } else {
+        // أي حالة تانية: استخدم المتبقي لو موجود، وإلا fallback
+        codAmount = hasRemainingAmount ? (remainingAmount + 20) : 20;
+        console.log('💵 COD Mode: Unknown status - Fallback collection:', {
+          status: deliveryPayment.status,
+          remainingAmount,
+          codAmount
+        });
       }
     } else {
       // لو مفيش deliveryPayment، افتراضي COD = 20
@@ -270,6 +289,11 @@ export class BostaAPI {
     // 🛡️ حساب قيمة التأمين (goodsInfo amount) - القيمة الحقيقية للمنتجات بدون الشحن
     const insuranceAmount = Math.round(invoice.summary?.subtotal || (totalAmount - shippingFee));
     console.log('🛡️ Insurance Amount (goodsInfo.amount):', insuranceAmount);
+
+    // 💸 رسوم التأمين: 1% من قيمة الأوردر المؤمن عليها
+    const insuranceFee = Number(((insuranceAmount > 0 ? insuranceAmount : totalAmount) * 0.01).toFixed(2));
+    codAmount += insuranceFee;
+    console.log('💸 Insurance Fee Added to COD (1%):', insuranceFee, '| COD After Insurance Fee:', codAmount);
 
     const payload = {
       type: 10, // Fixed value
@@ -422,7 +446,19 @@ export class BostaAPI {
       });
       
       if (!res.ok) {
-        throw new Error('Failed to calculate shipping fees');
+        const errorText = await res.text().catch(() => '');
+        let errorMessage = `Failed to calculate shipping fees (HTTP ${res.status})`;
+
+        if (errorText) {
+          try {
+            const parsed = JSON.parse(errorText);
+            errorMessage = parsed?.message || parsed?.error || parsed?.errors?.[0]?.message || errorMessage;
+          } catch {
+            errorMessage = errorText;
+          }
+        }
+
+        throw new Error(errorMessage);
       }
       
       const data = await res.json();
@@ -534,6 +570,11 @@ export class BostaAPI {
     const insuranceAmount = Math.round(total - shippingTotal);
     console.log('🛡️ Website Order Insurance Amount (goodsInfo.amount):', insuranceAmount);
 
+    // 💸 رسوم التأمين: 1% من قيمة الأوردر المؤمن عليها
+    const insuranceFee = Number(((insuranceAmount > 0 ? insuranceAmount : total) * 0.01).toFixed(2));
+    const codWithInsuranceFee = Number((codAmount + insuranceFee).toFixed(2));
+    console.log('💸 Website Order Insurance Fee Added to COD (1%):', insuranceFee, '| COD After Insurance Fee:', codWithInsuranceFee);
+
     // تقسيم الاسم
     const fullName = `${order.billing.first_name} ${order.billing.last_name}`.trim();
     const nameParts = fullName.split(' ');
@@ -551,17 +592,21 @@ export class BostaAPI {
     // بناء firstLine من العنوان
     const firstLine = order.billing.address_1 || 'عنوان غير محدد';
 
+    // 🆕 استخدام فئة الشحنة المختارة من الواجهة (أو fallback للإعدادات الافتراضية)
+    const packageType = order.bostaPackageType || 'Parcel';
+    const shipmentSize = order.bostaSize || 'MEDIUM';
+
     const payload = {
       type: 10, // Send
       specs: {
-        packageType: 'Parcel',
-        size: 'MEDIUM',
+        packageType,
+        size: shipmentSize,
         packageDetails: {
           itemsCount: itemsCount,
           description: itemsDescription.substring(0, 200)
         }
       },
-      cod: codAmount,
+      cod: codWithInsuranceFee,
       // 🛡️ إضافة goodsInfo لتفعيل التأمين التلقائي من Bosta
       goodsInfo: {
         amount: insuranceAmount > 0 ? insuranceAmount : total // ✅ قيمة المنتجات للتأمين

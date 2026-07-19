@@ -85,7 +85,8 @@ export function Cart({
     name: '', 
     price: '', 
     saleQuantity: 1,    // الكمية في الفاتورة
-    stockQuantity: 1    // الكمية في المحل
+    stockQuantity: 1,   // الكمية في المحل
+    addToSystem: false  // 🆕 هل نضيف المنتج للسيستم بعد إتمام البيع؟
   });
 
   // 🆕 Edit Price State (جملة فورية)
@@ -125,9 +126,17 @@ export function Cart({
   
   // 🆕 Quick Add Product Handler
   const handleQuickAddProduct = () => {
-    if (!quickAddForm.name || !quickAddForm.price || !quickAddForm.saleQuantity || !quickAddForm.stockQuantity) {
+    const needsSystemStock = !!quickAddForm.addToSystem;
+    if (
+      !quickAddForm.name ||
+      !quickAddForm.price ||
+      !quickAddForm.saleQuantity ||
+      (needsSystemStock && !quickAddForm.stockQuantity)
+    ) {
       return;
     }
+
+    const shouldSyncToSystem = !!quickAddForm.addToSystem;
     
     const tempProduct = {
       id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -136,14 +145,17 @@ export function Cart({
       quantity: parseInt(quickAddForm.saleQuantity), // 🔥 كمية الفاتورة
       stock_quantity: 999,
       is_temp_product: true,
-      temp_data: {
-        name: quickAddForm.name,
-        sellingPrice: parseFloat(quickAddForm.price),
-        purchasePrice: 0,
-        stock: parseInt(quickAddForm.stockQuantity), // 🔥 كمية المحل
-        sku: `TEMP-${Date.now()}`,
-        imageUrl: null
-      }
+      sync_to_system: shouldSyncToSystem,
+      temp_data: shouldSyncToSystem
+        ? {
+            name: quickAddForm.name,
+            sellingPrice: parseFloat(quickAddForm.price),
+            purchasePrice: 0,
+            stock: parseInt(quickAddForm.stockQuantity), // 🔥 كمية المحل
+            sku: `TEMP-${Date.now()}`,
+            imageUrl: null
+          }
+        : null
     };
     
     // إضافة للسلة
@@ -152,7 +164,7 @@ export function Cart({
     }
     
     // Reset form
-    setQuickAddForm({ name: '', price: '', saleQuantity: 1, stockQuantity: 1 });
+    setQuickAddForm({ name: '', price: '', saleQuantity: 1, stockQuantity: 1, addToSystem: false });
     setShowQuickAdd(false);
   };
 
@@ -519,7 +531,7 @@ export function Cart({
               <button
                 onClick={() => {
                   setShowQuickAdd(false);
-                  setQuickAddForm({ name: '', price: '', saleQuantity: 1, stockQuantity: 1 });
+                  setQuickAddForm({ name: '', price: '', saleQuantity: 1, stockQuantity: 1, addToSystem: false });
                 }}
                 className="text-gray-400 hover:text-gray-600 text-xl"
               >
@@ -579,29 +591,51 @@ export function Cart({
               </div>
             </div>
             
-            <div>
-              <label className="block text-[10px] font-bold text-orange-600 mb-0.5">
-                🏪 كمية المحل
+            <div className="bg-white border border-slate-200 rounded-lg p-2">
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!quickAddForm.addToSystem}
+                  onChange={(e) => setQuickAddForm({ ...quickAddForm, addToSystem: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-300"
+                />
+                <span>إضافة المنتج للسيستم بعد إتمام البيع</span>
               </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="كمية المحل"
-                value={quickAddForm.stockQuantity}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === '' || /^\d+$/.test(val)) {
-                    setQuickAddForm({ ...quickAddForm, stockQuantity: val === '' ? 1 : parseInt(val) });
-                  }
-                }}
-                className="w-full px-2 py-1.5 border border-orange-300 rounded text-xs font-semibold
-                  focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-              />
+              <p className="text-[10px] text-gray-500 mt-1">
+                لو غير مفعّل: هيتضاف للفاتورة فقط بدون تسجيله في المخزون/السيستم.
+              </p>
             </div>
+
+            {quickAddForm.addToSystem && (
+              <div>
+                <label className="block text-[10px] font-bold text-orange-600 mb-0.5">
+                  🏪 كمية المحل
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="كمية المحل"
+                  value={quickAddForm.stockQuantity}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d+$/.test(val)) {
+                      setQuickAddForm({ ...quickAddForm, stockQuantity: val === '' ? 1 : parseInt(val) });
+                    }
+                  }}
+                  className="w-full px-2 py-1.5 border border-orange-300 rounded text-xs font-semibold
+                    focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+            )}
             
             <button
               onClick={handleQuickAddProduct}
-              disabled={!quickAddForm.name || !quickAddForm.price || !quickAddForm.saleQuantity || !quickAddForm.stockQuantity}
+              disabled={
+                !quickAddForm.name ||
+                !quickAddForm.price ||
+                !quickAddForm.saleQuantity ||
+                (quickAddForm.addToSystem && !quickAddForm.stockQuantity)
+              }
               className="w-full py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 
                 text-white rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
