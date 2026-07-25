@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { warehouseStorage, suppliersStorage } from '@/app/lib/warehouse-storage';
 import usePOSStore from '@/app/stores/pos-store';
@@ -35,6 +35,9 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   // Image States - 🆕 تحويل لـ multiple images
   const [images, setImages] = useState([]);
   const [uploadingImage, setUploadingImage] = useState(false);
+  // 🔥 FIX: تتبع إذا المستخدم تفاعل فعلاً مع الصور (أضاف / حذف)
+  // استخدمنا ref عشان ما يسببش re-render
+  const imagesUserInteracted = useRef(false);
   
   // 🆕 Admin & Vendor Selection
   const [isAdminUser, setIsAdminUser] = useState(false);
@@ -207,6 +210,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       setOriginalData({
         name: product.name || '',
         sku: product.sku || '',
+        images: product.images || [], // 🔥 FIX: حفظ الصور الأصلية للمقارنة
         categories: product.categories?.map(c => c.id) || [],
         attributes: product.attributes?.map(attr => ({
           id: attr.id,
@@ -393,13 +397,23 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     
     // 🔥 التحقق من تغيير الصور
     const imagesChanged = () => {
-      if (!originalData.images && images.length === 0) return false;
-      if (!originalData.images && images.length > 0) return true;
-      if (originalData.images && images.length !== originalData.images.length) return true;
-      
+      const originalImgs = originalData.images || [];
+      const currentImgs = images.filter(img => !img.uploading);
+
+      // 🛡️ الحالة الوحيدة اللي نتجاهل فيها الفرق:
+      // الصور الأصلية موجودة + الـ state فاضي + المستخدم ما تعاملش معاها
+      // → يعني الـ form فُتح وأُغلق قبل ما الصور تُحمَّل في الـ state
+      const notLoadedYet =
+        originalImgs.length > 0 &&
+        currentImgs.length === 0 &&
+        !imagesUserInteracted.current;
+      if (notLoadedYet) return false;
+
+      if (originalImgs.length !== currentImgs.length) return true;
+
       // مقارنة URLs
-      const originalUrls = (originalData.images || []).map(img => img.url || img.src).sort();
-      const currentUrls = images.filter(img => !img.uploading).map(img => img.url).sort();
+      const originalUrls = originalImgs.map(img => img.url || img.src).sort();
+      const currentUrls = currentImgs.map(img => img.url).sort();
       return originalUrls.some((url, i) => url !== currentUrls[i]);
     };
     
@@ -981,7 +995,10 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         <div className="md:col-span-2">
           <MultipleImageUpload 
             images={images}
-            onChange={setImages}
+            onChange={(newImages) => {
+              imagesUserInteracted.current = true;
+              setImages(newImages);
+            }}
             maxImages={8}
             uploading={uploadingImage}
           />

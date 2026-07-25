@@ -183,21 +183,18 @@ export async function PATCH(req, { params }) {
     if (body.categories) updatePayload.categories = body.categories.map(catId => ({ id: parseInt(catId) }));
 
     // 🔥 دعم images مع منع التكرار
-    // Only update images if they actually changed
     if (Array.isArray(body.images)) {
       const currentImages = currentProduct?.images?.map(img => img.src) || [];
       const newImages = body.images;
-      
+
       // Compare arrays - only update if different
-      const imagesChanged = 
+      const imagesChanged =
         currentImages.length !== newImages.length ||
         !currentImages.every((src, idx) => src === newImages[idx]);
-      
+
       if (imagesChanged) {
-        // إذا كان المستخدم حذف كل الصور، نبعت empty array
-        updatePayload.images = newImages.length > 0 
-          ? newImages.map(src => ({ src }))
-          : [];
+        // إذا كان المستخدم حذف كل الصور عن قصد، نبعت empty array
+        updatePayload.images = newImages.map(src => ({ src }));
       }
     } else if (body.imageUrl) {
       // دعم القديم imageUrl
