@@ -147,6 +147,8 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   };
 
   const populateFormFromData = async (product) => {
+    imagesUserInteracted.current = false;
+
     setForm({
       name: product.name || '',
       sku: product.sku || '',
@@ -452,6 +454,27 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     }));
   };
 
+  const getImagesForSubmit = () => {
+    const currentImages = images
+      .filter(img => !img.uploading)
+      .map(img => img.url)
+      .filter(Boolean);
+
+    const originalImages = (originalData?.images || [])
+      .map(img => img.url || img.src)
+      .filter(Boolean);
+
+    // لو الفورم في edit والصور الحالية فاضية لكن المستخدم ما لمسهاش
+    // نحتفظ بالصور الأصلية بدل ما نبعتها فاضية بالغلط.
+    if (mode === 'edit' && currentImages.length === 0 && !imagesUserInteracted.current && originalImages.length > 0) {
+      return originalImages;
+    }
+
+    return currentImages;
+  };
+
+  const isImageUploading = images.some(img => img.uploading);
+
   const renderCategory = (cat, level = 0) => {
     const children = getCategoryChildren(cat.id);
     const isSelected = form.categories.includes(cat.id);
@@ -499,6 +522,16 @@ export default function ProductForm({ mode = 'create', productId = null, initial
   // Form Submit Handler
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (mode === 'edit' && loadingData) {
+      alert('⏳ جاري تحميل بيانات المنتج، من فضلك انتظر لحظة ثم حاول مرة أخرى');
+      return;
+    }
+
+    if (isImageUploading) {
+      alert('⏳ ما زال هناك صور قيد الرفع، من فضلك انتظر اكتمالها ثم احفظ المنتج');
+      return;
+    }
     
     // 🆕 التحقق من اختيار التاجر للأدمن
     if (isAdminUser && !selectedVendorId) {
@@ -600,6 +633,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       : '/api/warehouse/create-product';
     
     const method = mode === 'edit' ? 'PATCH' : 'POST';
+    const imagesToSend = getImagesForSubmit();
 
     const payload = {
       name: form.name,
@@ -609,8 +643,11 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       purchasePrice: parseFloat(form.purchasePrice) || 0,
       stock: parseInt(form.apiStock) || 0,
       categories: form.categories.length > 0 ? form.categories : null,
-      images: images.filter(img => !img.uploading).map(img => img.url)
     };
+
+    if (imagesToSend !== null) {
+      payload.images = imagesToSend;
+    }
 
     // 🆕 إضافة vendor_id للأدمن
     if (isAdminUser && selectedVendorId) {
@@ -663,6 +700,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     const shouldUpdateParent = mode === 'create' || hasParentProductChanged();
     
     let parentId = mode === 'edit' ? productId : null;
+    const imagesToSend = getImagesForSubmit();
     
     // 🆕 استخراج كل الـ options من الـ variations الموجودة فعلياً
     const updatedAttributes = attributes.map(attr => {
@@ -694,14 +732,14 @@ export default function ProductForm({ mode = 'create', productId = null, initial
             sku: form.sku,
             type: 'variable',
             categories: form.categories.length > 0 ? form.categories : null,
-            images: images.filter(img => !img.uploading).map(img => img.url), // 🆕 استخدام الصور المتعددة
+            ...(imagesToSend !== null ? { images: imagesToSend } : {}),
             attributes: updatedAttributes.map(attr => ({
               name: attr.name,
               options: attr.options,
               visible: true,
               variation: true
             }))
-        })
+          })
       });
 
       if (!parentResponse.ok) {
@@ -1470,7 +1508,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
           <button
             type="submit"
             className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={loading || uploadingImage}
+            disabled={loading || isImageUploading}
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
