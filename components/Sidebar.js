@@ -88,6 +88,12 @@ const menuItems = [
     badge: null,
   },
   {
+    title: "تصدير PDF",
+    icon: "🧾",
+    href: "/pdf-export",
+    badge: null,
+  },
+  {
     title: "بيانات Sheets",
     icon: "📊",
     href: "/sheet-data",
