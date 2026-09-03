@@ -711,6 +711,15 @@ class Spare2App_Vendor_Orders_Endpoint {
 
             $transfer_method = strtolower(trim((string) $order->get_meta('_transfer_method', true)));
 
+            // collect meta_data for this order so client can inspect kashier fields
+            $meta_data_arr = array();
+            foreach ($order->get_meta_data() as $meta) {
+                $meta_data_arr[] = array('key' => $meta->key, 'value' => $meta->value);
+            }
+
+            $kashier_tx = $order->get_meta('_kashier_transaction_id', true);
+            $kashier_status = $order->get_meta('_kashier_payment_status', true);
+
             $rows[] = array(
                 'order_id' => $order->get_id(),
                 'order_number' => $order->get_order_number(),
@@ -718,7 +727,11 @@ class Spare2App_Vendor_Orders_Endpoint {
                 'status' => $order->get_status(),
                 'customer_name' => trim($order->get_billing_first_name() . ' ' . $order->get_billing_last_name()),
                 'phone' => $order->get_billing_phone(),
+                'payment_method' => $order->get_payment_method(),
                 'payment_method_title' => $order->get_payment_method_title(),
+                '_kashier_transaction_id' => $kashier_tx,
+                '_kashier_payment_status' => $kashier_status,
+                'meta_data' => $meta_data_arr,
                 'order_amount' => $order_amount,
                 'total_paid' => $total_paid,
                 'fees_above_order' => $fees_above_order,

@@ -1465,6 +1465,33 @@ function OrdersContent() {
   const openSpare2appFeesReport = () => openSourceFeesReport('spare2app');
   const openNonSpare2appFeesReport = () => openSourceFeesReport('non_spare2app');
   const openAllOrdersFeesReport = () => openSourceFeesReport('all');
+
+  // 🆕 تقرير كاشير اليومي — يظهر الأوردرات المدفوعة من الموقع فقط ويستبعد أوردرات spare2app
+  const openCashierDailyReport = () => {
+    const params = new URLSearchParams();
+    params.set('period', 'custom');
+    // use selected date range if provided, otherwise default to today
+    if (dateFrom) {
+      params.set('after', `${dateFrom}T00:00:00`);
+    } else {
+      const start = new Date(); start.setHours(0,0,0,0);
+      params.set('after', start.toISOString());
+    }
+    if (dateTo) {
+      params.set('before', `${dateTo}T23:59:59`);
+    } else {
+      const end = new Date(); end.setHours(23,59,59,999);
+      params.set('before', end.toISOString());
+    }
+    params.set('source_filter', 'non_spare2app');
+    params.set('paid_only', '1');
+    if (isAdminUser && selectedVendorId) {
+      params.set('vendor_id', selectedVendorId);
+    }
+
+    const url = `/orders/spare2app-fees-report?${params.toString()}`;
+    window.open(url, '_blank');
+  };
   
   // 🆕 حذف ملاحظة مستقلة
   const deleteStandaloneNote = async (noteId) => {
@@ -3234,7 +3261,7 @@ function OrdersContent() {
                   </span>
                 </button>
               )}
-              {activeTab === 'website' && (
+              {/* {activeTab === 'website' && (
                 <>
                   <button
                     onClick={openSpare2appFeesReport}
@@ -3261,7 +3288,7 @@ function OrdersContent() {
                     <span>{dateFrom || dateTo ? 'تقرير كل الأوردرات' : 'أسبوعي كل الأوردرات'}</span>
                   </button>
                 </>
-              )}
+              )}*/}
               {kashierEnabled && (
                 <button
                   onClick={handleKashierScanAll}
@@ -3273,6 +3300,15 @@ function OrdersContent() {
                   <span>{runningKashierScan ? 'جاري الفحص...' : 'فحص Kashier'}</span>
                 </button>
               )}
+              {/* تقرير كاشير اليومي — زر رئيسي لطباعة الأموال المدخولة من الموقع */}
+              <button
+                onClick={openCashierDailyReport}
+                className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-1 text-sm"
+                title="تقرير كاشير اليومي — الأوردرات المدفوعة من الموقع فقط"
+              >
+                <span>🧾</span>
+                <span>تقرير كاشير اليومي</span>
+              </button>
             </div>
           </div>
           

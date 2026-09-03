@@ -48,6 +48,7 @@ function Spare2appFeesReportContent() {
   const sourceFilter = searchParams.get('source_filter') || 'spare2app';
   const after = searchParams.get('after') || '';
   const before = searchParams.get('before') || '';
+  const paidOnly = searchParams.get('paid_only') || '';
 
   const [loading, setLoading] = useState(true);
   const [loadingText, setLoadingText] = useState('جاري تحميل البيانات...');
@@ -74,6 +75,9 @@ function Spare2appFeesReportContent() {
         if (before) {
           params.set('before', before);
         }
+        if (paidOnly) {
+          params.set('paid_only', paidOnly);
+        }
 
         const response = await fetch(`/api/orders/spare2app-fees-report?${params.toString()}`, {
           credentials: 'include',
@@ -92,6 +96,7 @@ function Spare2appFeesReportContent() {
           customerName: row?.customer_name || 'عميل',
           phone: row?.phone || '-',
           paymentMethod: row?.payment_method_title || '-',
+          kashierTx: row?._kashier_transaction_id || getMetaValue(row, '_kashier_transaction_id') || '',
           orderAmount: toNumber(row?.order_amount),
           totalPaid: toNumber(row?.total_paid),
           feeAboveOrder: toNumber(row?.fees_above_order),
@@ -211,13 +216,29 @@ function Spare2appFeesReportContent() {
             <div className="flex gap-2">
               <button
                 onClick={() => window.print()}
-                className="px-4 py-2 rounded-lg bg-cyan-600 text-white hover:bg-cyan-700 font-bold"
+                className="px-4 py-2 rounded-lg bg-cyan-600 text-white hover:bg-cyan-700 font-bold no-print"
+                title="طباعة العرض الحالي"
               >
                 🖨️ طباعة
               </button>
               <button
+                onClick={() => {
+                  const params = new URLSearchParams({ period });
+                  params.set('source_filter', sourceFilter);
+                  if (vendorId) params.set('vendor_id', vendorId);
+                  if (after) params.set('after', after);
+                  if (before) params.set('before', before);
+                  if (paidOnly) params.set('paid_only', paidOnly);
+                  window.open(`/orders/spare2app-fees-report/print?${params.toString()}`, '_blank');
+                }}
+                className="px-4 py-2 rounded-lg bg-cyan-700 text-white hover:bg-cyan-800 font-bold no-print"
+                title="فتح صفحة الطباعة المنفصلة (A4)"
+              >
+                🖨️ طباعة للطابعة
+              </button>
+              <button
                 onClick={() => router.back()}
-                className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300 font-bold"
+                className="px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300 font-bold no-print"
               >
                 ← رجوع
               </button>
@@ -272,6 +293,7 @@ function Spare2appFeesReportContent() {
                   <th className="px-3 py-2 text-right">العميل</th>
                   <th className="px-3 py-2 text-right">الموبايل</th>
                   <th className="px-3 py-2 text-right">طريقة الدفع</th>
+                  <th className="px-3 py-2 text-right">معاملة كاشير</th>
                   <th className="px-3 py-2 text-right">طريقة التحويل</th>
                   <th className="px-3 py-2 text-right">قيمة الأوردر</th>
                   <th className="px-3 py-2 text-right">المدفوع</th>
@@ -296,6 +318,7 @@ function Spare2appFeesReportContent() {
                       <td className="px-3 py-2">{row.customerName}</td>
                       <td className="px-3 py-2">{row.phone}</td>
                       <td className="px-3 py-2">{row.paymentMethod}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-purple-700">{row.kashierTx || '-'}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{formatTransferMethod(row.transferMethod)}</td>
                       <td className="px-3 py-2 font-semibold">{formatMoney(row.orderAmount)}</td>
                       <td className="px-3 py-2 font-semibold text-emerald-700">{formatMoney(row.totalPaid)}</td>
@@ -309,7 +332,7 @@ function Spare2appFeesReportContent() {
               {rows.length > 0 && (
                 <tfoot>
                   <tr className="border-t-2 border-gray-300 bg-gray-50 font-black">
-                    <td className="px-3 py-3" colSpan={7}>الإجمالي</td>
+                    <td className="px-3 py-3" colSpan={8}>الإجمالي</td>
                     <td className="px-3 py-3 text-blue-700">{formatMoney(summary.totalOrderAmount)}</td>
                     <td className="px-3 py-3 text-emerald-700">{formatMoney(summary.totalPaid)}</td>
                     {/* <td className="px-3 py-3 text-fuchsia-700">{formatMoney(summary.totalFeesAbove)}</td> */}
@@ -329,8 +352,14 @@ function Spare2appFeesReportContent() {
             display: none !important;
           }
           @page {
-            size: A4 landscape;
+            size: A4;
             margin: 10mm;
+          }
+          /* Ensure body uses full page and readable font sizes when printing */
+          body {
+            -webkit-print-color-adjust: exact;
+            color-adjust: exact;
+            background: #fff !important;
           }
         }
       `}</style>
