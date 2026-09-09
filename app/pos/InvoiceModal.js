@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import usePOSStore from '@/app/stores/pos-store';
 import { getVendorLogo } from '@/app/lib/vendor-constants';
+import { getInvoiceReturnPolicy } from '@/app/lib/invoice-return-policy';
 
 export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
   const { vendorInfo, getVendorInfo } = usePOSStore();
@@ -569,6 +570,9 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
             paddingTop: '3px',
             fontSize: '9px'
           }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'pre-line' }}>
+              {getInvoiceReturnPolicy(invoice)}
+            </div>
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { invoiceStorage } from '@/app/lib/localforage';
 import { getVendorLogo, getVendorStoreLink } from '@/app/lib/vendor-constants';
 import { isOrderDelayed, getBostaSettings } from '@/app/lib/bosta-helpers';
+import { getInvoiceReturnPolicy } from '@/app/lib/invoice-return-policy';
 import usePOSStore from '@/app/stores/pos-store';
 
 function PrintInvoiceContent() {
@@ -766,6 +767,9 @@ function PrintInvoiceContent() {
         <div style={{ textAlign: 'center', borderTop: '1px dashed #000', paddingTop: '2mm', fontSize: '10px' }}>
           <div style={{ fontSize: '9px', color: '#222' }}>موقع {vendorInfo.name} الرسمي</div>
           <div style={{ fontSize: '9px', fontWeight: 'bold', marginTop: '1mm', color: '#111' }}>{storeLink}</div>
+          <div style={{ fontSize: '9px', fontWeight: 'bold', marginTop: '2mm', color: '#111', whiteSpace: 'pre-line' }}>
+            {getInvoiceReturnPolicy(invoice)}
+          </div>
           <div style={{ fontSize: '10px', marginTop: '2mm', color: '#222', fontWeight: 'bold' }}>شكراً لزيارتكم ونتمنى لكم يوماً سعيداً!</div>
         </div>
       </div>
