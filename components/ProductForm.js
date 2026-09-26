@@ -8,6 +8,16 @@ import AttributeSelector from './AttributeSelector';
 import VariationImageUpload from './VariationImageUpload';
 import MultipleImageUpload from './MultipleImageUpload';
 
+const normalizeCategoryText = (text) => (text || '')
+  .toLowerCase()
+  .replace(/[أإآ]/g, 'ا')
+  .replace(/[ى]/g, 'ي')
+  .replace(/[ؤ]/g, 'و')
+  .replace(/[ئ]/g, 'ء')
+  .replace(/[ة]/g, 'ه')
+  .replace(/[\u064B-\u065F]/g, '')
+  .trim();
+
 /**
  * ProductForm Component - نموذج شامل للمنتجات
  * @param {string} mode - 'create' أو 'edit'
@@ -430,8 +440,18 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
   // Category Handlers
   const getCategoryChildren = (parentId) => {
-    return categories.filter(c => c.parent === parentId);
+    return categories.filter(c => Number(c.parent) === Number(parentId));
   };
+
+  const categoryMatchesSearch = (cat) => {
+    const query = normalizeCategoryText(categorySearch);
+    return Boolean(query) && normalizeCategoryText(cat?.name).includes(query);
+  };
+
+  const categoryHasMatchingDescendant = (catId) =>
+    getCategoryChildren(catId).some(child =>
+      categoryMatchesSearch(child) || categoryHasMatchingDescendant(child.id)
+    );
 
   const toggleCategory = (catId) => {
     setCollapsedCategories(prev => {
@@ -477,15 +497,22 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
   const renderCategory = (cat, level = 0) => {
     const children = getCategoryChildren(cat.id);
+    const hasSearch = Boolean(categorySearch.trim());
+    const isDirectMatch = categoryMatchesSearch(cat);
+    const matchingChildren = hasSearch
+      ? children.filter(child => categoryMatchesSearch(child) || categoryHasMatchingDescendant(child.id))
+      : children;
+    const hasMatchingDescendant = hasSearch && matchingChildren.length > 0;
     const isSelected = form.categories.includes(cat.id);
-    const isCollapsed = collapsedCategories.has(cat.id);
+    // أثناء البحث افتح مسار التصنيف المطابق تلقائيًا بدل إظهار الأب وحده.
+    const isCollapsed = hasMatchingDescendant ? false : collapsedCategories.has(cat.id);
     const paddingLeft = level * 24;
     
     return (
       <div key={cat.id}>
         <div
           className={`flex items-center gap-2 px-4 py-2.5 transition-all border-t border-gray-100 ${
-            level === 0 ? 'bg-gray-50 border-t-2 border-gray-200' : ''
+            isDirectMatch ? 'bg-amber-100 border-r-4 border-r-amber-500' : level === 0 ? 'bg-gray-50 border-t-2 border-gray-200' : ''
           }`}
           style={{ paddingRight: `${paddingLeft + 16}px` }}
         >
@@ -508,13 +535,14 @@ export default function ProductForm({ mode = 'create', productId = null, initial
               onChange={() => toggleCategorySelection(cat.id)}
               className="w-4 h-4 text-blue-600 rounded"
             />
-            <span className={`text-sm ${isSelected ? 'font-semibold text-blue-700' : 'text-gray-700'}`}>
+            <span className={`text-sm ${isSelected ? 'font-semibold text-blue-700' : isDirectMatch ? 'font-bold text-amber-900' : 'text-gray-700'}`}>
               {cat.name}
+              {isDirectMatch && <span className="mr-2 text-xs text-amber-700">← مطابق للبحث</span>}
             </span>
           </label>
         </div>
         
-        {!isCollapsed && children.map(child => renderCategory(child, level + 1))}
+        {!isCollapsed && matchingChildren.map(child => renderCategory(child, level + 1))}
       </div>
     );
   };
@@ -1068,7 +1096,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         </div>
 
         {/* Categories */}
-        <div className="md:col-span-2 hidden md:block">
+        <div className="md:col-span-2">
           <div className="flex items-center justify-between mb-3">
             <label className="block text-sm font-semibold">
               🏷️ التصنيفات (اختياري)
@@ -1162,25 +1190,8 @@ export default function ProductForm({ mode = 'create', productId = null, initial
           ) : (
             <div className="border-2 border-gray-200 rounded-xl overflow-hidden max-h-96 overflow-y-auto bg-white">
               {categories
-                .filter(cat => cat.parent === 0) // الرئيسية فقط
-                .filter(cat => {
-                  if (!categorySearch) return true;
-                  // بحث في الاسم أو أي من الأبناء على أي مستوى
-                  const searchLower = categorySearch.toLowerCase();
-                  
-                  // دالة للبحث في الشجرة
-                  const searchInTree = (catId) => {
-                    const cat = categories.find(c => c.id === catId);
-                    if (!cat) return false;
-                    
-                    if (cat.name.toLowerCase().includes(searchLower)) return true;
-                    
-                    const children = categories.filter(c => c.parent === catId);
-                    return children.some(c => searchInTree(c.id));
-                  };
-                  
-                  return searchInTree(cat.id);
-                })
+                .filter(cat => Number(cat.parent) === 0) // الرئيسية فقط
+                .filter(cat => !categorySearch.trim() || categoryMatchesSearch(cat) || categoryHasMatchingDescendant(cat.id))
                 .sort((a, b) => a.name.localeCompare(b.name, 'ar'))
                 .map((parentCat) => renderCategory(parentCat, 0))}
             </div>
