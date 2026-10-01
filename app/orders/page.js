@@ -21,6 +21,26 @@ const STATUS_OPTIONS = [
   { value: "failed", label: "فشل", color: "bg-red-500" },
 ];
 
+const isOrderPaymentConfirmed = (order) => {
+  if (!['processing', 'completed'].includes(String(order?.status || '').toLowerCase())) return false;
+
+  const metaValue = (key) => order?.meta_data?.find(item => item.key === key)?.value;
+  const paymentMethod = String(order?.payment_method || '').toLowerCase();
+  const paymentTitle = String(order?.payment_method_title || '');
+  const paymentStatus = String(metaValue('_payment_status') || '').toLowerCase();
+  const isKashier = paymentMethod.includes('kashier');
+  const isCashOnDelivery = paymentMethod === 'cod' || /cash on delivery|نقد|عند الاستلام/i.test(paymentTitle);
+
+  if (isKashier || isCashOnDelivery) {
+    if (['awaiting', 'pending', 'unpaid', 'failed', 'declined'].includes(paymentStatus) ||
+        (isKashier && String(metaValue('_kashier_payment_pending') || '').toLowerCase() === 'yes')) return false;
+    return Boolean(order?.date_paid) ||
+      ['completed', 'captured', 'paid', 'success'].includes(paymentStatus);
+  }
+
+  return true;
+};
+
 // 🎛️ Feature Flags التحكم في الميزات
 const FEATURES = {
   ENABLE_BOSTA_UNLINK: false, // إزالة الربط ببوسطة | غير إلى false لتعطيل الميزة
@@ -157,6 +177,9 @@ function OrdersContent() {
   const [checkingKashierPayment, setCheckingKashierPayment] = useState(null); // orderId being checked
   const [kashierCheckResults, setKashierCheckResults] = useState({}); // { [orderId]: result }
   const [runningKashierScan, setRunningKashierScan] = useState(false);
+  const [runningCompletedAudit, setRunningCompletedAudit] = useState(false);
+  const [completedAuditProgress, setCompletedAuditProgress] = useState(null);
+  const [completedAuditReport, setCompletedAuditReport] = useState(null);
   
   // 🆕 Auto-hide toast
   useEffect(() => {
@@ -204,13 +227,14 @@ function OrdersContent() {
   // 💳 فحص يدوي لكل الأوردرات المعلقة عبر Kashier
   const handleKashierScanAll = async () => {
     if (runningKashierScan) return;
-    const pendingOrders = orders.filter(o => o.status === 'pending');
+    const pendingOrders = orders.filter(o => o.status === 'pending' && String(o.payment_method || '').toLowerCase().includes('kashier'));
     if (pendingOrders.length === 0) {
       setToast({ message: 'ℹ️ لا توجد أوردرات معلقة للفحص', type: 'info' });
       return;
     }
     setRunningKashierScan(true);
     let paidCount = 0;
+    let correctedCount = 0;
     for (const order of pendingOrders) {
       try {
         const res = await fetch('/api/orders/check-kashier-payment', {
@@ -224,10 +248,12 @@ function OrdersContent() {
           }),
         });
         const data = await res.json();
-        if (data.paid) {
+        if (data.paid && data.updated) {
           paidCount++;
           setKashierCheckResults(prev => ({ ...prev, [order.id]: data }));
         }
+        if (data.corrected) correctedCount++;
+        if (data.updated) loadOrders(1, false);
       } catch {
         // تجاهل أخطاء الأوردرات الفردية
       }
@@ -235,9 +261,12 @@ function OrdersContent() {
     setRunningKashierScan(false);
     if (paidCount > 0) {
       setToast({
-        message: `✅ تم اكتشاف ${paidCount} أوردر مدفوع عن طريق Kashier وتم تحديثه`,
+        message: `✅ تم تأكيد ${paidCount} أوردر مدفوع عن طريق Kashier${correctedCount ? ` | وتم تصحيح ${correctedCount} أوردر غير مدفوع` : ''}`,
         type: 'success',
       });
+      loadOrders(1, false);
+    } else if (correctedCount > 0) {
+      setToast({ message: `⚠️ تم تصحيح ${correctedCount} أوردر كان مسجلاً بالخطأ كمدفوع`, type: 'warning' });
       loadOrders(1, false);
     } else {
       setToast({ message: `⏳ تم الفحص — لا توجد مدفوعات جديدة من Kashier`, type: 'warning' });
@@ -422,6 +451,116 @@ function OrdersContent() {
     setKashierConfig({ merchantId: settings.merchantId, apiPassword: settings.apiPassword });
   };
 
+  const handleCompletedKashierAudit = async () => {
+    if (runningCompletedAudit) return;
+    if (!kashierConfig.merchantId || !kashierConfig.apiPassword) {
+      setToast({ message: '⚠️ فعّل Kashier من صفحة الإعدادات أولاً', type: 'warning' });
+      return;
+    }
+
+    setRunningCompletedAudit(true);
+    setCompletedAuditReport(null);
+    setCompletedAuditProgress({ current: 0, total: 0, message: 'جاري جلب كل الأوردرات المكتملة...' });
+
+    try {
+      const completedOrders = [];
+      let page = 1;
+      let totalPages = 1;
+
+      do {
+        const params = new URLSearchParams({ status: 'completed', per_page: '100', page: String(page) });
+        if (isAdminUser && selectedVendorId) params.set('vendor_id', selectedVendorId);
+        const res = await fetch(`/api/orders?${params.toString()}`, { credentials: 'include', cache: 'no-store' });
+        if (!res.ok) throw new Error(`فشل جلب الأوردرات المكتملة (${res.status})`);
+        const payload = await res.json();
+        const batchOrders = payload.orders || [];
+        completedOrders.push(...batchOrders);
+        totalPages = Math.max(1, Number(payload.total_pages || (payload.has_more ? page + 1 : page)));
+        page += 1;
+        setCompletedAuditProgress({ current: completedOrders.length, total: Number(payload.total || 0), message: 'جاري جلب الأوردرات المكتملة...' });
+      } while (page <= totalPages && page <= 1000);
+
+      const isSpare2AppOrder = (order) => {
+        const sourceMeta = order.meta_data?.find(item => item.key === '_order_source')?.value;
+        return String(sourceMeta || order._order_source || '').trim().toLowerCase() === 'spare2app';
+      };
+      const getStoredKashierTransactionId = (order) =>
+        String(order.meta_data?.find(item => item.key === '_kashier_transaction_id')?.value || order._kashier_transaction_id || '').trim();
+      const isValidTransactionCode = (code) => /^TX-\d+$/i.test(code);
+      const excludedSpare2appCount = completedOrders.filter(isSpare2AppOrder).length;
+      const nonSpare2appOrders = completedOrders.filter(order => !isSpare2AppOrder(order));
+      const kashierOrdersWithoutValidCode = nonSpare2appOrders.filter(order =>
+        String(order.payment_method || '').toLowerCase().includes('kashier') &&
+        !isValidTransactionCode(getStoredKashierTransactionId(order))
+      );
+      const kashierOrders = nonSpare2appOrders.filter(order =>
+        String(order.payment_method || '').toLowerCase().includes('kashier') &&
+        isValidTransactionCode(getStoredKashierTransactionId(order))
+      );
+      const excludedInvalidTransactionCodeCount = kashierOrdersWithoutValidCode.length;
+
+      if (kashierOrders.length === 0) {
+        setCompletedAuditReport({ rows: [], paid: 0, unpaid: 0, review: 0, confirmedUnpaidTotal: 0, completedCount: completedOrders.length, excludedSpare2appCount, excludedInvalidTransactionCodeCount });
+        setToast({ message: `ℹ️ تم استبعاد ${excludedSpare2appCount} أوردر spare2app و${excludedInvalidTransactionCodeCount} أوردر Kashier بلا كود TX صالح`, type: 'info' });
+        return;
+      }
+
+      const allRows = [];
+      let paid = 0;
+      let unpaid = 0;
+      let review = 0;
+      let invalidKashierCodeCount = 0;
+      let confirmedUnpaidTotal = 0;
+
+      for (let offset = 0; offset < kashierOrders.length; offset += 40) {
+        const orderBatch = kashierOrders.slice(offset, offset + 40);
+        const res = await fetch('/api/orders/audit-completed-kashier', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            orders: orderBatch.map(order => ({
+              orderId: String(order.id),
+              transactionId: getStoredKashierTransactionId(order),
+            })),
+            apiPassword: kashierConfig.apiPassword,
+          }),
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'فشل فحص معاملات Kashier');
+
+        allRows.push(...(result.rows || []));
+        paid += Number(result.paid || 0);
+        unpaid += Number(result.unpaid || 0);
+        review += Number(result.review || 0);
+        invalidKashierCodeCount += Number(result.excluded || 0);
+        confirmedUnpaidTotal += Number(result.confirmedUnpaidTotal || 0);
+        setCompletedAuditProgress({
+          current: Math.min(offset + orderBatch.length, kashierOrders.length),
+          total: kashierOrders.length,
+          message: 'جاري فحص معاملات Kashier للأوردرات المكتملة...',
+        });
+      }
+
+      setCompletedAuditReport({
+        rows: allRows,
+        paid,
+        unpaid,
+        review,
+        confirmedUnpaidTotal,
+        completedCount: completedOrders.length,
+        kashierCount: kashierOrders.length,
+        excludedSpare2appCount,
+        excludedInvalidTransactionCodeCount: excludedInvalidTransactionCodeCount + invalidKashierCodeCount,
+      });
+    } catch (error) {
+      setToast({ message: `❌ ${error.message || 'فشل فحص الأوردرات المكتملة'}`, type: 'error' });
+    } finally {
+      setRunningCompletedAudit(false);
+      setCompletedAuditProgress(null);
+    }
+  };
+
   // 🔍 فحص حالة الدفع من Kashier
   const handleCheckKashierPayment = async (order) => {
     if (!kashierConfig.merchantId || !kashierConfig.apiPassword) {
@@ -445,13 +584,10 @@ function OrdersContent() {
       setKashierCheckResults(prev => ({ ...prev, [order.id]: data }));
       if (data.paid) {
         setToast({ message: data.message || '✅ الدفع تم بنجاح', type: 'success' });
-        if (data.updated) {
-          // reload orders to reflect new status
-          loadOrders(1, false);
-        }
       } else {
         setToast({ message: data.message || '⏳ لم يتم الدفع بعد', type: 'warning' });
       }
+      if (data.updated) loadOrders(1, false);
     } catch (err) {
       setToast({ message: '❌ خطأ: ' + err.message, type: 'error' });
     } finally {
@@ -3300,6 +3436,17 @@ function OrdersContent() {
                   <span>{runningKashierScan ? 'جاري الفحص...' : 'فحص Kashier'}</span>
                 </button>
               )}
+              {/* {kashierEnabled && activeTab === 'website' && (
+                <button
+                  onClick={handleCompletedKashierAudit}
+                  disabled={runningCompletedAudit}
+                  className="px-3 py-2 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 text-white rounded-lg transition-all font-bold whitespace-nowrap shadow-md hover:shadow-lg flex items-center gap-1 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                  title="مراجعة كل الأوردرات المكتملة ومطابقتها مع معاملات Kashier دون تغيير حالتها"
+                >
+                  <span>{runningCompletedAudit ? '⏳' : '🔎'}</span>
+                  <span>{runningCompletedAudit ? 'جاري مراجعة المكتملة...' : 'مراجعة المكتملة غير المدفوعة'}</span>
+                </button>
+              )} */}
               {/* تقرير كاشير اليومي — زر رئيسي لطباعة الأموال المدخولة من الموقع */}
               <button
                 onClick={openCashierDailyReport}
@@ -4176,7 +4323,9 @@ function OrdersContent() {
                         (m.key === '_is_store_pickup' && m.value === 'yes') || 
                         (m.key === '_delivery_type' && m.value === 'store_pickup')
                       ) ? 'pickup' : 'delivery';
-                      const kashierTxId = order.meta_data?.find(m => m.key === '_kashier_transaction_id')?.value;
+                      const kashierTxId = isOrderPaymentConfirmed(order)
+                        ? order.meta_data?.find(m => m.key === '_kashier_transaction_id')?.value
+                        : '';
                       const orderSource = order.meta_data?.find(m => m.key === '_order_source')?.value;
                       const isSpare2AppOrder = orderSource === 'spare2app';
                       const bostaTracking = order.bosta?.trackingNumber || order.meta_data?.find(m => m.key === '_bosta_tracking_number')?.value;
@@ -4185,7 +4334,7 @@ function OrdersContent() {
                       const bostaActive = bostaActiveMeta === undefined ? true : (bostaActiveMeta === 'true' || bostaActiveMeta === true);
                       const showBostaBadge = bostaTracking && bostaStatus && order.status !== 'completed'; // 🔥 عرض كل الأوردرات مع tracking
                       const productTotal = parseFloat(order.total) - parseFloat(order.shipping_total || 0);
-                      const isPaid = order.payment_method_title && order.payment_method_title !== 'الدفع نقدًا عند الاستلام';
+                      const isPaid = isOrderPaymentConfirmed(order);
                       
                       // 🆕 إخفاء رقم التتبع لو الحالة pending أو on-hold
                       const showBostaTracking = bostaTracking && order.status !== 'pending' && order.status !== 'on-hold';
@@ -4466,7 +4615,7 @@ function OrdersContent() {
                               >
                                 📄 تفاصيل
                               </button>
-                              {order.status === 'pending' && kashierEnabled && (
+                              {!isOrderPaymentConfirmed(order) && String(order.payment_method || '').toLowerCase().includes('kashier') && kashierEnabled && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleCheckKashierPayment(order); }}
                                   disabled={checkingKashierPayment === order.id}
@@ -5266,7 +5415,9 @@ function OrdersContent() {
                     
                     {/* Kashier Transaction ID */}
                     {(() => {
-                      const kashierTxId = order.meta_data?.find(m => m.key === '_kashier_transaction_id')?.value;
+                      const kashierTxId = isOrderPaymentConfirmed(order)
+                        ? order.meta_data?.find(m => m.key === '_kashier_transaction_id')?.value
+                        : '';
                       return kashierTxId && (
                         <div className="bg-purple-50 border border-purple-300 rounded-lg p-2">
                           <div className="flex items-center gap-2">
@@ -5321,7 +5472,7 @@ function OrdersContent() {
                       {(parseFloat(order.total) - parseFloat(order.shipping_total || 0))} جنيه
                     </p>
                     {/* تنبيه: المبلغ المدفوع في الستور هو ثمن المنتج فقط */}
-                    {order.payment_method_title && order.payment_method_title !== 'الدفع نقدًا عند الاستلام' && (
+                    {isOrderPaymentConfirmed(order) && (
                       <div className="bg-blue-50 border border-blue-300 rounded-lg p-2">
                         <p className="text-blue-700 text-xs font-semibold mb-0.5">✓ تم دفع ثمن المنتج فقط</p>
                         <p className="text-blue-900 text-sm font-bold">
@@ -5343,7 +5494,7 @@ function OrdersContent() {
                   {/* Actions */}
                   <div className="space-y-2 px-1" onClick={(e) => e.stopPropagation()}>
                     {/* 🔍 Kashier Payment Check - for pending orders */}
-                    {order.status === 'pending' && kashierEnabled && (
+                    {!isOrderPaymentConfirmed(order) && String(order.payment_method || '').toLowerCase().includes('kashier') && kashierEnabled && (
                       <div>
                         <button
                           onClick={() => handleCheckKashierPayment(order)}
@@ -6254,6 +6405,130 @@ function OrdersContent() {
               عرض <span className="font-bold text-gray-900">{orders.length}</span> طلب
               {hasMore && <span className="text-blue-600 font-medium"> • اضغط "تحميل المزيد" لعرض باقي الطلبات</span>}
               {!hasMore && <span className="text-green-600 font-medium"> ✅</span>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {completedAuditProgress && (
+        <div className="fixed inset-0 z-[90] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl text-center" dir="rtl">
+            <div className="text-4xl mb-3">🔎</div>
+            <h2 className="font-bold text-lg mb-2">مراجعة أوردرات التسليم</h2>
+            <p className="text-sm text-gray-600 mb-4">{completedAuditProgress.message}</p>
+            {completedAuditProgress.total > 0 && (
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div
+                  className="bg-indigo-600 h-full transition-all"
+                  style={{ width: `${Math.min(100, Math.round((completedAuditProgress.current / completedAuditProgress.total) * 100))}%` }}
+                />
+              </div>
+            )}
+            <p className="text-xs text-gray-500 mt-2">
+              {completedAuditProgress.current} من {completedAuditProgress.total || '...'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {completedAuditReport && (
+        <div className="fixed inset-0 z-[85] bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-5xl max-h-[96vh] sm:max-h-[90vh] rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden" dir="rtl">
+            <div className="bg-gradient-to-l from-red-700 to-rose-600 text-white px-4 py-4 sm:px-6 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="font-bold text-lg sm:text-xl">📊 مراجعة الأوردرات المكتملة وKashier</h2>
+                <p className="text-xs sm:text-sm text-red-100 mt-1">
+                  تمت مراجعة {completedAuditReport.completedCount || 0} أوردر مكتمل
+                  {completedAuditReport.kashierCount !== undefined ? ` • ${completedAuditReport.kashierCount} عبر Kashier` : ''}
+                  {completedAuditReport.excludedSpare2appCount > 0 ? ` • استبعاد ${completedAuditReport.excludedSpare2appCount} من spare2app` : ''}
+                  {completedAuditReport.excludedInvalidTransactionCodeCount > 0 ? ` • استبعاد ${completedAuditReport.excludedInvalidTransactionCodeCount} بكود TX غير صالح أو غير مطابق` : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => setCompletedAuditReport(null)}
+                className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-2xl leading-none"
+                aria-label="إغلاق التقرير"
+              >×</button>
+            </div>
+
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+                  <div className="text-xs text-red-700">غير مدفوع مؤكد</div>
+                  <div className="text-2xl font-black text-red-800">{completedAuditReport.unpaid || 0}</div>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <div className="text-xs text-amber-700">يحتاج مراجعة</div>
+                  <div className="text-2xl font-black text-amber-800">{completedAuditReport.review || 0}</div>
+                </div>
+                <div className="rounded-xl border border-green-200 bg-green-50 p-3">
+                  <div className="text-xs text-green-700">مدفوع مؤكد</div>
+                  <div className="text-2xl font-black text-green-800">{completedAuditReport.paid || 0}</div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-xs text-slate-700">قيمة المنتجات غير المدفوعة المؤكدة</div>
+                  <div className="text-lg sm:text-xl font-black text-slate-900">
+                    {Number(completedAuditReport.confirmedUnpaidTotal || 0).toLocaleString('ar-EG', { maximumFractionDigits: 2 })} ج.م
+                  </div>
+                  <div className="text-[10px] text-slate-500">بدون رسوم الشحن</div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs sm:text-sm text-blue-900">
+                المبلغ الأحمر محسوب فقط للأوردرات التي أعاد لها Kashier حالة غير مدفوعة صريحة. الأوردر الذي لم يظهر له سجل مطابق أو تعذر فحصه موجود للمراجعة ولا يدخل في إجمالي الخسارة.
+              </div>
+
+              <div className="overflow-x-auto border rounded-xl">
+                <table className="w-full min-w-[760px] text-sm">
+                  <thead className="bg-gray-100 text-gray-700">
+                    <tr>
+                      <th className="p-3 text-right">الأوردر</th>
+                      <th className="p-3 text-right">كود TX المفحوص</th>
+                      <th className="p-3 text-right">العميل</th>
+                      <th className="p-3 text-right">التاريخ</th>
+                      <th className="p-3 text-right">قيمة المنتجات</th>
+                      <th className="p-3 text-right">نتيجة Kashier</th>
+                      <th className="p-3 text-right">التوضيح</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {completedAuditReport.rows?.filter(row => row.result !== 'paid').map((row) => (
+                      <tr key={row.orderId} className={`border-t ${row.result === 'unpaid' ? 'bg-red-50' : 'bg-amber-50'}`}>
+                        <td className="p-3 font-bold">#{row.orderNumber || row.orderId}</td>
+                        <td className="p-3 font-mono text-xs">{row.expectedTransactionId || row.transactionId || '—'}</td>
+                        <td className="p-3">
+                          <div>{row.customerName || '—'}</div>
+                          {row.phone && <div className="text-xs text-gray-500">{row.phone}</div>}
+                        </td>
+                        <td className="p-3 text-xs">
+                          {row.dateCreated ? new Date(row.dateCreated).toLocaleDateString('ar-EG') : '—'}
+                        </td>
+                        <td className="p-3 font-bold">{Number(row.productAmount || 0).toLocaleString('ar-EG', { maximumFractionDigits: 2 })} ج.م</td>
+                        <td className="p-3">
+                          <span className={`rounded-full px-2 py-1 text-xs font-bold ${row.result === 'unpaid' ? 'bg-red-200 text-red-900' : 'bg-amber-200 text-amber-900'}`}>
+                            {row.result === 'unpaid' ? 'غير مدفوع' : 'غير حاسم'}
+                          </span>
+                          {row.paymentStatus && <div className="font-mono text-[10px] mt-1">{row.paymentStatus}</div>}
+                        </td>
+                        <td className="p-3 text-xs">{row.message}</td>
+                      </tr>
+                    ))}
+                    {completedAuditReport.rows?.length > 0 && completedAuditReport.rows.every(row => row.result === 'paid') && (
+                      <tr><td colSpan="7" className="p-8 text-center text-green-700 font-bold">✅ كل الأوردرات التي تم فحصها مدفوعة حسب Kashier</td></tr>
+                    )}
+                    {completedAuditReport.rows?.length === 0 && (
+                      <tr><td colSpan="7" className="p-8 text-center text-gray-500">لا توجد أوردرات مكتملة خارج spare2app لديها كود TX صالح للفحص.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="p-3 border-t bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setCompletedAuditReport(null)}
+                className="w-full sm:w-auto px-6 py-2.5 bg-gray-800 hover:bg-gray-900 text-white rounded-lg font-bold"
+              >إغلاق التقرير</button>
             </div>
           </div>
         </div>

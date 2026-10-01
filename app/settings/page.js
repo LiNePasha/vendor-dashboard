@@ -826,11 +826,12 @@ export default function SettingsPage() {
                         orderId: 'test-connection-0',
                         merchantId: kashierSettings.merchantId,
                         apiPassword: kashierSettings.apiPassword,
+                        testConnection: true,
                       }),
                     });
                     // أي رد من السيرفر (حتى 502) يعني الإعدادات وصلت للـ route
                     const data = await res.json();
-                    if (res.ok || data?.paymentStatus !== undefined || data?.paid === false) {
+                    if (res.ok && data?.success) {
                       setKashierTestResult({ success: true, message: '✅ الاتصال بـ Kashier شغال — الإعدادات صحيحة' });
                     } else {
                       setKashierTestResult({ success: false, message: data?.error || '❌ فشل الاتصال بـ Kashier' });
