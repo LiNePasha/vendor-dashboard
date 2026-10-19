@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import useEmployeesStore from "@/app/stores/employees-store";
 import { employeesStorage } from "@/app/lib/employees-storage";
 import { getCurrentEgyptTime, formatEgyptTime } from "@/app/lib/time-helpers";
+import { getAppMode, ROLES } from "@/app/lib/roles-permissions";
 
 export default function AddDeductionPage() {
   const router = useRouter();
@@ -122,7 +123,7 @@ export default function AddDeductionPage() {
       showToast(`✅ تم إضافة الخصم بنجاح!`);
 
       setTimeout(() => {
-        router.push(`/employees/${employee.id}`);
+        router.push(getAppMode() === ROLES.ASSISTANT_MANAGER ? '/employees' : `/employees/${employee.id}`);
       }, 1000);
     } catch (error) {
       console.error("Error adding deduction:", error);
@@ -166,7 +167,7 @@ export default function AddDeductionPage() {
         {/* Header */}
         <div className="mb-6">
           <button
-            onClick={() => router.push(`/employees/${employee.id}`)}
+            onClick={() => router.push(getAppMode() === ROLES.ASSISTANT_MANAGER ? '/employees' : `/employees/${employee.id}`)}
             className="text-blue-500 hover:text-blue-600 mb-4 flex items-center gap-2"
           >
             ← رجوع

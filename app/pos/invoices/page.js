@@ -5,6 +5,7 @@ import { invoiceStorage } from '@/app/lib/localforage';
 import { Toast } from '@/components/Toast';
 import InvoiceModal from '@/app/pos/InvoiceModal';
 import VariationSelector from '@/components/pos/VariationSelector';
+import { getAppMode, ROLES } from '@/app/lib/roles-permissions';
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState([]);
@@ -44,6 +45,12 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     loadInvoices();
+  }, []);
+
+  useEffect(() => {
+    if (getAppMode() === ROLES.ASSISTANT_MANAGER) {
+      setFilterDate('today');
+    }
   }, []);
 
   const loadInvoices = async () => {
@@ -1029,7 +1036,7 @@ export default function InvoicesPage() {
     total: invoices.length,
     synced: invoices.filter(i => i.synced).length,
     pending: invoices.filter(i => !i.synced).length,
-    totalRevenue: invoices.reduce((sum, inv) => sum + (inv.summary?.total || 0), 0),
+    totalRevenue: filteredInvoices.reduce((sum, inv) => sum + (inv.summary?.total || 0), 0),
     // 🆕 Payment Status Stats
     paidFull: invoices.filter(i => (i.paymentStatus || 'paid_full') === 'paid_full').length,
     paidPartial: invoices.filter(i => (i.paymentStatus || 'paid_full') === 'paid_partial').length,
@@ -1123,7 +1130,9 @@ export default function InvoicesPage() {
           <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-100 text-sm font-medium">إجمالي المبيعات</p>
+                <p className="text-purple-100 text-sm font-medium">
+                  {filterDate === 'today' ? 'إجمالي مبيعات اليوم' : 'إجمالي المبيعات'}
+                </p>
                 <p className="text-2xl font-bold mt-1">{formatPrice(stats.totalRevenue)} ج.م</p>
               </div>
               <div className="bg-purple-400 bg-opacity-30 rounded-full p-3">

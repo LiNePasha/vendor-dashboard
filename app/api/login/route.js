@@ -26,6 +26,20 @@ export async function POST(req) {
 
   const response = NextResponse.json({ success: true });
 
+  // A new authenticated session always starts in the full owner view.
+  response.cookies.set("appMode", "owner", {
+    httpOnly: false,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24,
+  });
+  response.cookies.set("isCashierMode", "false", {
+    httpOnly: false,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24,
+  });
+
   // ✅ حفظ التوكن
   response.cookies.set("token", data.token, {
     httpOnly: true,

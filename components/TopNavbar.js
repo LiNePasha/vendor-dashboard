@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { getVendorStoreLink, getVendorLogo } from "@/app/lib/vendor-constants";
 import usePOSStore from "@/app/stores/pos-store";
 import Image from "next/image";
-import { filterMenuItemsForRole, isCashierMode, toggleCashierMode } from "@/app/lib/roles-permissions";
+import { APP_MODE_LABELS, APP_MODE_OPTIONS, filterMenuItemsForRole, getAppMode, setAppMode } from "@/app/lib/roles-permissions";
 
 const menuItems = [
   {
@@ -108,11 +108,11 @@ export default function TopNavbar() {
   // Secret Mode State
   const [logoClickCount, setLogoClickCount] = useState(0);
   const [showSecretMode, setShowSecretMode] = useState(false);
-  const [cashierMode, setCashierMode] = useState(false);
+  const [appMode, setAppModeState] = useState('owner');
   
-  // تحميل حالة الكاشير من localStorage
+  // تحميل وضع الصلاحيات الحالي
   useEffect(() => {
-    setCashierMode(isCashierMode());
+    setAppModeState(getAppMode());
   }, []);
   
   // عداد الضغطات على اللوجو (3 مرات)
@@ -128,18 +128,12 @@ export default function TopNavbar() {
     setTimeout(() => setLogoClickCount(0), 2000);
   };
   
-  // تبديل وضع الكاشير
-  const handleToggleCashierMode = (e) => {
-    const enabled = e.target.checked;
-    const success = toggleCashierMode(enabled);
-    
-    if (!success) {
-      e.target.checked = !enabled;
-    }
+  const handleSelectAppMode = (mode) => {
+    setAppMode(mode);
   };
   
   // فلترة القائمة حسب الدور
-  const filteredMenuItems = filterMenuItemsForRole(menuItems);
+  const filteredMenuItems = filterMenuItemsForRole(menuItems, appMode);
 
   return (
     <>
@@ -284,23 +278,38 @@ export default function TopNavbar() {
             </div>
           </div>
 
-          {/* Secret Mode - Cashier Toggle */}
+          {/* Secret Mode - Restricted App Modes */}
           {showSecretMode && (
             <div className="px-4 lg:px-6 pb-3 animate-fadeIn">
-              <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-3 flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="cashierMode"
-                  checked={cashierMode}
-                  onChange={handleToggleCashierMode}
-                  className="w-5 h-5 accent-yellow-500 cursor-pointer"
-                />
-                <label htmlFor="cashierMode" className="text-sm text-yellow-800 cursor-pointer select-none flex-1 font-medium">
-                  {cashierMode ? '🔓 وضع الكاشير مفعّل' : '🔒 تفعيل وضع الكاشير'}
-                </label>
+              <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-3 flex flex-wrap items-center gap-2">
+                <span className="text-sm text-yellow-900 font-bold ml-2">وضع الصلاحيات:</span>
+                {APP_MODE_OPTIONS.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => handleSelectAppMode(mode)}
+                    className={`px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+                      appMode === mode ? 'bg-yellow-500 text-white' : 'bg-white text-yellow-900 border border-yellow-300 hover:bg-yellow-100'
+                    }`}
+                  >
+                    {mode === 'cashier' ? '🛒 ' : mode === 'assistant_manager' ? '🧾 ' : '👔 '}
+                    {APP_MODE_LABELS[mode]}
+                    {appMode === mode ? ' ✓' : ''}
+                  </button>
+                ))}
+                {appMode !== 'owner' && (
+                  <button
+                    type="button"
+                    onClick={() => handleSelectAppMode('owner')}
+                    className="px-3 py-2 rounded-lg text-sm font-bold bg-gray-800 text-white hover:bg-gray-900"
+                  >
+                    🔓 إلغاء الوضع المحدود
+                  </button>
+                )}
                 <button
                   onClick={() => setShowSecretMode(false)}
-                  className="text-yellow-600 hover:text-yellow-800 text-lg font-bold px-2"
+                  className="mr-auto text-yellow-700 hover:text-yellow-900 text-lg font-bold px-2"
+                  aria-label="إغلاق قائمة الأوضاع"
                 >
                   ×
                 </button>

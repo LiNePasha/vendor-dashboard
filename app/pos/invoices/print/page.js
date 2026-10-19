@@ -182,6 +182,7 @@ function PrintInvoiceContent() {
     instapay: '📱 انستا باي',
     card: '💳 بطاقة'
   }[invoice.paymentMethod] || invoice.paymentMethod;
+  const sellerName = invoice.soldBy?.employeeName || invoice.soldBy?.name || invoice.employeeName || '';
 
   return (
     <div key={invoice.id} className="receipt-print" style={{
@@ -405,6 +406,11 @@ function PrintInvoiceContent() {
           <span>#{invoice.id}</span>
           <span>{new Date(invoice.date).toLocaleString('ar-EG', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
         </div>
+          {sellerName && (
+            <div style={{ fontSize: '9px', marginBottom: '2mm', fontWeight: 'bold', color: '#111' }}>
+              👤 البائع: {sellerName}
+            </div>
+          )}
 
         {/* Items */}
         <div style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', paddingTop: '2mm', paddingBottom: '2mm', marginBottom: '2mm' }}>

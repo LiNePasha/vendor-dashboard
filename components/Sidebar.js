@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { getVendorStoreLink,getVendorLogo } from "@/app/lib/vendor-constants";
 import usePOSStore from "@/app/stores/pos-store";
 import Image from "next/image";
-import { filterMenuItemsForRole, isCashierMode, toggleCashierMode } from "@/app/lib/roles-permissions";
+import { APP_MODE_LABELS, APP_MODE_OPTIONS, filterMenuItemsForRole, getAppMode, setAppMode } from "@/app/lib/roles-permissions";
 
 const menuItems = [
   {
@@ -141,11 +141,11 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse, isMob
   // Secret Mode State
   const [logoClickCount, setLogoClickCount] = useState(0);
   const [showSecretMode, setShowSecretMode] = useState(false);
-  const [cashierMode, setCashierMode] = useState(false);
+  const [appMode, setAppModeState] = useState('owner');
   
-  // تحميل حالة الكاشير من localStorage
+  // تحميل وضع الصلاحيات الحالي
   useEffect(() => {
-    setCashierMode(isCashierMode());
+    setAppModeState(getAppMode());
   }, []);
   
   // عداد الضغطات على اللوجو (3 مرات)
@@ -162,19 +162,12 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse, isMob
     setTimeout(() => setLogoClickCount(0), 2000);
   };
   
-  // تبديل وضع الكاشير
-  const handleToggleCashierMode = (e) => {
-    const enabled = e.target.checked;
-    const success = toggleCashierMode(enabled);
-    
-    if (!success) {
-      // لو فشل، نرجع الـ checkbox لوضعه الأصلي
-      e.target.checked = !enabled;
-    }
+  const handleSelectAppMode = (mode) => {
+    setAppMode(mode);
   };
   
   // فلترة القائمة حسب الدور
-  const filteredMenuItems = filterMenuItemsForRole(menuItems);
+  const filteredMenuItems = filterMenuItemsForRole(menuItems, appMode);
 
   return (
     <>
@@ -273,27 +266,40 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse, isMob
           )}
         </div>
         
-        {/* Secret Mode - Cashier Toggle */}
+        {/* Secret Mode - Restricted App Modes */}
         {showSecretMode && !isCollapsed && (
-          <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg animate-pulse">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="cashierMode"
-                checked={cashierMode}
-                onChange={handleToggleCashierMode}
-                className="w-4 h-4 accent-yellow-500 cursor-pointer"
-              />
-              <label htmlFor="cashierMode" className="text-xs text-yellow-400 cursor-pointer select-none">
-                {cashierMode ? '🔓 وضع الكاشير مفعّل' : '🔒 تفعيل وضع الكاشير'}
-              </label>
-              <button
-                onClick={() => setShowSecretMode(false)}
-                className="mr-auto text-gray-400 hover:text-white text-xs"
-              >
-                ×
-              </button>
+          <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+            <div className="text-xs text-yellow-300 font-bold mb-2">وضع الصلاحيات</div>
+            <div className="grid grid-cols-1 gap-1.5">
+              {APP_MODE_OPTIONS.map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => handleSelectAppMode(mode)}
+                  className={`text-right px-2 py-2 rounded-md text-xs font-bold ${
+                    appMode === mode ? 'bg-yellow-500 text-gray-900' : 'bg-gray-800 text-yellow-100 hover:bg-gray-700'
+                  }`}
+                >
+                  {mode === 'cashier' ? '🛒 ' : mode === 'assistant_manager' ? '🧾 ' : '👔 '}
+                  {APP_MODE_LABELS[mode]}{appMode === mode ? ' ✓' : ''}
+                </button>
+              ))}
+              {appMode !== 'owner' && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectAppMode('owner')}
+                  className="text-right px-2 py-2 rounded-md text-xs font-bold bg-gray-700 text-white hover:bg-gray-600"
+                >
+                  🔓 إلغاء الوضع المحدود
+                </button>
+              )}
             </div>
+            <button
+              onClick={() => setShowSecretMode(false)}
+              className="mt-2 text-gray-400 hover:text-white text-xs"
+            >
+              إغلاق ×
+            </button>
           </div>
         )}
       </div>

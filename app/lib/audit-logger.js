@@ -309,7 +309,9 @@ export const logDeductionAdded = async (deduction) => {
       name: deduction.employeeName
     },
     data: { after: deduction },
-    performedBy: { type: 'admin', name: 'Admin' }
+    performedBy: deduction.recordedBy
+      ? { type: deduction.recordedBy.mode, name: deduction.recordedBy.name }
+      : { type: 'admin', name: 'Admin' }
   });
 };
 

@@ -76,18 +76,18 @@ export function middleware(request) {
     }
   }
 
-  // Cashier Mode Protection
-  // الصفحات الممنوعة على الكاشير
-  const cashierBlockedPages = ['warehouse', 'suppliers', 'creditors', 'employees'];
-  const pageName = pathname.split('/')[1];
-  
-  // فحص لو في وضع الكاشير (من cookie أو header)
-  const isCashierMode = request.cookies.get("isCashierMode")?.value === "true";
-  
-  if (isCashierMode && cashierBlockedPages.includes(pageName)) {
-    // إعادة توجيه للرئيسية مع رسالة
-    const response = NextResponse.redirect(new URL("/?blocked=true", request.url));
-    return response;
+  // Role-mode page protection (menus are not the only permission check).
+  const appMode = request.cookies.get("appMode")?.value ||
+    (request.cookies.get("isCashierMode")?.value === "true" ? "cashier" : "owner");
+  const isUnderPrefix = (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
+  const isAssistantDeductionPath = /^\/employees\/[^/]+\/deductions\/add$/.test(pathname);
+  const isAllowedForMode = appMode === "owner" || pathname === "/" ||
+    (appMode === "cashier" && !["warehouse", "suppliers", "creditors", "employees"].includes(pathname.split("/")[1])) ||
+    (appMode === "assistant_manager" && (isUnderPrefix("/pos/invoices") || pathname === "/employees" || isAssistantDeductionPath)) ||
+    (appMode === "manager" && (isUnderPrefix("/pos/invoices") || isUnderPrefix("/employees")));
+
+  if (!isAllowedForMode) {
+    return NextResponse.redirect(new URL("/?blocked=app-mode", request.url));
   }
 
   return NextResponse.next();

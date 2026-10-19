@@ -319,6 +319,11 @@ export default function DeductionsPage() {
                           📝 {deduction.note}
                         </div>
                       )}
+                      {deduction.recordedBy?.name && (
+                        <div className="text-xs text-indigo-700 mt-2">
+                          سُجل بواسطة: <span className="font-bold">{deduction.recordedBy.name}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="text-left mr-4">
                       <div className="text-2xl font-bold text-red-600 mb-2">

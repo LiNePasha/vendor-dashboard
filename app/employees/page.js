@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import useEmployeesStore from "@/app/stores/employees-store";
+import AddDeductionModal from "@/components/AddDeductionModal";
+import { getAppMode, ROLES } from "@/app/lib/roles-permissions";
 
 export default function EmployeesPage() {
   const router = useRouter();
@@ -19,8 +21,15 @@ export default function EmployeesPage() {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
+  const [appMode, setAppMode] = useState(ROLES.OWNER);
+  const [modeResolved, setModeResolved] = useState(false);
+  const [deductionEmployee, setDeductionEmployee] = useState(null);
+  const isAssistantManager = modeResolved && appMode === ROLES.ASSISTANT_MANAGER;
+  const canManageEmployees = modeResolved && appMode !== ROLES.ASSISTANT_MANAGER;
 
   useEffect(() => {
+    setAppMode(getAppMode());
+    setModeResolved(true);
     loadEmployees();
   }, []);
 
@@ -178,7 +187,7 @@ export default function EmployeesPage() {
                 <span>بيانات تجريبية متقدمة</span>
               </button>
             )} */}
-            {employees.length > 0 && (
+            {canManageEmployees && employees.length > 0 && (
               <button
                 onClick={() => setShowClearAllConfirm(true)}
                 className="text-red-500 hover:text-red-600 text-sm font-semibold flex items-center gap-1"
@@ -205,13 +214,15 @@ export default function EmployeesPage() {
           <div className="text-3xl font-bold mb-1">{inactiveCount}</div>
           <div className="text-sm opacity-90">غير نشط</div>
         </div>
-        <button
-          onClick={() => router.push('/employees/add')}
-          className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 rounded-xl p-6 text-white shadow-lg transition-all hover:scale-105 flex flex-col items-center justify-center"
-        >
-          <div className="text-3xl mb-1">➕</div>
-          <div className="text-sm font-semibold">إضافة موظف جديد</div>
-        </button>
+        {canManageEmployees && (
+          <button
+            onClick={() => router.push('/employees/add')}
+            className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 rounded-xl p-6 text-white shadow-lg transition-all hover:scale-105 flex flex-col items-center justify-center"
+          >
+            <div className="text-3xl mb-1">➕</div>
+            <div className="text-sm font-semibold">إضافة موظف جديد</div>
+          </button>
+        )}
       </div>
 
       {/* Actions Bar */}
@@ -253,12 +264,14 @@ export default function EmployeesPage() {
           >
             🎭 بيانات تجريبية
           </button> */}
-          <button
-            onClick={() => router.push('/employees/attendance/record')}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2.5 rounded-lg font-semibold transition-colors whitespace-nowrap"
-          >
-            ⏰ تسجيل حضور
-          </button>
+          {canManageEmployees && (
+            <button
+              onClick={() => router.push('/employees/attendance/record')}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2.5 rounded-lg font-semibold transition-colors whitespace-nowrap"
+            >
+              ⏰ تسجيل حضور
+            </button>
+          )}
         </div>
       </div>
 
@@ -291,7 +304,7 @@ export default function EmployeesPage() {
             <p className="text-gray-500 text-lg mb-2">
               {employees.length === 0 ? 'لا يوجد موظفين بعد' : 'لا توجد نتائج مطابقة'}
             </p>
-            {employees.length === 0 ? (
+            {employees.length === 0 && canManageEmployees ? (
               <button
                 onClick={() => router.push('/employees/add')}
                 className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
@@ -361,19 +374,19 @@ export default function EmployeesPage() {
                       <span className="truncate">{employee.department}</span>
                     </div>
                   )}
-                  {employee.phone && (
+                  {canManageEmployees && employee.phone && (
                     <div className="flex items-center gap-2 text-gray-600">
                       <span>📱</span>
                       <span className="truncate">{employee.phone}</span>
                     </div>
                   )}
-                  {employee.basicSalary && (
+                  {canManageEmployees && employee.basicSalary && (
                     <div className="flex items-center gap-2 text-gray-600">
                       <span>💰</span>
                       <span className="font-semibold">{employee.basicSalary.toLocaleString()} ج.م</span>
                     </div>
                   )}
-                  {employee.hireDate && (
+                  {canManageEmployees && employee.hireDate && (
                     <div className="flex items-center gap-2 text-gray-500 text-xs">
                       <span>📅</span>
                       <span>منذ {new Date(employee.hireDate).toLocaleDateString('ar-EG')}</span>
@@ -394,19 +407,28 @@ export default function EmployeesPage() {
 
                 {/* Actions */}
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => router.push(`/employees/${employee.id}`)}
-                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
-                  >
-                    📋 التفاصيل
-                  </button>
+                  {isAssistantManager ? (
+                    <button
+                      onClick={() => setDeductionEmployee(employee)}
+                      className="flex-1 bg-rose-600 hover:bg-rose-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+                    >
+                      💸 إضافة خصم لهذا الموظف
+                    </button>
+                  ) : canManageEmployees ? (
+                    <button
+                      onClick={() => router.push(`/employees/${employee.id}`)}
+                      className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
+                    >
+                      📋 التفاصيل
+                    </button>
+                  ) : null}
                   {/* <button
                     onClick={() => router.push(`/employees/${employee.id}/edit`)}
                     className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm font-semibold transition-colors"
                   >
                     ✏️
                   </button> */}
-                  {employee.status === 'active' && (
+                  {canManageEmployees && employee.status === 'active' && (
                     <button
                       onClick={() => {
                         setSelectedEmployee(employee);
@@ -425,12 +447,21 @@ export default function EmployeesPage() {
       </div>
 
       {/* Floating Action Button (Mobile) */}
-      <button
-        onClick={() => router.push('/employees/add')}
-        className="md:hidden fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-full shadow-2xl flex items-center justify-center text-3xl transition-all hover:scale-110 z-40"
-      >
-        ➕
-      </button>
+      {canManageEmployees && (
+        <button
+          onClick={() => router.push('/employees/add')}
+          className="md:hidden fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-full shadow-2xl flex items-center justify-center text-3xl transition-all hover:scale-110 z-40"
+        >
+          ➕
+        </button>
+      )}
+
+      <AddDeductionModal
+        employee={deductionEmployee}
+        isOpen={Boolean(deductionEmployee)}
+        onClose={() => setDeductionEmployee(null)}
+        onSuccess={() => showToast(`✅ تم تسجيل الخصم للموظف ${deductionEmployee?.name}`)}
+      />
     </div>
   );
 }

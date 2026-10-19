@@ -6,6 +6,8 @@ export async function POST() {
   // Clear authentication cookies
   res.cookies.set("token", "", { path: "/", maxAge: 0 });
   res.cookies.set("isWholesale", "", { path: "/", maxAge: 0 });
+  res.cookies.set("appMode", "", { path: "/", maxAge: 0 });
+  res.cookies.set("isCashierMode", "", { path: "/", maxAge: 0 });
   
   return res;
 }

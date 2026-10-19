@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { employeesStorage } from "@/app/lib/employees-storage";
 import { getCurrentEgyptTime, formatEgyptTime } from "@/app/lib/time-helpers";
+import { APP_MODE_LABELS, getAppMode } from "@/app/lib/roles-permissions";
 
 export default function AddDeductionModal({ employee, isOpen, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
@@ -63,6 +64,9 @@ export default function AddDeductionModal({ employee, isOpen, onClose, onSuccess
       // Create full datetime from date + time
       const dateTimeStr = `${formData.date}T${formData.time}:00`;
       const deductionDateTime = new Date(dateTimeStr);
+      const currentMode = getAppMode();
+      const recordedByName = APP_MODE_LABELS[currentMode] || 'المالك';
+      const userNote = formData.note.trim();
 
       const deduction = {
         id: generateDeductionId(),
@@ -71,7 +75,8 @@ export default function AddDeductionModal({ employee, isOpen, onClose, onSuccess
         type: formData.type,
         amount: parseFloat(formData.amount),
         reason: formData.reason.trim(),
-        note: formData.note.trim() || undefined,
+        note: [userNote, `تم التسجيل بواسطة: ${recordedByName}`].filter(Boolean).join('\n'),
+        recordedBy: { mode: currentMode, name: recordedByName },
         date: formData.date,
         time: formData.time,
         dateTime: deductionDateTime.toISOString(),

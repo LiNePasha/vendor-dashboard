@@ -17,6 +17,7 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
 
   // Use STATIC logo based on vendor ID (not from API)
   const logoSrc = getVendorLogo(vendorInfo?.id);
+  const sellerName = invoice.soldBy?.employeeName || invoice.soldBy?.name || invoice.employeeName || '';
   
   // التحقق من نوع الطلب
   const isDelivery = invoice.orderType === 'delivery';
@@ -388,6 +389,11 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
               minute: '2-digit'
             })}</span>
           </div>
+          {sellerName && (
+            <div style={{ fontSize: '9px', fontWeight: 'bold', marginBottom: '4px' }}>
+              👤 البائع: {sellerName}
+            </div>
+          )}
 
           {/* Customer & Delivery Info - Print */}
           {isDelivery && customer && (
