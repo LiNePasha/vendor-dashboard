@@ -37,9 +37,15 @@ export function middleware(request) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // لو مسجل دخول وداخل /login رجّعه للرئيسية
-  if (token && pathname === "/login") {
-    return NextResponse.redirect(new URL("/", request.url));
+  // Allow an explicit visit to login to escape any restricted app mode.
+  // Clear the old session/mode so the user can authenticate again; successful
+  // login will issue a fresh token and reset appMode to owner.
+  if (pathname === "/login") {
+    const response = NextResponse.next();
+    for (const cookieName of ["token", "userRole", "isWholesale", "appMode", "isCashierMode"]) {
+      response.cookies.set(cookieName, "", { path: "/", maxAge: 0 });
+    }
+    return response;
   }
 
   // Webikers videos page protection: only admin OR vendor 5453

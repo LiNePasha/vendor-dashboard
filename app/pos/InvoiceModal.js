@@ -18,6 +18,23 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
   // Use STATIC logo based on vendor ID (not from API)
   const logoSrc = getVendorLogo(vendorInfo?.id);
   const sellerName = invoice.soldBy?.employeeName || invoice.soldBy?.name || invoice.employeeName || '';
+  const paymentMethodLabel = {
+    cash: '💵 كاش',
+    wallet: '👛 محفظة',
+    instapay: '📱 انستا باي',
+    vera: '💳 مكنة فيزا',
+    card: '💳 بطاقة',
+    split: '🧾 دفع مقسوم',
+    other: '➕ أخرى',
+  }[invoice.paymentMethod] || invoice.paymentMethod || 'غير محدد';
+  const paymentMethodLabels = {
+    cash: 'كاش',
+    wallet: 'محفظة',
+    instapay: 'انستا باي',
+    vera: 'مكنة فيزا',
+    card: 'بطاقة',
+    other: 'أخرى',
+  };
   
   // التحقق من نوع الطلب
   const isDelivery = invoice.orderType === 'delivery';
@@ -278,8 +295,14 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
             </div>
             <div className="flex justify-between mt-2">
               <span>طريقة الدفع:</span>
-              <span>{invoice.paymentMethod}</span>
+              <span>{paymentMethodLabel}</span>
             </div>
+            {invoice.paymentMethod === 'split' && invoice.paymentBreakdown?.map((part, index) => (
+              <div key={`${part.method}-${index}`} className="flex justify-between text-xs pr-2 text-gray-600">
+                <span>{paymentMethodLabels[part.method] || part.method}:</span>
+                <span>{Number(part.amount || 0).toFixed(2)} ج.م</span>
+              </div>
+            ))}
           </div>
 
           {/* Delivery Notes */}
@@ -551,8 +574,14 @@ export default function InvoiceModal({ invoice, open, onClose, onPrint }) {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', fontSize: '9px' }}>
               <span>الدفع:</span>
-              <span>{invoice.paymentMethod}</span>
+              <span>{paymentMethodLabel}</span>
             </div>
+            {invoice.paymentMethod === 'split' && invoice.paymentBreakdown?.map((part, index) => (
+              <div key={`${part.method}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '8px', paddingRight: '3mm' }}>
+                <span>{paymentMethodLabels[part.method] || part.method}:</span>
+                <span>{Number(part.amount || 0).toFixed(2)} ج.م</span>
+              </div>
+            ))}
           </div>
 
           {/* Delivery Notes - Print */}

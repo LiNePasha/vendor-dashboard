@@ -34,6 +34,7 @@ export function Cart({
   deliveryPaymentNote = '',
   orderNotes = '',
   paymentMethod = 'cash',
+  paymentSplits = [],
   onDiscountChange,
   onDiscountTypeChange,
   onDiscountApplyModeChange,
@@ -46,6 +47,7 @@ export function Cart({
   onDeliveryPaymentNoteChange,
   onOrderNotesChange,
   onPaymentMethodChange,
+  onPaymentSplitsChange,
   onExpandChange // 🆕 callback لإخبار الـ parent بحالة التوسيع
 }) {
   const productsSubtotal = items.reduce(
@@ -71,6 +73,26 @@ export function Cart({
 
   // Calculate final total with extra fee and delivery fee
   const total = subtotal - discountAmount + Number(extraFeeAmount) + Number(deliveryFee);
+  const expectedPaymentAmount = orderType !== 'delivery'
+    ? total
+    : deliveryPaymentStatus === 'half_paid'
+      ? Number(deliveryPaidAmount || 0)
+      : deliveryPaymentStatus === 'fully_paid'
+        ? total
+        : deliveryPaymentStatus === 'fully_paid_no_delivery'
+          ? Math.max(0, total - Number(deliveryFee || 0))
+          : 0;
+  const splitPaymentEnabled = paymentSplits.length >= 2;
+  const splitPaymentTotal = paymentSplits.reduce((sum, split) => sum + (Number(split.amount) || 0), 0);
+  const positivePaymentSplits = paymentSplits.filter(split => Number(split.amount) > 0);
+  const positivePaymentParts = positivePaymentSplits.length;
+  const distinctPaymentMethods = new Set(positivePaymentSplits.map(split => split.method)).size;
+  const splitPaymentValid = !splitPaymentEnabled || (
+    expectedPaymentAmount > 0 &&
+    positivePaymentParts >= 2 &&
+    distinctPaymentMethods >= 2 &&
+    Math.abs(splitPaymentTotal - expectedPaymentAmount) < 0.01
+  );
 
   // Load saved services from LocalForage
   const [savedServices, setSavedServices] = useState([]);
@@ -871,6 +893,98 @@ export function Cart({
           </div>
         </div>
 
+        {/* Split payment: cash + InstaPay / wallet / card */}
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-2">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-[11px] font-bold text-indigo-900">🧾 تقسيم الدفع بين أكثر من وسيلة</div>
+              <div className="text-[10px] text-indigo-700 mt-0.5">
+                المطلوب دفعه الآن: {expectedPaymentAmount.toFixed(2)} ج.م
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (splitPaymentEnabled) {
+                  onPaymentSplitsChange?.([]);
+                  return;
+                }
+                const initialTotal = expectedPaymentAmount > 0 ? expectedPaymentAmount : total;
+                const firstAmount = Math.round(initialTotal * 50) / 100;
+                onPaymentSplitsChange?.([
+                  { id: `split-${Date.now()}-1`, method: paymentMethod, amount: firstAmount },
+                  { id: `split-${Date.now()}-2`, method: paymentMethod === 'cash' ? 'instapay' : 'cash', amount: Number((initialTotal - firstAmount).toFixed(2)) },
+                ]);
+              }}
+              className={`px-2.5 py-1.5 rounded text-[10px] font-bold ${splitPaymentEnabled ? 'bg-gray-200 text-gray-800' : 'bg-indigo-600 text-white'}`}
+            >
+              {splitPaymentEnabled ? 'إلغاء التقسيم' : 'تفعيل التقسيم'}
+            </button>
+          </div>
+
+          {splitPaymentEnabled && (
+            <div className="mt-2 space-y-2">
+              {paymentSplits.map((split, index) => (
+                <div key={split.id || index} className="grid grid-cols-[1fr_1fr_auto] gap-1.5 items-center">
+                  <select
+                    value={split.method || 'cash'}
+                    onChange={(e) => onPaymentSplitsChange?.(paymentSplits.map((part, partIndex) =>
+                      partIndex === index ? { ...part, method: e.target.value } : part
+                    ))}
+                    className="min-w-0 px-2 py-1.5 bg-white border border-indigo-200 rounded text-[10px] font-bold"
+                    aria-label={`وسيلة الدفع رقم ${index + 1}`}
+                  >
+                    <option value="cash">💵 كاش</option>
+                    <option value="wallet">👛 محفظة</option>
+                    <option value="instapay">📱 انستا باي</option>
+                    <option value="vera">💳 مكنة فيزا</option>
+                    <option value="other">➕ أخرى</option>
+                  </select>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={split.amount ?? ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value !== '' && !/^\d*\.?\d{0,2}$/.test(value)) return;
+                      onPaymentSplitsChange?.(paymentSplits.map((part, partIndex) =>
+                        partIndex === index ? { ...part, amount: value === '' ? '' : Number(value) } : part
+                      ));
+                    }}
+                    className="w-full min-w-0 px-2 py-1.5 bg-white border border-indigo-200 rounded text-[10px] font-bold text-left"
+                    placeholder="المبلغ"
+                    aria-label={`مبلغ وسيلة الدفع رقم ${index + 1}`}
+                  />
+                  <button
+                    type="button"
+                    disabled={paymentSplits.length <= 2}
+                    onClick={() => onPaymentSplitsChange?.(paymentSplits.filter((_, partIndex) => partIndex !== index))}
+                    className="w-7 h-7 bg-white border border-red-200 text-red-600 rounded disabled:opacity-30"
+                    aria-label="حذف وسيلة الدفع"
+                    title="حذف وسيلة الدفع"
+                  >×</button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => onPaymentSplitsChange?.([
+                  ...paymentSplits,
+                  { id: `split-${Date.now()}-${paymentSplits.length + 1}`, method: 'cash', amount: 0 },
+                ])}
+                className="w-full py-1.5 border border-dashed border-indigo-300 text-indigo-800 rounded text-[10px] font-bold"
+              >+ إضافة وسيلة دفع أخرى</button>
+              <div className={`text-[10px] font-bold text-center p-1.5 rounded ${splitPaymentValid ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-900'}`}>
+                مجموع المدفوع: {splitPaymentTotal.toFixed(2)} ج.م
+                {!splitPaymentValid && ` • الفرق: ${Math.abs(expectedPaymentAmount - splitPaymentTotal).toFixed(2)} ج.م`}
+                {splitPaymentValid && ' ✓'}
+              </div>
+              {!splitPaymentValid && (
+                <div className="text-[10px] text-amber-900 text-center">اختر وسيلتين مختلفتين على الأقل، واجعل مجموعهما مساويًا للمبلغ المطلوب دفعه.</div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Discount Apply Mode */}
         {discount > 0 && (
           <div className="bg-amber-50 border border-amber-300 rounded-lg p-2">
@@ -1034,12 +1148,15 @@ export function Cart({
           
           {/* زرار إتمام البيع */}
           <button
-            onClick={onCheckout}
-            disabled={items.length === 0 && services.length === 0 || processing}
+            onClick={() => onCheckout?.({
+              paymentSplits: splitPaymentEnabled ? paymentSplits : [],
+              expectedPaymentAmount,
+            })}
+            disabled={(items.length === 0 && services.length === 0) || processing || !splitPaymentValid}
             className={`flex-1 py-3 px-4 rounded-lg font-bold text-base
               transition-all transform active:scale-95
               ${
-                (items.length === 0 && services.length === 0) || processing
+                (items.length === 0 && services.length === 0) || processing || !splitPaymentValid
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg hover:shadow-xl'
               }

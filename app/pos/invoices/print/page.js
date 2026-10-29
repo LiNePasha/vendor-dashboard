@@ -180,8 +180,19 @@ function PrintInvoiceContent() {
     cash: '💵 كاش',
     wallet: '👛 محفظة',
     instapay: '📱 انستا باي',
-    card: '💳 بطاقة'
+    vera: '💳 مكنة فيزا',
+    card: '💳 بطاقة',
+    split: '🧾 دفع مقسوم',
+    other: '➕ أخرى'
   }[invoice.paymentMethod] || invoice.paymentMethod;
+  const paymentMethodLabels = {
+    cash: 'كاش',
+    wallet: 'محفظة',
+    instapay: 'انستا باي',
+    vera: 'مكنة فيزا',
+    card: 'بطاقة',
+    other: 'أخرى',
+  };
   const sellerName = invoice.soldBy?.employeeName || invoice.soldBy?.name || invoice.employeeName || '';
 
   return (
@@ -586,6 +597,12 @@ function PrintInvoiceContent() {
             <span>الدفع:</span>
             <span>{paymentMethodAr}</span>
           </div>
+          {invoice.paymentMethod === 'split' && invoice.paymentBreakdown?.map((part, index) => (
+            <div key={`${part.method}-${index}`} style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5mm', paddingRight: '3mm', fontSize: '9px' }}>
+              <span>{paymentMethodLabels[part.method] || part.method}:</span>
+              <span>{Number(part.amount || 0).toFixed(2)} ج.م</span>
+            </div>
+          ))}
         </div>
 
         {/* 🆕 بيانات الدفع الجزئي */}

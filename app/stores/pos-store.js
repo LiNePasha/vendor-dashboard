@@ -522,7 +522,7 @@ const usePOSStore = create(persist((set, get) => ({
       // Update cache
       await productsCacheStorage.updateMultipleProductsInCache(stockUpdates);
 
-      return { successCount, failedUpdates };
+      return { successCount, failedUpdates, details: data.details || [] };
     } catch (error) {
       return { successCount: 0, failedUpdates: updates };
     }
@@ -605,6 +605,7 @@ const usePOSStore = create(persist((set, get) => ({
       const itemsWithoutPurchasePrice = []; // 🆕 تتبع المنتجات بدون سعر شراء
       
       const invoiceItems = cart.map(item => {
+        const compositeVariationId = String(item.id || '').match(/^(\d+)_var_(\d+)$/);
         const purchasePrice = purchasePricesMap[item.id];
         let profit = 0;
         
@@ -637,6 +638,10 @@ const usePOSStore = create(persist((set, get) => ({
           quantity: item.quantity,
           totalPrice: Number(item.price) * item.quantity,
           stock_quantity: item.stock_quantity,
+          product_id: item.product_id || item.productId || item.parent_id || item.parentId || compositeVariationId?.[1] || item.id,
+          parent_id: item.parent_id || item.parentId || compositeVariationId?.[1] || null,
+          variation_id: item.variation_id || compositeVariationId?.[2] || null,
+          is_variation: Boolean(item.is_variation || item.variation_id),
           purchasePrice: purchasePrice || null,
           profit: profit || null,
           hasPurchasePrice: (purchasePrice !== undefined && purchasePrice !== null) // 🆕 flag
@@ -739,6 +744,12 @@ const usePOSStore = create(persist((set, get) => ({
         profitDetails: itemsWithProfit,
         itemsWithoutProfit: itemsWithoutPurchasePrice, // 🆕 قائمة المنتجات بدون سعر شراء
         paymentMethod: paymentDetails.paymentMethod,
+        paymentBreakdown: Array.isArray(paymentDetails.paymentBreakdown)
+          ? paymentDetails.paymentBreakdown.map((part) => ({
+              method: String(part.method || ''),
+              amount: Number(part.amount) || 0,
+            }))
+          : null,
         // 🔥 حساب paymentStatus بناءً على deliveryPaymentStatus
         paymentStatus: (() => {
           // إذا مفيش توصيل - مدفوع بالكامل دائماً
@@ -849,7 +860,7 @@ const usePOSStore = create(persist((set, get) => ({
         });
 
         // Update stock and wait for response
-        const { successCount } = await processStockUpdates(updates);
+        const { successCount, details = [] } = await processStockUpdates(updates);
         
         // 🆕 تحديث المخزون المحلي للمتغيرات
         try {
@@ -868,7 +879,7 @@ const usePOSStore = create(persist((set, get) => ({
 
         // Mark invoice as synced if update was successful
         if (successCount > 0) {
-          await invoiceStorage.markInvoiceAsSynced(invoice.id);
+          await invoiceStorage.markInvoiceAsSynced(invoice.id, details);
         }
 
         // 🔄 Full Sync - تحديث كامل للمنتجات من Cashier API

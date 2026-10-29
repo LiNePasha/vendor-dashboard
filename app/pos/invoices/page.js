@@ -1,11 +1,55 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { invoiceStorage } from '@/app/lib/localforage';
+import { invoiceStorage, productsCacheStorage } from '@/app/lib/localforage';
 import { Toast } from '@/components/Toast';
 import InvoiceModal from '@/app/pos/InvoiceModal';
 import VariationSelector from '@/components/pos/VariationSelector';
-import { getAppMode, ROLES } from '@/app/lib/roles-permissions';
+import { APP_MODE_LABELS, getAppMode, ROLES } from '@/app/lib/roles-permissions';
+import { warehouseStorage } from '@/app/lib/warehouse-storage';
+
+function recalculateInvoiceAmounts(invoice, items, services) {
+  const summary = invoice.summary || {};
+  const productsSubtotal = (items || []).reduce(
+    (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0
+  );
+  const servicesTotal = (services || []).reduce((sum, service) => sum + Number(service.amount || 0), 0);
+  const subtotal = productsSubtotal + servicesTotal;
+  const discount = summary.discount;
+  const applyMode = discount?.applyMode || 'both';
+  const discountBase = applyMode === 'products'
+    ? productsSubtotal
+    : applyMode === 'services'
+      ? servicesTotal
+      : subtotal;
+  const discountType = String(discount?.type || '').toLowerCase();
+  const discountValue = Number(discount?.value ?? discount?.amount ?? 0);
+  const rawDiscountAmount = discountType === 'percentage' || discountType === 'percent'
+    ? discountBase * discountValue / 100
+    : discountValue;
+  const discountAmount = Math.min(discountBase, Math.max(0, rawDiscountAmount));
+
+  const requestedInvoiceDiscount = Number(summary.invoiceDiscount || 0);
+  const invoiceDiscount = Math.min(Math.max(0, subtotal - discountAmount), Math.max(0, requestedInvoiceDiscount));
+  const extraFeeType = String(summary.extraFeeType || 'amount').toLowerCase();
+  const extraFeeValue = Number(summary.extraFeeValue ?? summary.extraFee ?? 0);
+  const extraFee = extraFeeType === 'percentage'
+    ? subtotal * extraFeeValue / 100
+    : Number(summary.extraFee || 0);
+  const deliveryFee = Number(summary.deliveryFee || 0);
+  const total = Math.max(0, subtotal - discountAmount - invoiceDiscount + extraFee + deliveryFee);
+
+  return {
+    productsSubtotal,
+    servicesTotal,
+    subtotal,
+    discount: discount ? { ...discount, amount: discountAmount } : discount,
+    invoiceDiscount,
+    extraFee,
+    deliveryFee,
+    total,
+  };
+}
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState([]);
@@ -14,6 +58,8 @@ export default function InvoicesPage() {
   const [toast, setToast] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState(null);
+  const [deletingInvoiceId, setDeletingInvoiceId] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all'); // all, synced, pending
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('all'); // all, cash, wallet, instapay, vera, other
   const [filterPaymentStatus, setFilterPaymentStatus] = useState('all'); // all, paid_full, paid_partial, returned
@@ -22,6 +68,7 @@ export default function InvoicesPage() {
   const [exporting, setExporting] = useState(false);
   const [editingDeliveryFee, setEditingDeliveryFee] = useState(null); // { invoiceId, value }
   const [editingInvoiceDiscount, setEditingInvoiceDiscount] = useState(null); // { invoiceId, value }
+  const [editingPaymentMethod, setEditingPaymentMethod] = useState(null); // { invoiceId, value }
   const [editingProduct, setEditingProduct] = useState(null); // { invoiceId, productId, field, value }
   const [addingService, setAddingService] = useState(null); // invoiceId
   const [newService, setNewService] = useState({ description: '', amount: 0, employeeName: '' });
@@ -76,17 +123,11 @@ export default function InvoicesPage() {
       if (!invoice) return;
 
       const fee = parseFloat(editingDeliveryFee.value) || 0;
-      
-      console.log('📊 Invoice Summary Before:', invoice.summary);
-      console.log('💰 New Delivery Fee:', fee);
-      
-      // إعادة حساب الإجمالي
-      const subtotal = parseFloat(invoice.summary.subtotal) || 0;
-      const discountAmount = parseFloat(invoice.summary.discount) || 0;
-      const extraFeeAmount = parseFloat(invoice.summary.extraFee) || 0;
-      const newTotal = subtotal - discountAmount + extraFeeAmount + fee;
-      
-      console.log('🧮 Calculation:', { subtotal, discountAmount, extraFeeAmount, fee, newTotal });
+      const invoiceWithNewFee = {
+        ...invoice,
+        summary: { ...invoice.summary, deliveryFee: fee },
+      };
+      const amounts = recalculateInvoiceAmounts(invoiceWithNewFee, invoice.items || [], invoice.services || []);
       
       // تحديث deliveryPayment.remainingAmount لو كان fully_paid_no_delivery
       let updatedDeliveryPayment = invoice.deliveryPayment;
@@ -94,22 +135,19 @@ export default function InvoicesPage() {
         updatedDeliveryPayment = {
           ...invoice.deliveryPayment,
           remainingAmount: fee,
-          paidAmount: subtotal - discountAmount + extraFeeAmount
+          paidAmount: Math.max(0, amounts.total - fee)
         };
       }
       
       // تحديث الفاتورة
       const updatedInvoice = {
-        ...invoice,
+        ...invoiceWithNewFee,
         summary: {
-          ...invoice.summary,
-          deliveryFee: fee,
-          total: newTotal
+          ...invoiceWithNewFee.summary,
+          ...amounts,
         },
         deliveryPayment: updatedDeliveryPayment
       };
-
-      console.log('📦 Updated Invoice Summary:', updatedInvoice.summary);
 
       // حفظ في LocalForage - استخدام updateInvoice بدل saveInvoice
       await invoiceStorage.updateInvoice(invoiceId, updatedInvoice);
@@ -232,22 +270,14 @@ export default function InvoicesPage() {
       });
 
       // Recalculate totals
-      const productsSubtotal = updatedItems.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
-      const servicesTotal = invoice.services?.reduce((sum, s) => sum + Number(s.amount), 0) || 0;
-      const subtotal = productsSubtotal + servicesTotal;
-      const discountAmount = invoice.summary?.discount?.amount || 0;
-      const extraFee = invoice.summary?.extraFee || 0;
-      const deliveryFee = invoice.summary?.deliveryFee || 0;
-      const total = subtotal - discountAmount + extraFee + deliveryFee;
+      const amounts = recalculateInvoiceAmounts(invoice, updatedItems, invoice.services || []);
 
       const updatedInvoice = {
         ...invoice,
         items: updatedItems,
         summary: {
           ...invoice.summary,
-          productsSubtotal,
-          subtotal,
-          total
+          ...amounts,
         }
       };
 
@@ -281,23 +311,14 @@ export default function InvoicesPage() {
       });
 
       // Recalculate totals
-      const productsSubtotal = updatedItems.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
-      const servicesTotal = invoice.services?.reduce((sum, s) => sum + Number(s.amount), 0) || 0;
-      const subtotal = productsSubtotal + servicesTotal;
-      const discountAmount = invoice.summary?.discount?.amount || 0;
-      const extraFee = invoice.summary?.extraFee || 0;
-      const deliveryFee = invoice.summary?.deliveryFee || 0;
-      const invoiceDiscount = invoice.summary?.invoiceDiscount || 0;
-      const total = subtotal - discountAmount - invoiceDiscount + extraFee + deliveryFee;
+      const amounts = recalculateInvoiceAmounts(invoice, updatedItems, invoice.services || []);
 
       const updatedInvoice = {
         ...invoice,
         items: updatedItems,
         summary: {
           ...invoice.summary,
-          productsSubtotal,
-          subtotal,
-          total
+          ...amounts,
         }
       };
 
@@ -435,15 +456,9 @@ export default function InvoicesPage() {
 
       const updatedItems = [...(invoice.items || []), newInvoiceItem];
       
-      // إعادة حساب المجاميع
-      const productsSubtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      const servicesTotal = invoice.services?.reduce((sum, service) => sum + service.amount, 0) || 0;
-      const subtotal = productsSubtotal + servicesTotal;
-      
-      const discountAmount = invoice.summary?.discount?.amount || 0;
-      const extraFeeAmount = invoice.summary?.extraFee || 0;
-      const deliveryFee = invoice.summary?.deliveryFee || 0;
-      const total = subtotal - discountAmount + extraFeeAmount + deliveryFee;
+      // إعادة حساب المجاميع مع الحفاظ على جميع أنواع الخصم
+      const amounts = recalculateInvoiceAmounts(invoice, updatedItems, invoice.services || []);
+      const extraFeeAmount = amounts.extraFee;
       
       // حساب الأرباح
       const productsProfit = updatedItems.reduce((sum, item) => {
@@ -458,10 +473,7 @@ export default function InvoicesPage() {
         items: updatedItems,
         summary: {
           ...invoice.summary,
-          productsSubtotal,
-          servicesTotal,
-          subtotal,
-          total,
+          ...amounts,
           productsProfit
         }
       };
@@ -503,24 +515,15 @@ export default function InvoicesPage() {
 
       const updatedServices = [...(invoice.services || []), service];
       
-      // Recalculate totals
-      const productsSubtotal = invoice.items?.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0) || 0;
-      const servicesTotal = updatedServices.reduce((sum, s) => sum + Number(s.amount), 0);
-      const subtotal = productsSubtotal + servicesTotal;
-      const discountAmount = invoice.summary?.discount?.amount || 0;
-      const extraFee = invoice.summary?.extraFee || 0;
-      const deliveryFee = invoice.summary?.deliveryFee || 0;
-      const invoiceDiscount = invoice.summary?.invoiceDiscount || 0;
-      const total = subtotal - discountAmount - invoiceDiscount + extraFee + deliveryFee;
+      // Recalculate totals and preserve the original discount configuration.
+      const amounts = recalculateInvoiceAmounts(invoice, invoice.items || [], updatedServices);
 
       const updatedInvoice = {
         ...invoice,
         services: updatedServices,
         summary: {
           ...invoice.summary,
-          servicesTotal,
-          subtotal,
-          total
+          ...amounts,
         }
       };
 
@@ -543,25 +546,19 @@ export default function InvoicesPage() {
       const invoice = invoices.find(inv => inv.id === invoiceId);
       if (!invoice) return;
 
-      const discountAmount = parseFloat(editingInvoiceDiscount.value) || 0;
-      
-      // إعادة حساب الإجمالي
-      const subtotal = parseFloat(invoice.summary.subtotal) || 0;
-      const originalDiscount = parseFloat(invoice.summary.discount) || 0; // الخصم الأصلي على المنتجات
-      const extraFeeAmount = parseFloat(invoice.summary.extraFee) || 0;
-      const deliveryFee = parseFloat(invoice.summary.deliveryFee) || 0;
-      
-      // الخصم الكلي = الخصم الأصلي + خصم الفاتورة
-      const totalDiscount = originalDiscount + discountAmount;
-      const newTotal = subtotal - totalDiscount + extraFeeAmount + deliveryFee;
+      const discountAmount = Math.max(0, parseFloat(editingInvoiceDiscount.value) || 0);
+      const invoiceWithDiscount = {
+        ...invoice,
+        summary: { ...invoice.summary, invoiceDiscount: discountAmount },
+      };
+      const amounts = recalculateInvoiceAmounts(invoiceWithDiscount, invoice.items || [], invoice.services || []);
       
       // تحديث الفاتورة
       const updatedInvoice = {
-        ...invoice,
+        ...invoiceWithDiscount,
         summary: {
-          ...invoice.summary,
-          invoiceDiscount: discountAmount, // خصم الفاتورة منفصل
-          total: newTotal
+          ...invoiceWithDiscount.summary,
+          ...amounts,
         }
       };
 
@@ -588,80 +585,38 @@ export default function InvoicesPage() {
   const syncInvoice = async (invoice) => {
     setSyncingId(invoice.id);
     try {
-      const updates = invoice.items.map(item => ({
-        productId: item.id,
-        newQuantity: item.stock_quantity - item.quantity
-      }));
+      const updates = (invoice.items || []).map((item) => {
+        const target = getInvoiceStockTarget(item);
+        return {
+          productId: target.productId,
+          ...(target.variationId ? { variationId: target.variationId } : {}),
+          newQuantity: Math.max(0, Number(item.stock_quantity || 0) - Number(item.quantity || 0)),
+        };
+      });
 
-      const res = await fetch('/api/pos/update-stock', {
+      const res = await fetch('/api/pos/batch-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates }),
         credentials: 'include'
       });
+      const data = await res.json().catch(() => ({}));
+      const details = Array.isArray(data.details) ? data.details : [];
+      const successCount = details.filter(detail => ['updated', 'verified'].includes(detail.status)).length;
+      const failedCount = details.filter(detail => detail.status === 'failed').length;
+      if (!res.ok && res.status !== 207) throw new Error(data.error || 'فشل تحديث المخزون');
+      if (successCount === 0) throw new Error('لم يتم تحديث أي صنف');
 
-      let data = null;
-      try { data = await res.json(); } catch(e) { data = null; }
-
-      if (res.ok && data) {
-        await invoiceStorage.markInvoiceAsSynced(invoice.id);
-        setToast({ message: `تم تحديث المخزون (${data.updated || invoice.items.length} منتجات)`, type: 'success' });
-        loadInvoices();
-        return;
-      }
-
-      if (res.status === 207 && data && Array.isArray(data.details)) {
-        const details = data.details;
-        const successCount = details.filter(d => d.status === 'updated' || d.status === 'verified').length;
-        const failedCount = details.filter(d => d.status === 'failed').length;
-        if (failedCount === 0) {
-          await invoiceStorage.markInvoiceAsSynced(invoice.id);
-          setToast({ message: `تم تحديث المخزون (${successCount} منتجات)`, type: 'success' });
-          loadInvoices();
-          return;
-        }
-        if (successCount > 0) {
-          await invoiceStorage.markInvoiceAsSynced(invoice.id);
-          setToast({ message: `تم تحديث ${successCount} منتجات، وفشل ${failedCount} منتجات. سيتم إعادة المحاولة لاحقاً.`, type: 'warning' });
-          loadInvoices();
-          return;
-        }
-      }
-
-      // If we reach here, try verification endpoint to confirm whether stocks were actually updated to avoid duplicate deductions
-      try {
-        const verifyPayload = { updates: updates.map(u => ({ productId: u.productId, expectedQuantity: u.newQuantity })) };
-        const verifyRes = await fetch('/api/pos/verify-stock', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(verifyPayload),
-          credentials: 'include'
-        });
-        const verifyData = await verifyRes.json();
-        const results = verifyData?.results || [];
-        const matches = results.filter(r => r.matches).length;
-        const nonMatches = results.filter(r => !r.matches).length;
-
-        if (matches > 0 && nonMatches === 0) {
-          await invoiceStorage.markInvoiceAsSynced(invoice.id);
-          setToast({ message: `تم التحقق من المخزون وتم تحديث ${matches} منتجات (تم تأكيد التحديث عبر الاستعلام)`, type: 'success' });
-          loadInvoices();
-          return;
-        }
-
-        if (matches > 0) {
-          await invoiceStorage.markInvoiceAsSynced(invoice.id);
-          setToast({ message: `تم التحقق: ${matches} منتجات محدثة، و ${nonMatches} غير مؤكدة. سيتم إعادة المحاولة لاحقاً.`, type: 'warning' });
-          loadInvoices();
-          return;
-        }
-      } catch (verifyErr) {
-        // Silently handle verification error
-      }
-
-      throw new Error('Failed to sync stock');
+      await invoiceStorage.markInvoiceAsSynced(invoice.id, details);
+      setToast({
+        message: failedCount
+          ? `تم تحديث ${successCount} أصناف، وفشل ${failedCount}. لا تحذف الفاتورة حتى تراجع المخزون.`
+          : `تم تحديث المخزون (${successCount} أصناف)`,
+        type: failedCount ? 'warning' : 'success',
+      });
+      await loadInvoices();
     } catch (error) {
-      setToast({ message: 'فشل تحديث المخزون', type: 'error' });
+      setToast({ message: error.message || 'فشل تحديث المخزون', type: 'error' });
     } finally {
       setSyncingId(null);
     }
@@ -686,15 +641,20 @@ export default function InvoicesPage() {
         const orderId = invoice.orderId || '-';
         
         const paymentMethod = invoice.paymentMethod === 'cash' ? 'كاش' :
-                             invoice.paymentMethod === 'wallet' ? 'محفظة' :
-                             invoice.paymentMethod === 'instapay' ? 'انستا باي' : 'أخرى';
+                 invoice.paymentMethod === 'wallet' ? 'محفظة' :
+                 invoice.paymentMethod === 'instapay' ? 'انستا باي' :
+                 invoice.paymentMethod === 'vera' ? 'مكنة فيزا' :
+                             invoice.paymentMethod === 'card' ? 'بطاقة' :
+                             invoice.paymentMethod === 'split'
+                               ? (invoice.paymentBreakdown || []).map(part => `${part.method} ${Number(part.amount || 0).toFixed(2)}`).join(' + ')
+                               : 'أخرى';
         
         // Financial details
         const productsSubtotal = invoice.summary?.productsSubtotal || 0;
         const servicesTotal = invoice.summary?.servicesTotal || 0;
         const subtotal = invoice.summary?.subtotal || 0;
-        const discountType = invoice.summary?.discount?.type === 'percentage' ? 'نسبة مئوية' : 
-                            invoice.summary?.discount?.type === 'fixed' ? 'مبلغ ثابت' : '-';
+        const discountType = invoice.summary?.discount?.type === 'percentage' ? 'نسبة مئوية' :
+                ['fixed', 'amount'].includes(invoice.summary?.discount?.type) ? 'مبلغ ثابت' : '-';
         const discountValue = invoice.summary?.discount?.value || 0;
         const discountAmount = invoice.summary?.discount?.amount || 0;
         
@@ -766,6 +726,142 @@ export default function InvoicesPage() {
     }
   };
 
+  const saveInvoicePaymentMethod = async (invoice) => {
+    if (!editingPaymentMethod || editingPaymentMethod.invoiceId !== invoice.id) return;
+    if (invoice.source === 'order' || invoice.orderId) {
+      setEditingPaymentMethod(null);
+      setToast({ message: 'طريقة دفع أوردر الموقع تُعدّل من الأوردر الأصلي، وليس من الفاتورة المحلية.', type: 'warning' });
+      return;
+    }
+    const nextMethod = editingPaymentMethod.value;
+    const previousMethod = invoice.paymentMethod || 'other';
+    if (!nextMethod || nextMethod === previousMethod) {
+      setEditingPaymentMethod(null);
+      return;
+    }
+
+    try {
+      await invoiceStorage.updateInvoicePaymentMethod(invoice.id, nextMethod);
+      const updatedInvoice = { ...invoice, paymentMethod: nextMethod };
+      setInvoices(prev => prev.map(item => String(item.id) === String(invoice.id) ? updatedInvoice : item));
+      setSelectedInvoice(prev => prev?.id === invoice.id ? updatedInvoice : prev);
+      setEditingPaymentMethod(null);
+
+      try {
+        const { logInvoicePaymentMethodChanged } = await import('@/app/lib/audit-logger');
+        const mode = getAppMode();
+        await logInvoicePaymentMethodChanged(invoice, previousMethod, nextMethod, {
+          type: mode,
+          name: APP_MODE_LABELS[mode] || 'المالك',
+        });
+      } catch (auditError) {
+        console.error('Failed to audit payment method change:', auditError);
+      }
+
+      setToast({ message: '✅ تم تحديث طريقة الدفع، ستظهر في الفاتورة عند طباعتها', type: 'success' });
+    } catch (error) {
+      setToast({ message: `❌ فشل تعديل طريقة الدفع: ${error.message}`, type: 'error' });
+    }
+  };
+
+  const getInvoiceStockTarget = (item) => {
+    const compositeId = String(item.id || '').match(/^(\d+)_var_(\d+)$/);
+    const productId = item.parent_id || item.parentId || item.product_id || item.productId || compositeId?.[1] || item.id;
+    const variationId = item.variation_id || compositeId?.[2] || null;
+    return {
+      productId: Number(productId),
+      variationId: variationId ? Number(variationId) : null,
+      key: `${productId}:${variationId || 'simple'}:${item.id}`,
+    };
+  };
+
+  const deleteInvoice = async () => {
+    const invoice = invoiceToDelete;
+    if (!invoice) return;
+    setDeletingInvoiceId(invoice.id);
+
+    try {
+      let restoredCount = 0;
+      let legacyStockWarning = false;
+      const isWebsiteOrder = invoice.source === 'order' || Boolean(invoice.orderId);
+
+      // Website orders own their stock lifecycle. Never touch that stock here.
+      if (!isWebsiteOrder && invoice.synced && Array.isArray(invoice.stockSyncDetails)) {
+        const restoredKeys = new Set(invoice.stockRestoredItems || []);
+        for (const [index, item] of (invoice.items || []).entries()) {
+          const target = getInvoiceStockTarget(item);
+          const syncDetail = invoice.stockSyncDetails.find(detail =>
+            Number(detail.productId) === target.productId &&
+            Number(detail.variationId || 0) === Number(target.variationId || 0) &&
+            ['updated', 'verified'].includes(detail.status)
+          );
+          if (!syncDetail || restoredKeys.has(target.key)) continue;
+
+          const response = await fetch('/api/pos/batch-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              updates: [{
+                productId: target.productId,
+                ...(target.variationId ? { variationId: target.variationId } : {}),
+                adjustment: Number(item.quantity) || 0,
+              }],
+            }),
+          });
+          const result = await response.json().catch(() => ({}));
+          const resultDetail = result.details?.[0];
+          if (!response.ok || !['updated', 'verified'].includes(resultDetail?.status)) {
+            throw new Error(`تعذر إرجاع مخزون المنتج ${item.name || target.productId}. لم تُحذف الفاتورة.`);
+          }
+
+          restoredKeys.add(target.key);
+          restoredCount += 1;
+          const latestInvoice = await invoiceStorage.getInvoice(invoice.id) || invoice;
+          await invoiceStorage.updateInvoice(invoice.id, {
+            ...latestInvoice,
+            stockRestoredItems: [...restoredKeys],
+          });
+
+          if (target.variationId) {
+            const localStock = await warehouseStorage.getVariationLocalStock(target.variationId);
+            await warehouseStorage.setVariationLocalStock(target.variationId, localStock + (Number(item.quantity) || 0));
+          }
+        }
+      } else if (!isWebsiteOrder && invoice.synced && !Array.isArray(invoice.stockSyncDetails)) {
+        // Legacy invoices do not include per-item sync evidence, so automatic restocking is unsafe.
+        legacyStockWarning = true;
+      }
+
+      await invoiceStorage.deleteInvoice(invoice.id);
+      if (restoredCount > 0) {
+        await productsCacheStorage.invalidateCache();
+      }
+      setInvoices(prev => prev.filter(item => String(item.id) !== String(invoice.id)));
+      setSelectedInvoice(prev => prev?.id === invoice.id ? null : prev);
+      setInvoiceToDelete(null);
+
+      try {
+        const { logInvoiceDeleted } = await import('@/app/lib/audit-logger');
+        const mode = getAppMode();
+        await logInvoiceDeleted(invoice, { type: mode, name: APP_MODE_LABELS[mode] || 'المالك' });
+      } catch (auditError) {
+        console.error('Failed to audit invoice deletion:', auditError);
+      }
+
+      const message = isWebsiteOrder
+        ? 'تم حذف نسخة الفاتورة المحلية فقط؛ أوردر الموقع لم يتغير.'
+        : legacyStockWarning
+          ? 'تم حذف الفاتورة القديمة، ولم يتم تعديل المخزون لعدم وجود سجل مزامنة تفصيلي.'
+          : `تم حذف الفاتورة${restoredCount ? ` وإرجاع مخزون ${restoredCount} صنف` : ''}.`;
+      setToast({ message, type: legacyStockWarning ? 'warning' : 'success' });
+    } catch (error) {
+      setToast({ message: `❌ ${error.message || 'فشل حذف الفاتورة'}`, type: 'error' });
+    } finally {
+      setDeletingInvoiceId(null);
+    }
+  };
+
   const printInvoice = (invoice) => {
     // إضافة timestamp لتجنب الـ cache
     const url = `/pos/invoices/print?id=${encodeURIComponent(invoice.id)}&t=${Date.now()}`;
@@ -826,30 +922,10 @@ export default function InvoicesPage() {
 
       // تصفية المنتجات (حذف المنتج المطلوب)
       const updatedItems = invoice.items.filter(item => item.id !== itemId);
-      
-      // إعادة حساب المجاميع
-      const productsSubtotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      const servicesTotal = invoice.services?.reduce((sum, service) => sum + service.amount, 0) || 0;
-      const subtotal = productsSubtotal + servicesTotal;
-      
-      // حساب الخصم
-      let discountAmount = 0;
-      if (invoice.summary?.discount?.type === 'percentage') {
-        discountAmount = (subtotal * invoice.summary.discount.value) / 100;
-      } else if (invoice.summary?.discount?.type === 'fixed') {
-        discountAmount = invoice.summary.discount.value;
-      }
-      
-      // حساب الرسوم الإضافية
-      let extraFeeAmount = 0;
-      if (invoice.summary?.extraFeeType === 'percentage' && invoice.summary?.extraFeeValue) {
-        extraFeeAmount = (subtotal * invoice.summary.extraFeeValue) / 100;
-      } else {
-        extraFeeAmount = invoice.summary?.extraFee || 0;
-      }
-      
-      const deliveryFee = invoice.summary?.deliveryFee || 0;
-      const total = subtotal - discountAmount + extraFeeAmount + deliveryFee;
+      const amounts = recalculateInvoiceAmounts(invoice, updatedItems, invoice.services || []);
+      const { productsSubtotal, servicesTotal, subtotal, total } = amounts;
+      const discountAmount = amounts.discount?.amount || 0;
+      const extraFeeAmount = amounts.extraFee;
       
       // حساب الأرباح
       const productsProfit = updatedItems.reduce((sum, item) => {
@@ -871,14 +947,7 @@ export default function InvoicesPage() {
         items: updatedItems,
         summary: {
           ...invoice.summary,
-          productsSubtotal,
-          servicesTotal,
-          subtotal,
-          discount: invoice.summary?.discount ? {
-            ...invoice.summary.discount,
-            amount: discountAmount
-          } : null,
-          total,
+          ...amounts,
           productsProfit,
           discountOnProducts,
           finalProductsProfit,
@@ -899,30 +968,10 @@ export default function InvoicesPage() {
     try {
       // تصفية الخدمات (حذف الخدمة المطلوبة)
       const updatedServices = invoice.services.filter((_, idx) => idx !== serviceIndex);
-      
-      // إعادة حساب المجاميع
-      const productsSubtotal = invoice.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0;
-      const servicesTotal = updatedServices.reduce((sum, service) => sum + service.amount, 0);
-      const subtotal = productsSubtotal + servicesTotal;
-      
-      // حساب الخصم
-      let discountAmount = 0;
-      if (invoice.summary?.discount?.type === 'percentage') {
-        discountAmount = (subtotal * invoice.summary.discount.value) / 100;
-      } else if (invoice.summary?.discount?.type === 'fixed') {
-        discountAmount = invoice.summary.discount.value;
-      }
-      
-      // حساب الرسوم الإضافية
-      let extraFeeAmount = 0;
-      if (invoice.summary?.extraFeeType === 'percentage' && invoice.summary?.extraFeeValue) {
-        extraFeeAmount = (subtotal * invoice.summary.extraFeeValue) / 100;
-      } else {
-        extraFeeAmount = invoice.summary?.extraFee || 0;
-      }
-      
-      const deliveryFee = invoice.summary?.deliveryFee || 0;
-      const total = subtotal - discountAmount + extraFeeAmount + deliveryFee;
+      const amounts = recalculateInvoiceAmounts(invoice, invoice.items || [], updatedServices);
+      const { productsSubtotal, servicesTotal, subtotal, total } = amounts;
+      const discountAmount = amounts.discount?.amount || 0;
+      const extraFeeAmount = amounts.extraFee;
       
       // حساب الأرباح
       const productsProfit = invoice.items?.reduce((sum, item) => {
@@ -944,14 +993,7 @@ export default function InvoicesPage() {
         services: updatedServices,
         summary: {
           ...invoice.summary,
-          productsSubtotal,
-          servicesTotal,
-          subtotal,
-          discount: invoice.summary?.discount ? {
-            ...invoice.summary.discount,
-            amount: discountAmount
-          } : null,
-          total,
+          ...amounts,
           productsProfit,
           discountOnProducts,
           finalProductsProfit,
@@ -968,6 +1010,15 @@ export default function InvoicesPage() {
   };
 
   // Filter invoices
+  const getInvoiceRevenueForPaymentFilter = (invoice) => {
+    const invoiceTotal = Number(invoice.summary?.total || 0);
+    if (filterPaymentMethod === 'all' || filterPaymentMethod === 'online') return invoiceTotal;
+    if (invoice.paymentMethod !== 'split') return invoiceTotal;
+    return (invoice.paymentBreakdown || [])
+      .filter(part => part.method === filterPaymentMethod)
+      .reduce((sum, part) => sum + (Number(part.amount) || 0), 0);
+  };
+
   const filteredInvoices = invoices.filter(invoice => {
     // Status filter
     if (filterStatus === 'synced' && !invoice.synced) return false;
@@ -980,7 +1031,9 @@ export default function InvoicesPage() {
         if (invoice.source !== 'order') return false;
       } else {
         const invoicePaymentMethod = (invoice.paymentMethod || 'other').toLowerCase();
-        if (invoicePaymentMethod !== filterPaymentMethod) return false;
+        const hasSplitMethod = invoicePaymentMethod === 'split' &&
+          (invoice.paymentBreakdown || []).some(part => part.method === filterPaymentMethod && Number(part.amount) > 0);
+        if (invoicePaymentMethod !== filterPaymentMethod && !hasSplitMethod) return false;
       }
     }
     
@@ -1036,7 +1089,7 @@ export default function InvoicesPage() {
     total: invoices.length,
     synced: invoices.filter(i => i.synced).length,
     pending: invoices.filter(i => !i.synced).length,
-    totalRevenue: filteredInvoices.reduce((sum, inv) => sum + (inv.summary?.total || 0), 0),
+    totalRevenue: filteredInvoices.reduce((sum, inv) => sum + getInvoiceRevenueForPaymentFilter(inv), 0),
     // 🆕 Payment Status Stats
     paidFull: invoices.filter(i => (i.paymentStatus || 'paid_full') === 'paid_full').length,
     paidPartial: invoices.filter(i => (i.paymentStatus || 'paid_full') === 'paid_partial').length,
@@ -1539,12 +1592,14 @@ export default function InvoicesPage() {
                     
                     <span className={`px-1.5 py-0.5 rounded font-bold ${
                       invoice.source === 'order' ? 'bg-cyan-100 text-cyan-700' :
+                      invoice.paymentMethod === 'split' ? 'bg-indigo-100 text-indigo-700' :
                       invoice.paymentMethod === 'cash' ? 'bg-green-100 text-green-700' :
                       invoice.paymentMethod === 'wallet' ? 'bg-purple-100 text-purple-700' :
                       invoice.paymentMethod === 'instapay' ? 'bg-blue-100 text-blue-700' :
                       'bg-gray-100 text-gray-700'
                     }`}>
                       {invoice.source === 'order' ? '🌐' :
+                       invoice.paymentMethod === 'split' ? '🧾' :
                        invoice.paymentMethod === 'cash' ? '💵' :
                        invoice.paymentMethod === 'wallet' ? '👛' :
                        invoice.paymentMethod === 'instapay' ? '📱' : '💳'}
@@ -1724,6 +1779,69 @@ export default function InvoicesPage() {
                           <option value="returned">🔙 مرتجع</option>
                         </select>
                       </div>
+
+                      {/* Payment Method - Editable */}
+                      <div className="bg-blue-50 rounded p-2 border border-blue-200">
+                        <label className="text-[10px] font-bold text-gray-700 mb-1 block">💳 طريقة الدفع:</label>
+                        {invoice.source === 'order' ? (
+                          <div className="text-[10px] text-blue-800">
+                            {invoice.paymentMethod || 'غير محدد'} — مصدرها الستور ولا تُعدّل من الفاتورة المحلية.
+                          </div>
+                        ) : editingPaymentMethod?.invoiceId === invoice.id ? (
+                          <div className="flex gap-1.5">
+                            <select
+                              value={editingPaymentMethod.value}
+                              onChange={(e) => setEditingPaymentMethod({ invoiceId: invoice.id, value: e.target.value })}
+                              className="flex-1 px-2 py-1 rounded text-[10px] font-bold border border-blue-300 bg-white"
+                            >
+                              <option value="cash">💵 كاش</option>
+                              <option value="wallet">👛 محفظة</option>
+                              <option value="instapay">📱 انستا باي</option>
+                              <option value="vera">💳 مكنة فيزا</option>
+                              <option value="other">➕ أخرى</option>
+                            </select>
+                            <button
+                              onClick={() => saveInvoicePaymentMethod(invoice)}
+                              className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-bold"
+                            >حفظ</button>
+                            <button
+                              onClick={() => setEditingPaymentMethod(null)}
+                              className="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded text-[10px] font-bold"
+                            >إلغاء</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] font-bold text-blue-900">
+                              {invoice.paymentMethod === 'cash' ? '💵 كاش' :
+                               invoice.paymentMethod === 'wallet' ? '👛 محفظة' :
+                               invoice.paymentMethod === 'instapay' ? '📱 انستا باي' :
+                               invoice.paymentMethod === 'vera' ? '💳 مكنة فيزا' :
+                               invoice.paymentMethod === 'other' ? '➕ أخرى' : (invoice.paymentMethod || 'غير محدد')}
+                            </span>
+                            <button
+                              onClick={() => setEditingPaymentMethod({ invoiceId: invoice.id, value: invoice.paymentMethod || 'cash' })}
+                              className="px-2 py-1 bg-white border border-blue-200 hover:bg-blue-100 text-blue-800 rounded text-[10px] font-bold"
+                            >تعديل ✏️</button>
+                          </div>
+                        )}
+                      </div>
+
+                      {invoice.paymentMethod === 'split' && invoice.paymentBreakdown?.length > 0 && (
+                        <div className="bg-indigo-50 border border-indigo-200 rounded p-2">
+                          <div className="text-[10px] font-bold text-indigo-900 mb-1">🧾 تقسيم الدفع:</div>
+                          <div className="space-y-0.5">
+                            {invoice.paymentBreakdown.map((part, index) => {
+                              const labels = { cash: 'كاش', wallet: 'محفظة', instapay: 'انستا باي', vera: 'مكنة فيزا', card: 'بطاقة', other: 'أخرى' };
+                              return (
+                                <div key={`${part.method}-${index}`} className="flex justify-between text-[10px] text-indigo-900">
+                                  <span>{labels[part.method] || part.method}</span>
+                                  <span className="font-bold">{Number(part.amount || 0).toFixed(2)} ج.م</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Invoice Notes - Editable */}
                       <div className="bg-yellow-50 rounded p-2 border border-yellow-200">
@@ -2256,6 +2374,17 @@ export default function InvoicesPage() {
                     >
                       {selectedInvoice?.id === invoice.id ? '▲' : '▼'}
                     </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setInvoiceToDelete(invoice);
+                      }}
+                      disabled={deletingInvoiceId === invoice.id}
+                      className="px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded text-[11px] font-bold disabled:opacity-50"
+                      title="حذف الفاتورة كاملة"
+                    >
+                      {deletingInvoiceId === invoice.id ? '…' : '🗑️'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -2265,6 +2394,49 @@ export default function InvoicesPage() {
       </div>
 
       {/* Delete Confirmation Modal */}
+      {invoiceToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" dir="rtl">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5">
+            <div className="text-center mb-5">
+              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl">🗑️</div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">حذف الفاتورة كاملة؟</h3>
+              <p className="text-sm text-gray-600">
+                الفاتورة <strong>#{String(invoiceToDelete.id).split('-').pop()}</strong> بقيمة{' '}
+                <strong>{formatPrice(invoiceToDelete.summary?.total)} ج.م</strong> ستُحذف من سجل الفواتير.
+              </p>
+              {invoiceToDelete.source === 'order' || invoiceToDelete.orderId ? (
+                <p className="mt-3 p-2 rounded-lg bg-blue-50 text-blue-800 text-xs">
+                  هذه فاتورة أوردر موقع؛ سيتم حذف النسخة المحلية فقط ولن يتغير الأوردر الأصلي.
+                </p>
+              ) : invoiceToDelete.synced && !Array.isArray(invoiceToDelete.stockSyncDetails) ? (
+                <p className="mt-3 p-2 rounded-lg bg-amber-50 text-amber-800 text-xs">
+                  فاتورة قديمة بلا تفاصيل مزامنة مخزون؛ سيتم حذفها دون تغيير المخزون.
+                </p>
+              ) : invoiceToDelete.synced ? (
+                <p className="mt-3 p-2 rounded-lg bg-amber-50 text-amber-800 text-xs">
+                  سيُعاد للمخزون فقط ما ثبت نجاح مزامنته من أصناف هذه الفاتورة.
+                </p>
+              ) : null}
+              <p className="text-xs text-red-600 mt-3">لا يمكن التراجع عن حذف الفاتورة.</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setInvoiceToDelete(null)}
+                disabled={deletingInvoiceId === invoiceToDelete.id}
+                className="flex-1 px-4 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-bold disabled:opacity-50"
+              >إلغاء</button>
+              <button
+                onClick={deleteInvoice}
+                disabled={deletingInvoiceId === invoiceToDelete.id}
+                className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold disabled:opacity-50"
+              >
+                {deletingInvoiceId === invoiceToDelete.id ? 'جاري الحذف...' : 'حذف الفاتورة'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">

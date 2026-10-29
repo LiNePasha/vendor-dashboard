@@ -389,6 +389,28 @@ export const logSaleRecorded = async (invoice) => {
   });
 };
 
+export const logInvoicePaymentMethodChanged = async (invoice, previousMethod, nextMethod, performedBy) => {
+  return await auditLogger.log({
+    category: 'sales',
+    action: 'invoice_payment_method_changed',
+    description: `تغيير طريقة دفع الفاتورة #${invoice.id} من ${previousMethod || 'غير محدد'} إلى ${nextMethod}`,
+    target: { type: 'invoice', id: invoice.id, name: `فاتورة #${invoice.id}` },
+    data: { before: { paymentMethod: previousMethod }, after: { paymentMethod: nextMethod } },
+    performedBy: performedBy || { type: 'admin', name: 'Admin' },
+  });
+};
+
+export const logInvoiceDeleted = async (invoice, performedBy) => {
+  return await auditLogger.log({
+    category: 'sales',
+    action: 'invoice_deleted',
+    description: `حذف الفاتورة #${invoice.id} بقيمة ${Number(invoice.summary?.total || 0).toFixed(2)} ج.م`,
+    target: { type: 'invoice', id: invoice.id, name: `فاتورة #${invoice.id}` },
+    data: { before: invoice, after: null },
+    performedBy: performedBy || { type: 'admin', name: 'Admin' },
+  });
+};
+
 // ===== دوال مساعدة للنظام =====
 
 /**

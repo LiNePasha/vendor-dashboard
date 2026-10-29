@@ -40,10 +40,12 @@ export const invoiceStorage = {
     return invoices.filter(invoice => !invoice.synced);
   },
 
-  async markInvoiceAsSynced(invoiceId) {
+  async markInvoiceAsSynced(invoiceId, stockSyncDetails = null) {
     const invoices = await this.getAllInvoices();
     const updatedInvoices = invoices.map(invoice => 
-      invoice.id === invoiceId ? { ...invoice, synced: true } : invoice
+      String(invoice.id) === String(invoiceId)
+        ? { ...invoice, synced: true, ...(Array.isArray(stockSyncDetails) ? { stockSyncDetails } : {}) }
+        : invoice
     );
     await localforage.setItem('invoices', updatedInvoices);
   },
@@ -52,6 +54,14 @@ export const invoiceStorage = {
     const invoices = await this.getAllInvoices();
     const updatedInvoices = invoices.map(invoice => 
       invoice.id === invoiceId ? { ...invoice, paymentStatus } : invoice
+    );
+    await localforage.setItem('invoices', updatedInvoices);
+  },
+
+  async updateInvoicePaymentMethod(invoiceId, paymentMethod) {
+    const invoices = await this.getAllInvoices();
+    const updatedInvoices = invoices.map(invoice =>
+      String(invoice.id) === String(invoiceId) ? { ...invoice, paymentMethod } : invoice
     );
     await localforage.setItem('invoices', updatedInvoices);
   },
@@ -70,6 +80,13 @@ export const invoiceStorage = {
       invoice.id === invoiceId ? updatedInvoice : invoice
     );
     await localforage.setItem('invoices', updatedInvoices);
+  },
+
+  async deleteInvoice(invoiceId) {
+    const invoices = await this.getAllInvoices();
+    const updatedInvoices = invoices.filter(invoice => String(invoice.id) !== String(invoiceId));
+    await localforage.setItem('invoices', updatedInvoices);
+    return invoices.length - updatedInvoices.length;
   },
 
   async clearAll() {

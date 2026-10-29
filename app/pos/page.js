@@ -372,6 +372,7 @@ export default function POSPage() {
       deliveryPaymentNote: '',
       orderNotes: '',
       paymentMethod: 'cash',
+      paymentSplits: [],
       orderType: 'store',
       selectedCustomer: null,
       createdAt: new Date().toISOString()
@@ -891,7 +892,7 @@ export default function POSPage() {
     setTimeout(() => setToast(null), 2000);
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (checkoutData = {}) => {
     if (!activeTab) return;
     
     if ((!activeTab.cart || activeTab.cart.length === 0) && (!activeTab.services || activeTab.services.length === 0)) {
@@ -911,6 +912,21 @@ export default function POSPage() {
     }
     if (activeTab.discount < 0 || activeTab.extraFee < 0) {
       return setToast({ message: 'قيمة غير صالحة', type: 'error' });
+    }
+
+    const paymentSplits = Array.isArray(activeTab.paymentSplits) ? activeTab.paymentSplits : [];
+    const paymentBreakdown = paymentSplits.length >= 2
+      ? paymentSplits
+        .map(split => ({ method: split.method, amount: Number(split.amount) || 0 }))
+        .filter(split => split.amount > 0)
+      : [];
+    if (paymentSplits.length >= 2) {
+      const splitTotal = paymentBreakdown.reduce((sum, split) => sum + split.amount, 0);
+      const distinctMethods = new Set(paymentBreakdown.map(split => split.method)).size;
+      const expectedPaymentAmount = Number(checkoutData.expectedPaymentAmount || 0);
+      if (paymentBreakdown.length < 2 || distinctMethods < 2 || Math.abs(splitTotal - expectedPaymentAmount) >= 0.01) {
+        return setToast({ message: '⚠️ اختر وسيلتين مختلفتين واجعل مجموعهما مساويًا للمبلغ المطلوب دفعه', type: 'error' });
+      }
     }
 
     // 🔄 نسخ بيانات الفاتورة للـ Zustand store للمعالجة
@@ -959,7 +975,8 @@ export default function POSPage() {
       discountApplyMode: activeTab.discountApplyMode,
       extraFee: activeTab.extraFee,
       extraFeeType: activeTab.extraFeeType, 
-      paymentMethod: activeTab.paymentMethod,
+      paymentMethod: paymentBreakdown.length >= 2 ? 'split' : activeTab.paymentMethod,
+      paymentBreakdown: paymentBreakdown.length >= 2 ? paymentBreakdown : null,
       orderNotes: activeTab.orderNotes || '',
       soldBy: {
         employeeId: selectedEmployee.id,
@@ -999,6 +1016,7 @@ export default function POSPage() {
         deliveryPaidAmount: 0,
         deliveryPaymentNote: '',
         paymentMethod: 'cash',
+        paymentSplits: [],
         orderNotes: ''
       });
       
@@ -1740,6 +1758,7 @@ export default function POSPage() {
                 deliveryPaymentNote={activeTab?.deliveryPaymentNote || deliveryPaymentNote}
                 orderNotes={activeTab?.orderNotes || orderNotes}
                 paymentMethod={activeTab?.paymentMethod || paymentMethod}
+                paymentSplits={activeTab?.paymentSplits || []}
                 onDiscountChange={(v) => {
                   setDiscount(Number(v));
                   updateActiveTab({ discount: Number(v) });
@@ -1788,6 +1807,7 @@ export default function POSPage() {
                   setPaymentMethod(v);
                   updateActiveTab({ paymentMethod: v });
                 }}
+                onPaymentSplitsChange={(splits) => updateActiveTab({ paymentSplits: splits })}
                 onPaymentStatusChange={(v) => { // 🆕 حالة الدفع
                   updateActiveTab({ paymentStatus: v });
                 }}
@@ -1853,34 +1873,79 @@ export default function POSPage() {
                 {/* Cart Content */}
                 <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
                   <Cart
-                    key={`mobile-cart-${activeTabId}-${cart?.length || 0}-${JSON.stringify(cart?.map(i => i.price) || [])}`}
-                    items={cart}
-                    services={services}
+                    key={`mobile-cart-${activeTabId}-${activeTab?.cart?.length || 0}-${JSON.stringify(activeTab?.cart?.map(i => i.price) || [])}`}
+                    items={activeTab?.cart || []}
+                    services={activeTab?.services || []}
                     employees={employees}
+                    selectedEmployee={selectedEmployee}
+                    orderType={activeTab?.orderType || orderType}
+                    selectedCustomer={activeTab?.selectedCustomer || selectedCustomer}
+                    onOrderTypeChange={(type) => {
+                      setOrderType(type);
+                      updateActiveTab({ orderType: type });
+                    }}
+                    onCustomerSelect={(customer) => {
+                      selectCustomer(customer);
+                      const shippingCost = customer?.shippingCost || 0;
+                      setDeliveryFee(shippingCost);
+                      updateActiveTab({ selectedCustomer: customer, deliveryFee: shippingCost });
+                    }}
                     onUpdateQuantity={handleUpdateQuantity}
                     onUpdateItemPrice={handleUpdateItemPrice} // 🆕 تعديل سعر المنتج (جملة فورية)
                     onAddItem={(tempProduct) => {
-                      addToCart(tempProduct);
+                      if (activeTab) updateActiveTab({ cart: [...activeTab.cart, tempProduct] });
                     }}
-                    onRemoveItem={removeFromCart}
-                    onAddService={addService}
-                    onUpdateService={updateService}
-                    onRemoveService={removeService}
-                    onCheckout={() => {
-                      handleCheckout();
+                    onRemoveItem={(id) => {
+                      if (activeTab) updateActiveTab({ cart: activeTab.cart.filter(item => item.id !== id) });
+                    }}
+                    onAddService={(description, amount) => {
+                      if (activeTab) updateActiveTab({
+                        services: [...(activeTab.services || []), { id: Date.now().toString(), description, amount: Number(amount) }],
+                      });
+                    }}
+                    onUpdateService={(id, fieldOrUpdates, value) => {
+                      if (!activeTab) return;
+                      const servicesUpdated = (activeTab.services || []).map(service => service.id !== id
+                        ? service
+                        : typeof fieldOrUpdates === 'object'
+                          ? { ...service, ...fieldOrUpdates }
+                          : { ...service, [fieldOrUpdates]: value });
+                      updateActiveTab({ services: servicesUpdated });
+                    }}
+                    onRemoveService={(id) => {
+                      if (activeTab) updateActiveTab({ services: (activeTab.services || []).filter(service => service.id !== id) });
+                    }}
+                    onCheckout={(checkoutData) => {
+                      handleCheckout(checkoutData);
                       setShowMobileCart(false);
                     }}
                     processing={processing}
-                    discount={discount}
-                    discountType={discountType}
-                    discountApplyMode={discountApplyMode}
-                    extraFee={extraFee}
-                    paymentMethod={paymentMethod}
-                    onDiscountChange={(v) => setDiscount(Number(v))}
-                    onDiscountTypeChange={(v) => setDiscountType(v)}
-                    onDiscountApplyModeChange={(v) => setDiscountApplyMode(v)}
-                    onExtraFeeChange={(v) => setExtraFee(Number(v))}
-                    onPaymentMethodChange={(v) => setPaymentMethod(v)}
+                    discount={activeTab?.discount ?? discount}
+                    discountType={activeTab?.discountType || discountType}
+                    discountApplyMode={activeTab?.discountApplyMode || discountApplyMode}
+                    extraFee={activeTab?.extraFee ?? extraFee}
+                    extraFeeType={activeTab?.extraFeeType || extraFeeType}
+                    deliveryFee={activeTab?.deliveryFee ?? deliveryFee}
+                    deliveryNotes={activeTab?.deliveryNotes || deliveryNotes}
+                    deliveryPaymentStatus={activeTab?.deliveryPaymentStatus || deliveryPaymentStatus}
+                    deliveryPaidAmount={activeTab?.deliveryPaidAmount ?? deliveryPaidAmount}
+                    deliveryPaymentNote={activeTab?.deliveryPaymentNote || deliveryPaymentNote}
+                    orderNotes={activeTab?.orderNotes || orderNotes}
+                    paymentMethod={activeTab?.paymentMethod || paymentMethod}
+                    paymentSplits={activeTab?.paymentSplits || []}
+                    onDiscountChange={(v) => { setDiscount(Number(v)); updateActiveTab({ discount: Number(v) }); }}
+                    onDiscountTypeChange={(v) => { setDiscountType(v); updateActiveTab({ discountType: v }); }}
+                    onDiscountApplyModeChange={(v) => { setDiscountApplyMode(v); updateActiveTab({ discountApplyMode: v }); }}
+                    onExtraFeeChange={(v) => { setExtraFee(Number(v)); updateActiveTab({ extraFee: Number(v) }); }}
+                    onExtraFeeTypeChange={(v) => { setExtraFeeType(v); updateActiveTab({ extraFeeType: v }); }}
+                    onDeliveryFeeChange={(v) => { setDeliveryFee(v); updateActiveTab({ deliveryFee: v }); }}
+                    onDeliveryNotesChange={(v) => { setDeliveryNotes(v); updateActiveTab({ deliveryNotes: v }); }}
+                    onDeliveryPaymentStatusChange={(v) => { setDeliveryPaymentStatus(v); updateActiveTab({ deliveryPaymentStatus: v }); }}
+                    onDeliveryPaidAmountChange={(v) => { setDeliveryPaidAmount(v); updateActiveTab({ deliveryPaidAmount: v }); }}
+                    onDeliveryPaymentNoteChange={(v) => { setDeliveryPaymentNote(v); updateActiveTab({ deliveryPaymentNote: v }); }}
+                    onOrderNotesChange={(v) => { setOrderNotes(v); updateActiveTab({ orderNotes: v }); }}
+                    onPaymentMethodChange={(v) => { setPaymentMethod(v); updateActiveTab({ paymentMethod: v }); }}
+                    onPaymentSplitsChange={(splits) => updateActiveTab({ paymentSplits: splits })}
                   />
                 </div>
               </div>
