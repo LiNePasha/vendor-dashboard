@@ -13,6 +13,55 @@ const normalizeArabic = (text) => {
     .replace(/[ة]/g, 'ه')  // تاء مربوطة → هاء
     .replace(/[\u064B-\u065F]/g, ''); // إزالة التشكيل
 };
+
+const parsePriceValue = (value) => {
+  if (value === null || value === undefined || value === '') return 0;
+
+  const cleaned = String(value)
+    .replace(/,/g, '')
+    .replace(/[^\d.]/g, '')
+    .replace(/(\..*)\./g, '$1');
+
+  const numeric = Number(cleaned);
+  return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const getProductSellPrice = (product) => {
+  if (!product) return 0;
+
+  const basePrice = product.sale_price || product.price || product.regular_price || 0;
+  return parsePriceValue(basePrice);
+};
+
+const getProductStockQuantity = (product) => {
+  if (!product) return 0;
+
+  if (product.type === 'variable' && Array.isArray(product.variations)) {
+    const variationsTotal = product.variations.reduce((sum, variation) => {
+      if (!variation || typeof variation.stock_quantity === 'undefined' || variation.stock_quantity === null) {
+        return sum;
+      }
+
+      const qty = Number(variation.stock_quantity) || 0;
+      return sum + qty;
+    }, 0);
+
+    if (variationsTotal > 0) return variationsTotal;
+  }
+
+  return Number(product.stock_quantity || 0);
+};
+
+const calculateProductsInventoryValue = (productList = []) => {
+  return productList.reduce((total, product) => {
+    const quantity = getProductStockQuantity(product);
+
+    if (quantity <= 0) return total;
+
+    const unitPrice = getProductSellPrice(product);
+    return total + (unitPrice * quantity);
+  }, 0);
+};
 import ProductFormModal from "@/components/ProductFormModal";
 import BulkUploadModal from "@/components/BulkUploadModal";
 import InvoiceUploadModal from "@/components/InvoiceUploadModal";
@@ -114,6 +163,7 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [deletingProduct, setDeletingProduct] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [inventoryValue, setInventoryValue] = useState(null);
 
   // Admin states
   const [isAdminUser, setIsAdminUser] = useState(false);
@@ -583,6 +633,14 @@ export default function ProductsPage() {
     await productsCacheStorage.addProductToCache(newProduct);
   };
 
+  const handleCalculateInventoryValue = () => {
+    setInventoryValue({
+      total: calculateProductsInventoryValue(filteredProducts),
+      productCount: filteredProducts.length,
+      availableProductCount: filteredProducts.filter(product => getProductStockQuantity(product) > 0).length,
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="p-4 sm:p-6 max-w-[1600px] mx-auto">
@@ -596,6 +654,14 @@ export default function ProductsPage() {
               </p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:flex gap-2 flex-wrap">
+              <button
+                onClick={handleCalculateInventoryValue}
+                className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-3 sm:px-5 py-2.5 rounded-lg hover:from-emerald-700 hover:to-teal-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2 text-sm"
+                title="حساب قيمة بيع كل المنتجات المتاحة في المخزون"
+              >
+                <span className="text-lg">💰</span>
+                <span>حساب قيمة البيع</span>
+              </button>
               <button
                 onClick={() => setShowBundleModal(true)}
                 className="bg-gradient-to-r from-orange-600 to-red-700 text-white px-3 sm:px-5 py-2.5 rounded-lg hover:from-orange-700 hover:to-red-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2 text-sm"
@@ -636,6 +702,19 @@ export default function ProductsPage() {
           <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
             <span className="font-semibold">💡 ملاحظة:</span> المنتجات الجديدة يتم إضافتها وإدارتها من خلال نظام المخزن.
           </div>
+          {inventoryValue !== null && (
+            <div className="mt-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 text-emerald-900 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-emerald-700 font-semibold">قيمة بيع المنتجات المفلترة</p>
+                  <p className="text-2xl font-black text-emerald-800">{inventoryValue.total.toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م</p>
+                </div>
+                <div className="text-sm text-emerald-700 bg-white/60 px-3 py-2 rounded-lg border border-emerald-200">
+                  {inventoryValue.productCount} منتج مفلتر • {inventoryValue.availableProductCount} منتج متاح بالمخزون
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Search & Filter */}
