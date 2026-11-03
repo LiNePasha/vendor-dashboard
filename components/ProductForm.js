@@ -61,6 +61,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     sku: '',
     sellingPrice: '',
     salePrice: '',
+    wholesalePrice: '',
     purchasePrice: '',
     supplierId: '',
     apiStock: 0,
@@ -164,6 +165,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       sku: product.sku || '',
       sellingPrice: product.regular_price || product.price || '',
       salePrice: product.sale_price || '',
+      wholesalePrice: product.wholesale_price ?? '',
       purchasePrice: product.purchase_price || '',
       supplierId: '',
       apiStock: product.stock_quantity || 0,
@@ -222,6 +224,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       setOriginalData({
         name: product.name || '',
         sku: product.sku || '',
+        wholesalePrice: product.wholesale_price ?? '',
         images: product.images || [], // 🔥 FIX: حفظ الصور الأصلية للمقارنة
         categories: product.categories?.map(c => c.id) || [],
         attributes: product.attributes?.map(attr => ({
@@ -432,6 +435,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     return (
       form.name !== originalData.name ||
       form.sku !== originalData.sku ||
+      String(form.wholesalePrice) !== String(originalData.wholesalePrice ?? '') ||
       imagesChanged() ||
       categoriesChanged ||
       attributesChanged
@@ -668,6 +672,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       sku: form.sku,
       sellingPrice: parseFloat(form.sellingPrice),
       salePrice: form.salePrice || '',
+      wholesalePrice: form.wholesalePrice,
       purchasePrice: parseFloat(form.purchasePrice) || 0,
       stock: parseInt(form.apiStock) || 0,
       categories: form.categories.length > 0 ? form.categories : null,
@@ -758,6 +763,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
           body: JSON.stringify({
             name: form.name,
             sku: form.sku,
+            wholesalePrice: form.wholesalePrice,
             type: 'variable',
             categories: form.categories.length > 0 ? form.categories : null,
             ...(imagesToSend !== null ? { images: imagesToSend } : {}),
@@ -1462,6 +1468,24 @@ export default function ProductForm({ mode = 'create', productId = null, initial
             </div>
           </>
         )}
+
+        <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <label className="block text-sm font-semibold mb-2 text-amber-900">💰 سعر الجملة (ج.م)</label>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={form.wholesalePrice}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                setForm({ ...form, wholesalePrice: val });
+              }
+            }}
+            className="w-full px-4 py-2 border border-amber-300 rounded-lg bg-white"
+            placeholder="اختياري"
+          />
+          <p className="text-xs text-amber-800 mt-1">اتركه فارغًا إذا لم يكن للمنتج سعر جملة.</p>
+        </div>
 
         {/* Stock for Simple Products */}
         {form.productType === 'simple' && (

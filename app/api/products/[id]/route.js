@@ -62,6 +62,10 @@ export async function GET(req, { params }) {
     if (purchasePriceMeta) {
       formattedProduct.purchase_price = purchasePriceMeta.value;
     }
+    const wholesalePriceMeta = product.meta_data?.find(m => m.key === '_wholesale_price');
+    if (wholesalePriceMeta) {
+      formattedProduct.wholesale_price = wholesalePriceMeta.value;
+    }
 
     // 3. Fetch variations if requested and product is variable
     if (includeVariations && product.type === 'variable') {
@@ -204,12 +208,15 @@ export async function PATCH(req, { params }) {
       }
     }
 
-    // Add purchase price to meta_data
+    // Update prices stored in product meta_data
+    const productMetaData = [];
     if (body.purchasePrice !== undefined) {
-      updatePayload.meta_data = [
-        { key: '_purchase_price', value: String(body.purchasePrice) }
-      ];
+      productMetaData.push({ key: '_purchase_price', value: String(body.purchasePrice) });
     }
+    if (body.wholesalePrice !== undefined) {
+      productMetaData.push({ key: '_wholesale_price', value: String(body.wholesalePrice).trim() });
+    }
+    if (productMetaData.length > 0) updatePayload.meta_data = productMetaData;
 
     // Update product
     const updateRes = await fetch(`${API_BASE}/wp-json/wc/v3/products/${id}`, {

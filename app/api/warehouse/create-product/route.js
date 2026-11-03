@@ -48,7 +48,7 @@ export async function POST(req) {
     const roles = decoded?.data?.user?.roles || [];
 
     const body = await req.json();
-    const { name, sku, type = 'simple', sellingPrice, salePrice, purchasePrice, stock, categories, images, attributes, vendor_id } = body;
+    const { name, sku, type = 'simple', sellingPrice, salePrice, wholesalePrice, purchasePrice, stock, categories, images, attributes, vendor_id } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -84,7 +84,10 @@ export async function POST(req) {
       status: 'publish',
       meta_data: [
         { key: '_wcfm_product_author', value: vendorId },
-        { key: '_purchase_price', value: String(purchasePrice || 0) }
+        { key: '_purchase_price', value: String(purchasePrice || 0) },
+        ...(wholesalePrice !== undefined && String(wholesalePrice).trim() !== ''
+          ? [{ key: '_wholesale_price', value: String(wholesalePrice).trim() }]
+          : [])
       ]
     };
 
