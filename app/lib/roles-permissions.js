@@ -18,6 +18,7 @@ const APP_MODE_PASSWORDS = {
 export const CASHIER_ALLOWED_PAGES = [
   '/pos',
   '/services',
+  '/pos/invoices',
 ];
 
 const ASSISTANT_MANAGER_ALLOWED_PREFIXES = ['/pos/invoices'];
@@ -50,7 +51,8 @@ export function isPathAllowedForMode(pathname, mode = getAppMode()) {
   if (mode === ROLES.OWNER) return true;
 
   if (mode === ROLES.CASHIER) {
-    return CASHIER_ALLOWED_PAGES.includes(pathname);
+    return CASHIER_ALLOWED_PAGES.includes(pathname) ||
+      matchesAnyPrefix(pathname, ['/pos/invoices/print']);
   }
 
   if (pathname === '/') return true;
@@ -68,10 +70,9 @@ export function isPathAllowedForMode(pathname, mode = getAppMode()) {
   return false;
 }
 
-export function setAppMode(mode) {
+export function setAppMode(mode, password) {
   if (typeof window === 'undefined' || !Object.values(ROLES).includes(mode)) return false;
 
-  const password = prompt('🔐 ادخل كلمة السر لتغيير وضع الصلاحيات:');
   if (password !== APP_MODE_PASSWORDS[mode]) {
     alert('❌ كلمة السر غير صحيحة');
     return false;

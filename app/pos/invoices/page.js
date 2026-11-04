@@ -72,6 +72,7 @@ export default function InvoicesPage() {
   const [filterPaymentStatus, setFilterPaymentStatus] = useState('all'); // all, paid_full, paid_partial, returned
   const [filterDate, setFilterDate] = useState('all'); // all, today, yesterday, last7days, last30days
   const [selectedDate, setSelectedDate] = useState('');
+  const [appMode, setAppMode] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [exporting, setExporting] = useState(false);
   const [editingDeliveryFee, setEditingDeliveryFee] = useState(null); // { invoiceId, value }
@@ -90,6 +91,10 @@ export default function InvoicesPage() {
   const [variationSelectorVariations, setVariationSelectorVariations] = useState([]);
   const [productQuantities, setProductQuantities] = useState({}); // {productId: quantity}
 
+  const isCashier = appMode === ROLES.CASHIER;
+  const canDeleteInvoices = appMode !== null && !isCashier;
+  const canViewFinancialTotals = appMode !== null && !isCashier;
+
   const currentDate = new Date();
   const firstDayOfCurrentMonth = formatLocalDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
   const lastDayOfCurrentMonth = formatLocalDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0));
@@ -107,7 +112,9 @@ export default function InvoicesPage() {
   }, []);
 
   useEffect(() => {
-    if (getAppMode() === ROLES.ASSISTANT_MANAGER) {
+    const mode = getAppMode();
+    setAppMode(mode);
+    if (mode === ROLES.ASSISTANT_MANAGER) {
       setFilterDate('today');
     }
   }, []);
@@ -635,6 +642,7 @@ export default function InvoicesPage() {
   };
 
   const exportToExcel = async () => {
+    if (!canViewFinancialTotals) return;
     setExporting(true);
     try {
       // Create detailed CSV with all invoice information
@@ -728,6 +736,7 @@ export default function InvoicesPage() {
   };
 
   const deleteAllInvoices = async () => {
+    if (!canDeleteInvoices) return;
     try {
       await invoiceStorage.clearAll();
       setInvoices([]);
@@ -788,6 +797,7 @@ export default function InvoicesPage() {
   };
 
   const deleteInvoice = async () => {
+    if (!canDeleteInvoices) return;
     const invoice = invoiceToDelete;
     if (!invoice) return;
     setDeletingInvoiceId(invoice.id);
@@ -882,6 +892,7 @@ export default function InvoicesPage() {
 
   // 🆕 حذف منتج من الفاتورة
   const deleteProductFromInvoice = async (invoice, itemId) => {
+    if (!canDeleteInvoices) return;
     try {
       // Get the item before deletion to return stock
       const itemToDelete = invoice.items.find(item => item.id === itemId);
@@ -977,6 +988,7 @@ export default function InvoicesPage() {
 
   // 🆕 حذف خدمة من الفاتورة
   const deleteServiceFromInvoice = async (invoice, serviceIndex) => {
+    if (!canDeleteInvoices) return;
     try {
       // تصفية الخدمات (حذف الخدمة المطلوبة)
       const updatedServices = invoice.services.filter((_, idx) => idx !== serviceIndex);
@@ -1151,7 +1163,7 @@ export default function InvoicesPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${canViewFinancialTotals ? 'lg:grid-cols-5' : 'lg:grid-cols-3'} gap-4 mb-6`}>
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between">
               <div>
@@ -1194,7 +1206,7 @@ export default function InvoicesPage() {
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
+          {canViewFinancialTotals && <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-purple-100 text-sm font-medium">
@@ -1208,9 +1220,9 @@ export default function InvoicesPage() {
                 </svg>
               </div>
             </div>
-          </div>
+          </div>}
 
-          <div className="bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl p-6 text-white shadow-lg">
+          {canViewFinancialTotals && <div className="bg-gradient-to-br from-pink-500 to-rose-600 rounded-xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between mb-3">
               <div className="flex-1">
                 <p className="text-pink-100 text-sm font-medium mb-1">💰 صافي الأرباح</p>
@@ -1239,7 +1251,7 @@ export default function InvoicesPage() {
                 <span className="text-pink-100">من {stats.profitInvoicesCount} فاتورة</span>
               </div>
             </div>
-          </div>
+            </div>}
 
           {/* <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between">
@@ -1529,7 +1541,7 @@ export default function InvoicesPage() {
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-3 border-t border-gray-200">
-            <button
+            {canViewFinancialTotals && <button
               onClick={exportToExcel}
               disabled={exporting || invoices.length === 0}
               className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
@@ -1538,9 +1550,9 @@ export default function InvoicesPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               {exporting ? 'جاري التصدير...' : 'تصدير Excel'}
-            </button>
+            </button>}
             
-            <button
+            {canDeleteInvoices && <button
               onClick={() => setShowDeleteConfirm(true)}
               disabled={invoices.length === 0}
               className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
@@ -1549,7 +1561,7 @@ export default function InvoicesPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
               حذف الكل
-            </button>
+            </button>}
           </div>
         </div>
 
@@ -1679,7 +1691,7 @@ export default function InvoicesPage() {
                         <div className="font-bold text-red-700">-{formatPrice(invoice.summary.discount.amount)}</div>
                       </div>
                     )}
-                    {(invoice.summary?.totalProfit !== undefined && invoice.summary?.totalProfit !== null) && (
+                    {canViewFinancialTotals && (invoice.summary?.totalProfit !== undefined && invoice.summary?.totalProfit !== null) && (
                       <div className="bg-green-50 rounded px-1.5 py-1 text-center border border-green-200">
                         <div className="text-green-600 font-medium mb-0.5">ربح</div>
                         <div className="font-bold text-green-700">{formatPrice(invoice.summary.totalProfit)}</div>
@@ -1771,7 +1783,7 @@ export default function InvoicesPage() {
                         </div>
 
                         {/* Profit Info */}
-                        {(invoice.summary?.totalProfit !== undefined && invoice.summary?.totalProfit !== null) && (
+                        {canViewFinancialTotals && (invoice.summary?.totalProfit !== undefined && invoice.summary?.totalProfit !== null) && (
                           <div className="bg-green-50 rounded px-2 py-1 border border-green-200 col-span-2">
                             <div className="text-green-700 font-medium mb-0.5">💰 صافي الربح</div>
                             <div className="font-bold text-green-800 text-[11px]">
@@ -1985,7 +1997,7 @@ export default function InvoicesPage() {
                                   </span>
 
                                   {/* Delete */}
-                                  <button
+                                  {canDeleteInvoices && <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (window.confirm(`هل تريد حذف "${item.name}" من الفاتورة؟`)) {
@@ -1996,7 +2008,7 @@ export default function InvoicesPage() {
                                     title="حذف المنتج"
                                   >
                                     ×
-                                  </button>
+                                  </button>}
                                 </div>
                               </div>
                             ))}
@@ -2206,7 +2218,7 @@ export default function InvoicesPage() {
                                   <span className="font-bold text-purple-700 flex-shrink-0">
                                     {formatPrice(service.amount)}
                                   </span>
-                                  <button
+                                  {canDeleteInvoices && <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (window.confirm(`هل تريد حذف خدمة "${service.description}" من الفاتورة؟`)) {
@@ -2217,7 +2229,7 @@ export default function InvoicesPage() {
                                     title="حذف الخدمة"
                                   >
                                     ×
-                                  </button>
+                                  </button>}
                                 </div>
                               </div>
                             ))}
@@ -2408,17 +2420,19 @@ export default function InvoicesPage() {
                     >
                       {selectedInvoice?.id === invoice.id ? '▲' : '▼'}
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setInvoiceToDelete(invoice);
-                      }}
-                      disabled={deletingInvoiceId === invoice.id}
-                      className="px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded text-[11px] font-bold disabled:opacity-50"
-                      title="حذف الفاتورة كاملة"
-                    >
-                      {deletingInvoiceId === invoice.id ? '…' : '🗑️'}
-                    </button>
+                    {canDeleteInvoices && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInvoiceToDelete(invoice);
+                        }}
+                        disabled={deletingInvoiceId === invoice.id}
+                        className="px-2 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded text-[11px] font-bold disabled:opacity-50"
+                        title="حذف الفاتورة كاملة"
+                      >
+                        {deletingInvoiceId === invoice.id ? '…' : '🗑️'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2428,7 +2442,7 @@ export default function InvoicesPage() {
       </div>
 
       {/* Delete Confirmation Modal */}
-      {invoiceToDelete && (
+      {canDeleteInvoices && invoiceToDelete && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" dir="rtl">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5">
             <div className="text-center mb-5">
@@ -2471,7 +2485,7 @@ export default function InvoicesPage() {
         </div>
       )}
 
-      {showDeleteConfirm && (
+      {canDeleteInvoices && showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <div className="text-center mb-6">

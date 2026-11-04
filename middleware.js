@@ -92,7 +92,8 @@ export function middleware(request) {
   }
 
   const isAllowedForMode = appMode === "owner" ||
-    (appMode === "cashier" && ["/pos", "/services"].includes(pathname)) ||
+    (appMode === "cashier" &&
+      (["/pos", "/services", "/pos/invoices"].includes(pathname) || isUnderPrefix("/pos/invoices/print"))) ||
     (appMode !== "cashier" && pathname === "/") ||
     (appMode === "assistant_manager" && (isUnderPrefix("/pos/invoices") || pathname === "/employees" || isAssistantDeductionPath)) ||
     (appMode === "manager" && (isUnderPrefix("/pos/invoices") || isUnderPrefix("/employees")));

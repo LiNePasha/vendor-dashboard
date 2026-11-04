@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { getVendorStoreLink,getVendorLogo } from "@/app/lib/vendor-constants";
 import usePOSStore from "@/app/stores/pos-store";
 import Image from "next/image";
-import { APP_MODE_LABELS, APP_MODE_OPTIONS, filterMenuItemsForRole, getAppMode, setAppMode } from "@/app/lib/roles-permissions";
+import { APP_MODE_LABELS, APP_MODE_OPTIONS, filterMenuItemsForRole, getAppMode } from "@/app/lib/roles-permissions";
+import AppModePasswordModal from "@/components/AppModePasswordModal";
 
 const menuItems = [
   {
@@ -142,6 +143,7 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse, isMob
   const [logoClickCount, setLogoClickCount] = useState(0);
   const [showSecretMode, setShowSecretMode] = useState(false);
   const [appMode, setAppModeState] = useState('owner');
+  const [pendingAppMode, setPendingAppMode] = useState(null);
   
   // تحميل وضع الصلاحيات الحالي
   useEffect(() => {
@@ -163,7 +165,7 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse, isMob
   };
   
   const handleSelectAppMode = (mode) => {
-    setAppMode(mode);
+    setPendingAppMode(mode);
   };
   
   // فلترة القائمة حسب الدور
@@ -401,6 +403,10 @@ export default function Sidebar({ onAction, isCollapsed, onToggleCollapse, isMob
       </div>
 
       </aside>
+      <AppModePasswordModal
+        mode={pendingAppMode}
+        onClose={() => setPendingAppMode(null)}
+      />
     </>
   );
 }
