@@ -51,6 +51,13 @@ function recalculateInvoiceAmounts(invoice, items, services) {
   };
 }
 
+function formatLocalDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +71,7 @@ export default function InvoicesPage() {
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('all'); // all, cash, wallet, instapay, vera, other
   const [filterPaymentStatus, setFilterPaymentStatus] = useState('all'); // all, paid_full, paid_partial, returned
   const [filterDate, setFilterDate] = useState('all'); // all, today, yesterday, last7days, last30days
+  const [selectedDate, setSelectedDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [exporting, setExporting] = useState(false);
   const [editingDeliveryFee, setEditingDeliveryFee] = useState(null); // { invoiceId, value }
@@ -81,6 +89,10 @@ export default function InvoicesPage() {
   const [variationSelectorProduct, setVariationSelectorProduct] = useState(null);
   const [variationSelectorVariations, setVariationSelectorVariations] = useState([]);
   const [productQuantities, setProductQuantities] = useState({}); // {productId: quantity}
+
+  const currentDate = new Date();
+  const firstDayOfCurrentMonth = formatLocalDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
+  const lastDayOfCurrentMonth = formatLocalDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0));
 
   // Helper function to format numbers nicely (removes decimals, adds thousands separator)
   const formatPrice = (price) => {
@@ -1049,7 +1061,9 @@ export default function InvoicesPage() {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      if (filterDate === 'today') {
+      if (filterDate === 'selectedDate') {
+        if (formatLocalDate(invoiceDate) !== selectedDate) return false;
+      } else if (filterDate === 'today') {
         const invDate = new Date(invoiceDate);
         invDate.setHours(0, 0, 0, 0);
         if (invDate.getTime() !== today.getTime()) return false;
@@ -1362,6 +1376,26 @@ export default function InvoicesPage() {
               >
                 📈 آخر 30 يوم
               </button>
+              <label className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium ${
+                filterDate === 'selectedDate'
+                  ? 'border-blue-600 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 bg-white text-gray-700'
+              }`}>
+                <span>📅 اختر يومًا من الشهر الحالي</span>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  min={firstDayOfCurrentMonth}
+                  max={lastDayOfCurrentMonth}
+                  onChange={(event) => {
+                    const date = event.target.value;
+                    setSelectedDate(date);
+                    setFilterDate(date ? 'selectedDate' : 'all');
+                  }}
+                  className="min-w-0 rounded border border-gray-200 bg-white px-2 py-1 text-sm text-gray-800"
+                  aria-label="اختر تاريخًا من الشهر الحالي"
+                />
+              </label>
             </div>
           </div>
 

@@ -7,25 +7,17 @@ export const ROLES = {
   MANAGER: 'manager',
 };
 
-export const CASHIER_MODE_PASSWORD = '1234'; // ممكن تغيرها من هنا
+const APP_MODE_PASSWORDS = {
+  [ROLES.CASHIER]: '1234',
+  [ROLES.ASSISTANT_MANAGER]: 'aa1234',
+  [ROLES.MANAGER]: 'gg1234',
+  [ROLES.OWNER]: 'gg1234',
+};
 
-// الصفحات اللي الكاشير ممنوع منها
-export const CASHIER_BLOCKED_PAGES = [
-  'warehouse',
-  'suppliers', 
-  'creditors',
-  'employees'
-];
-
-// الصفحات اللي الكاشير يشوفها
+// الصفحات الوحيدة المتاحة في وضع الكاشير
 export const CASHIER_ALLOWED_PAGES = [
-  '/', // الرئيسية
-  'orders',
-  'products',
-  'services',
-  'pos',
-  'invoices',
-  'audit'
+  '/pos',
+  '/services',
 ];
 
 const ASSISTANT_MANAGER_ALLOWED_PREFIXES = ['/pos/invoices'];
@@ -56,12 +48,12 @@ function matchesAnyPrefix(pathname, prefixes) {
 
 export function isPathAllowedForMode(pathname, mode = getAppMode()) {
   if (mode === ROLES.OWNER) return true;
-  if (pathname === '/') return true;
 
   if (mode === ROLES.CASHIER) {
-    const pageName = pathname.split('/')[1];
-    return !CASHIER_BLOCKED_PAGES.includes(pageName);
+    return CASHIER_ALLOWED_PAGES.includes(pathname);
   }
+
+  if (pathname === '/') return true;
 
   if (mode === ROLES.ASSISTANT_MANAGER) {
     return matchesAnyPrefix(pathname, ASSISTANT_MANAGER_ALLOWED_PREFIXES) ||
@@ -80,7 +72,7 @@ export function setAppMode(mode) {
   if (typeof window === 'undefined' || !Object.values(ROLES).includes(mode)) return false;
 
   const password = prompt('🔐 ادخل كلمة السر لتغيير وضع الصلاحيات:');
-  if (password !== CASHIER_MODE_PASSWORD) {
+  if (password !== APP_MODE_PASSWORDS[mode]) {
     alert('❌ كلمة السر غير صحيحة');
     return false;
   }

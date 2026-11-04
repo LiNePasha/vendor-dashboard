@@ -87,13 +87,19 @@ export function middleware(request) {
     (request.cookies.get("isCashierMode")?.value === "true" ? "cashier" : "owner");
   const isUnderPrefix = (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`);
   const isAssistantDeductionPath = /^\/employees\/[^/]+\/deductions\/add$/.test(pathname);
-  const isAllowedForMode = appMode === "owner" || pathname === "/" ||
-    (appMode === "cashier" && !["warehouse", "suppliers", "creditors", "employees"].includes(pathname.split("/")[1])) ||
+  if (appMode === "cashier" && pathname === "/") {
+    return NextResponse.redirect(new URL("/pos", request.url));
+  }
+
+  const isAllowedForMode = appMode === "owner" ||
+    (appMode === "cashier" && ["/pos", "/services"].includes(pathname)) ||
+    (appMode !== "cashier" && pathname === "/") ||
     (appMode === "assistant_manager" && (isUnderPrefix("/pos/invoices") || pathname === "/employees" || isAssistantDeductionPath)) ||
     (appMode === "manager" && (isUnderPrefix("/pos/invoices") || isUnderPrefix("/employees")));
 
   if (!isAllowedForMode) {
-    return NextResponse.redirect(new URL("/?blocked=app-mode", request.url));
+    const redirectPath = appMode === "cashier" ? "/pos" : "/?blocked=app-mode";
+    return NextResponse.redirect(new URL(redirectPath, request.url));
   }
 
   return NextResponse.next();
