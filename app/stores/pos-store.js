@@ -690,12 +690,8 @@ const usePOSStore = create(persist((set, get) => ({
       // الربح النهائي للخدمات بعد الخصم
       const finalServicesProfit = Math.max(0, servicesTotal - discountOnServices);
       
-      // الربح الكلي:
-      // - ربح المنتجات (بعد الخصم)
-      // - الرسوم الإضافية (إيراد كامل)
-      // - إيرادات الخدمات (بعد الخصم)
-      // - رسوم التوصيل (إيراد كامل)
-      const totalProfit = finalProductsProfit + extraFeeAmount + finalServicesProfit + finalDeliveryFee;
+      // Delivery charges are collected separately and are not invoice profit.
+      const totalProfit = finalProductsProfit + extraFeeAmount + finalServicesProfit;
 
       // Create invoice
       const invoice = {
@@ -731,7 +727,8 @@ const usePOSStore = create(persist((set, get) => ({
           extraFeeValue: Number(paymentDetails.extraFee), // 🆕 القيمة الأصلية للرسوم
           deliveryFee: finalDeliveryFee, // 🆕 رسوم التوصيل
           total: finalTotal,
-          totalProfit: totalProfit, // الربح الكلي (بعد الخصم والرسوم)
+          totalProfit,
+          profitExcludesDeliveryFee: true,
           productsProfit: totalProductsProfit, // ربح المنتجات الأصلي (قبل الخصم)
           finalProductsProfit: finalProductsProfit, // ربح المنتجات بعد الخصم
           finalServicesProfit: finalServicesProfit, // ربح الخدمات بعد الخصم

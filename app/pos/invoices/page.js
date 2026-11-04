@@ -58,6 +58,18 @@ function formatLocalDate(date) {
   return `${year}-${month}-${day}`;
 }
 
+function getInvoiceProfit(invoice) {
+  const summary = invoice.summary || {};
+  if (summary.totalProfit !== undefined && summary.totalProfit !== null) {
+    const deliveryFee = summary.profitExcludesDeliveryFee ? 0 : Number(summary.deliveryFee || 0);
+    return Number(summary.totalProfit) - deliveryFee;
+  }
+
+  return Number(summary.productsProfit || 0) +
+    Number(summary.servicesTotal || 0) +
+    Number(summary.extraFee || 0);
+}
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -164,6 +176,8 @@ export default function InvoicesPage() {
         summary: {
           ...invoiceWithNewFee.summary,
           ...amounts,
+          totalProfit: getInvoiceProfit(invoice),
+          profitExcludesDeliveryFee: true,
         },
         deliveryPayment: updatedDeliveryPayment
       };
@@ -297,6 +311,8 @@ export default function InvoicesPage() {
         summary: {
           ...invoice.summary,
           ...amounts,
+          totalProfit: getInvoiceProfit(invoice),
+          profitExcludesDeliveryFee: true,
         }
       };
 
@@ -338,6 +354,8 @@ export default function InvoicesPage() {
         summary: {
           ...invoice.summary,
           ...amounts,
+          totalProfit: getInvoiceProfit(invoice),
+          profitExcludesDeliveryFee: true,
         }
       };
 
@@ -493,7 +511,9 @@ export default function InvoicesPage() {
         summary: {
           ...invoice.summary,
           ...amounts,
-          productsProfit
+          productsProfit,
+          totalProfit: getInvoiceProfit(invoice),
+          profitExcludesDeliveryFee: true,
         }
       };
       
@@ -543,6 +563,8 @@ export default function InvoicesPage() {
         summary: {
           ...invoice.summary,
           ...amounts,
+          totalProfit: getInvoiceProfit(invoice),
+          profitExcludesDeliveryFee: true,
         }
       };
 
@@ -578,6 +600,8 @@ export default function InvoicesPage() {
         summary: {
           ...invoiceWithDiscount.summary,
           ...amounts,
+          totalProfit: getInvoiceProfit(invoice),
+          profitExcludesDeliveryFee: true,
         }
       };
 
@@ -650,7 +674,7 @@ export default function InvoicesPage() {
       
       // Header row - كل التفاصيل
       csv += 'رقم الفاتورة,التاريخ,الحالة,المصدر,رقم الطلب,طريقة الدفع,';
-      csv += 'مجموع المنتجات,مجموع الخدمات,المجموع الفرعي,نوع الخصم,قيمة الخصم,مبلغ الخصم,الرسوم الإضافية,الإجمالي النهائي,';
+      csv += 'مجموع المنتجات,مجموع الخدمات,المجموع الفرعي,نوع الخصم,قيمة الخصم,مبلغ الخصم,الرسوم الإضافية,مصاريف الشحن,الإجمالي النهائي,';
       csv += 'ربح المنتجات,خصم على الأرباح,صافي ربح المنتجات,صافي الربح الكلي,';
       csv += 'عدد المنتجات,عدد الخدمات,تفاصيل المنتجات,تفاصيل الخدمات,اسم الموظف,رقم الموظف\n';
       
@@ -689,7 +713,8 @@ export default function InvoicesPage() {
         const productsProfit = invoice.summary?.productsProfit || 0;
         const discountOnProducts = invoice.summary?.discountOnProducts || 0;
         const finalProductsProfit = invoice.summary?.finalProductsProfit || productsProfit;
-        const totalProfit = invoice.summary?.totalProfit || (finalProductsProfit + servicesTotal + extraFee);
+        const totalProfit = getInvoiceProfit(invoice);
+        const deliveryFee = Number(invoice.summary?.deliveryFee || 0);
         
         // Counts
         const itemsCount = invoice.items?.length || 0;
@@ -711,7 +736,7 @@ export default function InvoicesPage() {
         
         // Build CSV row
         csv += `${invoice.id},"${date}",${status},${source},${orderId},${paymentMethod},`;
-        csv += `${productsSubtotal},${servicesTotal},${subtotal},${discountType},${discountValue},${discountAmount},${extraFee},${total},`;
+        csv += `${productsSubtotal},${servicesTotal},${subtotal},${discountType},${discountValue},${discountAmount},${extraFee},${deliveryFee},${total},`;
         csv += `${productsProfit},${discountOnProducts},${finalProductsProfit},${totalProfit},`;
         csv += `${itemsCount},${servicesCount},"${productDetails}","${serviceDetails}",${employeeName},${employeeId}\n`;
       });
@@ -974,7 +999,8 @@ export default function InvoicesPage() {
           productsProfit,
           discountOnProducts,
           finalProductsProfit,
-          totalProfit
+          totalProfit,
+          profitExcludesDeliveryFee: true
         }
       };
       
@@ -1021,7 +1047,8 @@ export default function InvoicesPage() {
           productsProfit,
           discountOnProducts,
           finalProductsProfit,
-          totalProfit
+          totalProfit,
+          profitExcludesDeliveryFee: true
         }
       };
       
@@ -1116,28 +1143,13 @@ export default function InvoicesPage() {
     synced: invoices.filter(i => i.synced).length,
     pending: invoices.filter(i => !i.synced).length,
     totalRevenue: filteredInvoices.reduce((sum, inv) => sum + getInvoiceRevenueForPaymentFilter(inv), 0),
+    totalDeliveryFees: invoices.reduce((sum, inv) => sum + Number(inv.summary?.deliveryFee || 0), 0),
     // 🆕 Payment Status Stats
     paidFull: invoices.filter(i => (i.paymentStatus || 'paid_full') === 'paid_full').length,
     paidPartial: invoices.filter(i => (i.paymentStatus || 'paid_full') === 'paid_partial').length,
     returned: invoices.filter(i => (i.paymentStatus || 'paid_full') === 'returned').length,
-    // Calculate profit: use new totalProfit if available, otherwise calculate from old data
-    totalProfit: invoices.reduce((sum, inv) => {
-      // New invoices have totalProfit
-      if (inv.summary?.totalProfit !== undefined && inv.summary?.totalProfit !== null) {
-        return sum + inv.summary.totalProfit;
-      }
-      // Old invoices: calculate manually
-      // (old productsProfit if exists) + services + extraFee - discount
-      const oldProfit = (inv.summary?.productsProfit || 0);
-      const services = (inv.summary?.servicesTotal || 0);
-      const extraFee = (inv.summary?.extraFee || 0);
-      return sum + oldProfit + services + extraFee;
-    }, 0),
-    profitInvoicesCount: invoices.filter(i => {
-      const profit = i.summary?.totalProfit !== undefined ? i.summary.totalProfit : 
-                     ((i.summary?.productsProfit || 0) + (i.summary?.servicesTotal || 0) + (i.summary?.extraFee || 0));
-      return profit > 0;
-    }).length,
+    totalProfit: invoices.reduce((sum, inv) => sum + getInvoiceProfit(inv), 0),
+    profitInvoicesCount: invoices.filter(inv => getInvoiceProfit(inv) > 0).length,
     totalServices: invoices.reduce((sum, inv) => sum + (inv.summary?.servicesTotal || 0), 0),
     servicesInvoicesCount: invoices.filter(i => i.services?.length > 0).length
   };
@@ -1163,7 +1175,7 @@ export default function InvoicesPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className={`grid grid-cols-1 sm:grid-cols-2 ${canViewFinancialTotals ? 'lg:grid-cols-5' : 'lg:grid-cols-3'} gap-4 mb-6`}>
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${canViewFinancialTotals ? 'lg:grid-cols-6' : 'lg:grid-cols-3'} gap-4 mb-6`}>
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between">
               <div>
@@ -1252,6 +1264,17 @@ export default function InvoicesPage() {
               </div>
             </div>
             </div>}
+
+          {canViewFinancialTotals && <div className="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-cyan-100 text-sm font-medium">🚚 مصاريف الشحن</p>
+                <p className="text-2xl font-bold mt-1">{formatPrice(stats.totalDeliveryFees)} ج.م</p>
+                <p className="text-xs text-cyan-100 mt-1">مفصولة عن صافي الربح</p>
+              </div>
+              <div className="rounded-full bg-cyan-400/30 p-3 text-2xl">🚚</div>
+            </div>
+          </div>}
 
           {/* <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-6 text-white shadow-lg">
             <div className="flex items-center justify-between">
@@ -1679,6 +1702,12 @@ export default function InvoicesPage() {
                         <div className="font-bold text-gray-900">{formatPrice(invoice.summary.productsSubtotal)}</div>
                       </div>
                     )}
+                    {invoice.summary?.deliveryFee > 0 && (
+                      <div className="bg-cyan-50 rounded px-1.5 py-1 text-center border border-cyan-200">
+                        <div className="text-cyan-700 font-medium mb-0.5">شحن</div>
+                        <div className="font-bold text-cyan-800">{formatPrice(invoice.summary.deliveryFee)}</div>
+                      </div>
+                    )}
                     {invoice.summary?.servicesTotal > 0 && (
                       <div className="bg-purple-50 rounded px-1.5 py-1 text-center border border-purple-200">
                         <div className="text-purple-600 font-medium mb-0.5">خدمات</div>
@@ -1694,7 +1723,7 @@ export default function InvoicesPage() {
                     {canViewFinancialTotals && (invoice.summary?.totalProfit !== undefined && invoice.summary?.totalProfit !== null) && (
                       <div className="bg-green-50 rounded px-1.5 py-1 text-center border border-green-200">
                         <div className="text-green-600 font-medium mb-0.5">ربح</div>
-                        <div className="font-bold text-green-700">{formatPrice(invoice.summary.totalProfit)}</div>
+                        <div className="font-bold text-green-700">{formatPrice(getInvoiceProfit(invoice))}</div>
                       </div>
                     )}
                   </div>
@@ -1787,7 +1816,7 @@ export default function InvoicesPage() {
                           <div className="bg-green-50 rounded px-2 py-1 border border-green-200 col-span-2">
                             <div className="text-green-700 font-medium mb-0.5">💰 صافي الربح</div>
                             <div className="font-bold text-green-800 text-[11px]">
-                              {formatPrice(invoice.summary.totalProfit)} ج.م
+                              {formatPrice(getInvoiceProfit(invoice))} ج.م
                             </div>
                             {invoice.summary?.finalProductsProfit !== invoice.summary?.productsProfit && (
                               <div className="text-[9px] text-green-600 mt-0.5">
