@@ -58,9 +58,12 @@ export async function GET(req, { params }) {
     };
 
     // Extract purchase price from meta_data
-    const purchasePriceMeta = product.meta_data?.find(m => m.key === '_purchase_price');
+    const purchasePriceMeta = product.meta_data?.find(m => m.key === 'purchase_price') ||
+      product.meta_data?.find(m => m.key === '_purchase_price');
     if (purchasePriceMeta) {
       formattedProduct.purchase_price = purchasePriceMeta.value;
+    } else if (product.purchase_price !== undefined && product.purchase_price !== null) {
+      formattedProduct.purchase_price = product.purchase_price;
     }
     const wholesalePriceMeta = product.meta_data?.find(m => m.key === '_wholesale_price');
     if (wholesalePriceMeta) {
@@ -211,7 +214,13 @@ export async function PATCH(req, { params }) {
     // Update prices stored in product meta_data
     const productMetaData = [];
     if (body.purchasePrice !== undefined) {
-      productMetaData.push({ key: '_purchase_price', value: String(body.purchasePrice) });
+      const existingPurchasePrice = currentProduct?.meta_data?.find(m => m.key === 'purchase_price') ||
+        currentProduct?.meta_data?.find(m => m.key === '_purchase_price');
+      productMetaData.push({
+        ...(existingPurchasePrice?.id ? { id: existingPurchasePrice.id } : {}),
+        key: existingPurchasePrice?.key || 'purchase_price',
+        value: String(body.purchasePrice)
+      });
     }
     if (body.wholesalePrice !== undefined) {
       productMetaData.push({ key: '_wholesale_price', value: String(body.wholesalePrice).trim() });
@@ -234,6 +243,14 @@ export async function PATCH(req, { params }) {
     }
 
     const updatedProduct = await updateRes.json();
+    if (body.purchasePrice !== undefined) {
+      const savedPurchasePrice = updatedProduct.meta_data?.find(m =>
+        m.key === 'purchase_price' || m.key === '_purchase_price'
+      );
+      if (!savedPurchasePrice || String(savedPurchasePrice.value) !== String(body.purchasePrice)) {
+        throw new Error('تعذر تأكيد حفظ سعر الشراء على المنتج');
+      }
+    }
 
     return NextResponse.json({
       success: true,

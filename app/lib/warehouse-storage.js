@@ -10,12 +10,13 @@ export const warehouseStorage = {
   // حفظ/تحديث بيانات منتج
   async setProductData(wooProductId, data) {
     const allData = await this.getAllProductsData();
-    const existing = allData.find(p => p.wooProductId === wooProductId);
+    const productId = String(wooProductId);
+    const existing = allData.find(p => String(p.wooProductId) === productId);
     
     if (existing) {
       // تحديث
       const updated = allData.map(p => 
-        p.wooProductId === wooProductId 
+        String(p.wooProductId) === productId
           ? { ...p, ...data, updatedAt: new Date().toISOString() }
           : p
       );
@@ -39,7 +40,7 @@ export const warehouseStorage = {
   // جلب بيانات منتج واحد
   async getProductData(wooProductId) {
     const allData = await this.getAllProductsData();
-    return allData.find(p => p.wooProductId === wooProductId) || null;
+    return allData.find(p => String(p.wooProductId) === String(wooProductId)) || null;
   },
 
   // جلب كل البيانات المحلية

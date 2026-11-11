@@ -1096,9 +1096,9 @@ export default function POSPage() {
         }
       `}</style>
       
-      <div className="h-screen flex flex-col bg-gray-100 pos-content">
+      <div className="h-screen h-[100dvh] min-h-0 flex flex-col bg-gray-100 pos-content">
         {/* Header */}
-        <div className="bg-blue-900 text-white shadow-lg sticky top-0 z-30">
+        <div className="shrink-0 bg-blue-900 text-white shadow-lg sticky top-0 z-30">
           <div className="max-w-screen-2xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-2">
               {/* Top Row on Mobile: Logo + Search */}
@@ -1110,7 +1110,7 @@ export default function POSPage() {
                 </div>
 
                 {/* Search Bar */}
-                <div className="flex-1 flex gap-2">
+                <div className="flex-1 min-w-0 flex gap-2">
                   {/* Search Type Dropdown */}
                   <select
                     value={searchType}
@@ -1127,7 +1127,7 @@ export default function POSPage() {
                         setSearch('');
                       }
                     }}
-                    className="px-3 py-2 rounded-lg bg-blue-800 text-white border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                    className="shrink-0 px-2 sm:px-3 py-2 rounded-lg bg-blue-800 text-white border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-base"
                   >
                     <option value="text">🔍 كلام</option>
                     <option value="price">💰 سعر</option>
@@ -1142,16 +1142,16 @@ export default function POSPage() {
                       placeholder="🔍 ابحث..."
                       value={search}
                       onChange={handleSearch}
-                      className="flex-1 px-3 sm:px-4 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                      className="flex-1 min-w-0 px-3 sm:px-4 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                     />
                   ) : searchType === 'price' ? (
-                    <div className="flex-1 flex gap-2">
+                    <div className="flex-1 min-w-0 flex gap-2">
                       <input
                         type="number"
                         placeholder="من (ج.م)"
                         value={priceFrom}
                         onChange={(e) => setPriceFrom(e.target.value)}
-                        className="flex-1 px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                        className="flex-1 min-w-0 px-2 sm:px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-base"
                       />
                       <span className="text-white self-center">-</span>
                       <input
@@ -1159,17 +1159,17 @@ export default function POSPage() {
                         placeholder="إلى (ج.م)"
                         value={priceTo}
                         onChange={(e) => setPriceTo(e.target.value)}
-                        className="flex-1 px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                        className="flex-1 min-w-0 px-2 sm:px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-base"
                       />
                     </div>
                   ) : searchType === 'stock' ? (
-                    <div className="flex-1 flex gap-2">
+                    <div className="flex-1 min-w-0 flex gap-2">
                       <input
                         type="number"
                         placeholder="من (عدد)"
                         value={stockFrom}
                         onChange={(e) => setStockFrom(e.target.value)}
-                        className="flex-1 px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                        className="flex-1 min-w-0 px-2 sm:px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-base"
                       />
                       <span className="text-white self-center">-</span>
                       <input
@@ -1177,7 +1177,7 @@ export default function POSPage() {
                         placeholder="إلى (عدد)"
                         value={stockTo}
                         onChange={(e) => setStockTo(e.target.value)}
-                        className="flex-1 px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                        className="flex-1 min-w-0 px-2 sm:px-3 py-2 rounded-lg bg-blue-800 text-white placeholder-blue-300 border border-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-base"
                       />
                     </div>
                   ) : (
@@ -1189,9 +1189,9 @@ export default function POSPage() {
               </div>
 
               {/* Second Row on Mobile: Employee + Actions */}
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex min-w-0 items-center gap-2 w-full sm:w-auto">
                 {/* Employee Selector - Compact */}
-                <div className="flex-1 sm:flex-initial sm:w-48">
+                <div className="flex-1 min-w-0 sm:flex-initial sm:w-48">
                   <EmployeeSelector
                     employees={employees}
                     selectedEmployee={selectedEmployee}
@@ -1208,7 +1208,7 @@ export default function POSPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-1 sm:gap-2">
+                <div className="flex shrink-0 max-w-[58vw] sm:max-w-none items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-hide">
                   {/* Wholesale Pricing Button */}
                   <button
                     onClick={() => setShowBulkUpload(true)}
@@ -1624,27 +1624,10 @@ export default function POSPage() {
         </div>
 
         {/* 🎨 Main Content Area */}
-        <div className="flex-1 flex overflow-hidden" dir="ltr">
+        <div className="flex-1 min-h-0 flex overflow-hidden" dir="ltr">
           {/* 📦 Products Area - LEFT SIDE (الشمال) */}
-          <div className="flex-1 overflow-y-auto p-2 bg-gray-50" dir="rtl">
+          <div className="min-w-0 flex-1 overflow-y-auto overscroll-contain p-2 pb-24 md:pb-2 bg-gray-50" dir="rtl">
             <div className="max-w-screen-2xl mx-auto">
-              {/* Employee Selector - Mobile */}
-              <div className="md:hidden mb-4">
-                <EmployeeSelector
-                  employees={employees}
-                  selectedEmployee={selectedEmployee}
-                  onChange={(employee) => {
-                    setSelectedEmployee(employee);
-                    if (employee) {
-                      localStorage.setItem('selectedPOSEmployee', employee.id);
-                    } else {
-                      localStorage.removeItem('selectedPOSEmployee');
-                    }
-                  }}
-                  required={true}
-                />
-              </div>
-
               {viewMode === 'categories' ? (
                 <CategoryGrid
                   categories={categories}
@@ -1823,13 +1806,13 @@ export default function POSPage() {
           {/* Floating Cart Button */}
           <button
             onClick={() => setShowMobileCart(true)}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-4 rounded-full shadow-2xl hover:shadow-3xl transition-all z-40 flex items-center gap-3 font-bold text-lg"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 -translate-x-1/2 bg-gradient-to-r from-slate-800 to-slate-700 text-white px-5 py-3 rounded-full shadow-2xl hover:shadow-3xl transition-all z-40 flex items-center gap-2 font-bold text-base whitespace-nowrap"
           >
-            <span className="text-2xl">🛒</span>
-            <span>السلة ({(cart?.length || 0) + (services?.length || 0)})</span>
-            {((cart?.length || 0) + (services?.length || 0)) > 0 && (
+            <span className="text-xl">🛒</span>
+            <span>السلة ({(activeTab?.cart || cart).length + (activeTab?.services || services).length})</span>
+            {((activeTab?.cart || cart).length + (activeTab?.services || services).length) > 0 && (
               <span className="bg-red-700 text-white text-xs px-2 py-0.5 rounded-full animate-pulse">
-                {(cart?.length || 0) + (services?.length || 0)}
+                {(activeTab?.cart || cart).length + (activeTab?.services || services).length}
               </span>
             )}
           </button>
@@ -1838,12 +1821,12 @@ export default function POSPage() {
           {showMobileCart && (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-fadeIn">
               <div className="absolute inset-0" onClick={() => setShowMobileCart(false)} />
-              <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl md:max-h-[90vh] md:overflow-hidden animate-slideUp">
+              <div className="absolute bottom-0 left-0 right-0 flex h-[90dvh] max-h-[90dvh] min-h-0 flex-col overflow-hidden rounded-t-3xl bg-white animate-slideUp">
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <div className="flex shrink-0 items-center justify-between p-3 border-b bg-white z-10">
+                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                     <span>🛒</span>
-                    <span>السلة</span>
+                    <span>مراجعة السلة</span>
                   </h2>
                   <button
                     onClick={() => setShowMobileCart(false)}
@@ -1854,7 +1837,7 @@ export default function POSPage() {
                 </div>
 
                 {/* Employee Selector */}
-                <div className="p-4 border-b bg-gray-50">
+                <div className="shrink-0 p-3 border-b bg-gray-50">
                   <EmployeeSelector
                     employees={employees}
                     selectedEmployee={selectedEmployee}
@@ -1871,7 +1854,7 @@ export default function POSPage() {
                 </div>
 
                 {/* Cart Content */}
-                <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 140px)' }}>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                   <Cart
                     key={`mobile-cart-${activeTabId}-${activeTab?.cart?.length || 0}-${JSON.stringify(activeTab?.cart?.map(i => i.price) || [])}`}
                     items={activeTab?.cart || []}

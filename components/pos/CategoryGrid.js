@@ -68,7 +68,7 @@ export function CategoryGrid({ categories, loading, onSelectCategory, totalProdu
             جاري تحميل التصنيفات...
           </p>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5 md:gap-7">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-5 md:gap-7">
           {Array.from({ length: 10 }).map((_, i) => (
             <CategorySkeleton key={i} />
           ))}
@@ -122,16 +122,16 @@ export function CategoryGrid({ categories, loading, onSelectCategory, totalProdu
 
       {/* "جميع المنتجات" Button */}
       {!selectedParent && (
-        <div className="max-w-2xl mx-auto mb-4">
+        <div className="max-w-2xl mx-auto mb-3 sm:mb-4">
           <button
             onClick={() => onSelectCategory('all')}
-            className="w-full bg-slate-700 text-white p-4 rounded-lg shadow-lg hover:shadow-xl transition-all hover:bg-slate-800 border border-slate-600 group"
+            className="w-full bg-slate-700 text-white p-3 sm:p-4 rounded-lg shadow-lg hover:shadow-xl transition-all hover:bg-slate-800 border border-slate-600 group"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-3xl">🛒</span>
+                <span className="text-2xl sm:text-3xl">🛒</span>
                 <div className="text-right">
-                  <h3 className="font-bold text-lg">جميع المنتجات</h3>
+                  <h3 className="font-bold text-base sm:text-lg">جميع المنتجات</h3>
                   <p className="text-white/80 text-xs">تصفح كل ما لدينا</p>
                 </div>
               </div>
@@ -154,7 +154,7 @@ export function CategoryGrid({ categories, loading, onSelectCategory, totalProdu
             >
               {/* Image Background */}
               {category.image ? (
-                <div className="relative h-32 md:h-36 overflow-hidden bg-gray-50">
+                <div className="relative h-28 sm:h-32 md:h-36 overflow-hidden bg-gray-50">
                   <Image
                     src={category.image}
                     alt={category.name}
@@ -170,14 +170,14 @@ export function CategoryGrid({ categories, loading, onSelectCategory, totalProdu
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                 </div>
               ) : (
-                <div className="h-32 md:h-36 bg-gray-100 flex items-center justify-center">
+                <div className="h-28 sm:h-32 md:h-36 bg-gray-100 flex items-center justify-center">
                   <span className="text-4xl opacity-50">📦</span>
                 </div>
               )}
 
               {/* Content */}
-              <div className="p-3 bg-white relative">
-                <h3 className="font-bold text-sm mb-2 line-clamp-2 text-gray-900 group-hover:text-blue-600 text-right transition-colors">
+              <div className="p-2 sm:p-3 bg-white relative">
+                <h3 className="font-bold text-xs sm:text-sm mb-2 line-clamp-2 text-gray-900 group-hover:text-blue-600 text-right transition-colors">
                   {category.name}
                 </h3>
                 

@@ -63,7 +63,7 @@ export async function POST(req) {
           stock_quantity: Number(stock) || 0,
           meta_data: [
             { key: '_wcfm_product_author', value: vendorId },
-            { key: '_purchase_price', value: String(purchasePrice || 0) }
+            { key: 'purchase_price', value: String(purchasePrice || 0) }
           ]
         };
 

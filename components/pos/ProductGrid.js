@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 
 function ProductSkeleton() {
   return (
-    <div className="bg-gradient-to-br from-white to-gray-50 p-5 rounded-3xl shadow-lg border-2 border-gray-100 animate-pulse">
-      <div className="bg-gradient-to-br from-gray-200 to-gray-300 h-48 rounded-2xl mb-4" />
+    <div className="bg-gradient-to-br from-white to-gray-50 p-3 sm:p-5 rounded-2xl sm:rounded-3xl shadow-lg border-2 border-gray-100 animate-pulse">
+      <div className="bg-gradient-to-br from-gray-200 to-gray-300 h-28 sm:h-40 rounded-xl sm:rounded-2xl mb-3 sm:mb-4" />
       <div className="h-5 bg-gray-200 rounded-xl mb-3" />
       <div className="h-4 bg-gray-200 rounded-lg w-2/3 mb-3" />
       <div className="h-8 bg-gray-200 rounded-xl w-full" />
@@ -145,7 +145,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
           )}
           
           {/* 🖼️ صورة المنتج */}
-          <div className="relative h-36 md:h-40 overflow-hidden bg-gray-50">
+          <div className="relative h-28 sm:h-36 md:h-40 overflow-hidden bg-gray-50">
             <img
               src={product.images?.[0]?.src || (vendorId ? `/logos/${vendorId}.webp` : '/placeholder.webp')}
               alt={product.name}
@@ -192,8 +192,8 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
             </div>
           </div>
           
-          <div className="p-3 relative">
-            <h3 className="font-bold text-gray-900 mb-2 text-sm line-clamp-2 min-h-[2.5rem] group-hover:text-blue-600 transition-colors" title={product.name}>
+          <div className="p-2 sm:p-3 relative">
+            <h3 className="font-bold text-gray-900 mb-2 text-xs sm:text-sm line-clamp-2 min-h-[2.25rem] sm:min-h-[2.5rem] group-hover:text-blue-600 transition-colors" title={product.name}>
               {product.name}
             </h3>
             
@@ -385,7 +385,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
               <div className="flex flex-col">
                 {product.sale_price && product.sale_price !== product.regular_price ? (
                   <>
-                    <span className="text-base font-bold text-green-600">
+                    <span className="text-sm sm:text-base font-bold text-green-600">
                       {product.sale_price}
                       <span className="text-xs text-gray-500 mr-1">ج.م</span>
                     </span>
@@ -394,7 +394,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                     </span>
                   </>
                 ) : (
-                  <span className="text-base font-bold text-gray-900">
+                  <span className="text-sm sm:text-base font-bold text-gray-900">
                     {product.regular_price || product.price}
                     <span className="text-xs text-gray-500 mr-1">ج.م</span>
                   </span>
@@ -410,7 +410,7 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                     setQuantities(prev => ({ ...prev, [key]: 1 }));
                   }}
                   disabled={product.stock_quantity === 0}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md border
+                  className={`min-h-9 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-md border
                     ${product.stock_quantity > 0
                       ? 'bg-slate-700 text-white hover:bg-slate-800 border-slate-600'
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed border-gray-300'
@@ -422,17 +422,17 @@ export function ProductGrid({ products, loading, onAddToCart, onEdit, onSelectVa
                 <div className="flex items-center gap-0 bg-slate-700 rounded-lg shadow-md border border-slate-600">
                   <button
                     onClick={() => handleDecrease(product)}
-                    className="px-2 py-1.5 text-white hover:bg-slate-800 rounded-r-lg transition-all font-bold text-sm"
+                    className="w-9 h-9 text-white hover:bg-slate-800 rounded-r-lg transition-all font-bold text-sm"
                   >
                     −
                   </button>
-                  <span className="px-2 py-1 text-white font-bold text-sm min-w-[32px] text-center">
+                  <span                   className="min-w-[32px] py-1 text-white font-bold text-sm text-center">
                     {currentQty}
                   </span>
                   <button
                     onClick={() => handleIncrease(product)}
                     disabled={currentQty >= product.stock_quantity}
-                    className="px-2 py-1.5 text-white hover:bg-slate-800 rounded-l-lg transition-all font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-9 h-9 text-white hover:bg-slate-800 rounded-l-lg transition-all font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     +
                   </button>

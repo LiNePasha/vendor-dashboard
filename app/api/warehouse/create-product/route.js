@@ -84,7 +84,7 @@ export async function POST(req) {
       status: 'publish',
       meta_data: [
         { key: '_wcfm_product_author', value: vendorId },
-        { key: '_purchase_price', value: String(purchasePrice || 0) },
+        { key: 'purchase_price', value: String(purchasePrice || 0) },
         ...(wholesalePrice !== undefined && String(wholesalePrice).trim() !== ''
           ? [{ key: '_wholesale_price', value: String(wholesalePrice).trim() }]
           : [])
@@ -151,6 +151,12 @@ export async function POST(req) {
     }
 
     const newProduct = await createRes.json();
+    const savedPurchasePrice = newProduct.meta_data?.find(m =>
+      m.key === 'purchase_price' || m.key === '_purchase_price'
+    );
+    if (purchasePrice !== undefined && String(savedPurchasePrice?.value) !== String(purchasePrice || 0)) {
+      throw new Error('تعذر تأكيد حفظ سعر الشراء على المنتج');
+    }
 
     // ✅ لما الأدمن يضيف لتاجر معين، نحدث post_author عبر WP REST API
     // WCFM بيعتمد على post_author مش بس _wcfm_product_author

@@ -70,6 +70,143 @@ function getInvoiceProfit(invoice) {
     Number(summary.extraFee || 0);
 }
 
+function getPositivePurchasePrice(value) {
+  const purchasePrice = Number(value);
+  return Number.isFinite(purchasePrice) && purchasePrice > 0 ? purchasePrice : null;
+}
+
+async function repairOrderInvoiceProfits(invoices) {
+  const products = await warehouseStorage.getAllProductsData();
+  const purchasePrices = new Map();
+  products.forEach(product => {
+    const purchasePrice = getPositivePurchasePrice(product.purchasePrice);
+    if (purchasePrice !== null) {
+      purchasePrices.set(String(product.wooProductId), purchasePrice);
+    }
+  });
+
+  const orderInvoices = invoices.filter(invoice =>
+    (invoice.source === 'order' || invoice.orderId !== undefined && invoice.orderId !== null) &&
+    Array.isArray(invoice.items) &&
+    invoice.items.length > 0
+  );
+  const invoicesToRepair = orderInvoices.filter(invoice =>
+    invoice.summary?.totalProfit === undefined ||
+    invoice.summary?.totalProfit === null ||
+    Number(invoice.summary?.totalProfit) === 0 ||
+    Number(invoice.summary?.missingPurchasePriceCount) > 0 ||
+    invoice.items.some(item => getPositivePurchasePrice(item.purchasePrice) === null)
+  );
+  const productIdsToFetch = [...new Set(invoicesToRepair.flatMap(invoice =>
+    invoice.items
+      .filter(item => getPositivePurchasePrice(item.purchasePrice) === null)
+      .map(item => item.id)
+      .filter(id => id !== undefined && id !== null && !purchasePrices.has(String(id)))
+      .map(String)
+  ))];
+  const fetchErrors = [];
+
+  for (let index = 0; index < productIdsToFetch.length; index += 8) {
+    await Promise.all(productIdsToFetch.slice(index, index + 8).map(async productId => {
+      try {
+        const response = await fetch(`/api/products/${encodeURIComponent(productId)}`);
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || `تعذر جلب سعر شراء المنتج ${productId}`);
+        }
+
+        const purchasePrice = getPositivePurchasePrice(result.product?.purchase_price);
+        if (purchasePrice !== null) {
+          purchasePrices.set(productId, purchasePrice);
+        }
+      } catch (error) {
+        console.error(`Failed to load purchase price for product ${productId}:`, error);
+        fetchErrors.push(productId);
+      }
+    }));
+  }
+
+  const repairedInvoices = [];
+  for (const invoice of invoices) {
+    const isOrderInvoice = invoice.source === 'order' ||
+      invoice.orderId !== undefined && invoice.orderId !== null;
+    if (!isOrderInvoice || !Array.isArray(invoice.items) || invoice.items.length === 0) {
+      repairedInvoices.push(invoice);
+      continue;
+    }
+
+    const hasMissingItemCost = invoice.items.some(item =>
+      getPositivePurchasePrice(item.purchasePrice) === null
+    );
+    const hasMissingSummary = invoice.summary?.totalProfit === undefined ||
+      invoice.summary?.totalProfit === null ||
+      Number(invoice.summary?.totalProfit) === 0;
+    const hasMissingCount = Number(invoice.summary?.missingPurchasePriceCount) > 0;
+    if (!hasMissingItemCost && !hasMissingSummary && !hasMissingCount) {
+      repairedInvoices.push(invoice);
+      continue;
+    }
+
+    let totalProfit = 0;
+    let profitItemsCount = 0;
+    const missingPurchasePriceItems = [];
+    const profitDetails = [];
+    const updatedItems = invoice.items.map(item => {
+      const purchasePrice = getPositivePurchasePrice(item.purchasePrice) ??
+        purchasePrices.get(String(item.id));
+      const quantity = Number(item.quantity) || 0;
+      const lineTotal = Number(item.totalPrice);
+      const sellingTotal = Number.isFinite(lineTotal)
+        ? lineTotal
+        : (Number(item.price) || 0) * quantity;
+      const hasPurchasePrice = purchasePrice !== undefined && purchasePrice !== null;
+      const profit = hasPurchasePrice ? sellingTotal - purchasePrice * quantity : null;
+
+      if (hasPurchasePrice) {
+        totalProfit += profit;
+        profitItemsCount++;
+        profitDetails.push({
+          productId: item.id,
+          name: item.name,
+          purchasePrice,
+          sellingPrice: quantity > 0 ? sellingTotal / quantity : Number(item.price) || 0,
+          quantity,
+          profit
+        });
+      } else {
+        missingPurchasePriceItems.push({ productId: item.id, name: item.name });
+      }
+
+      return {
+        ...item,
+        purchasePrice: hasPurchasePrice ? purchasePrice : null,
+        profit,
+        hasPurchasePrice
+      };
+    });
+
+    const updatedInvoice = {
+      ...invoice,
+      items: updatedItems,
+      profitDetails,
+      summary: {
+        ...invoice.summary,
+        totalProfit,
+        productsProfit: totalProfit,
+        finalProductsProfit: totalProfit,
+        profitExcludesDeliveryFee: true,
+        profitItemsCount,
+        missingPurchasePriceCount: missingPurchasePriceItems.length,
+        missingPurchasePriceItems
+      }
+    };
+    await invoiceStorage.updateInvoice(invoice.id, updatedInvoice);
+    repairedInvoices.push(updatedInvoice);
+  }
+
+  return { invoices: repairedInvoices, fetchErrors };
+}
+
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -132,17 +269,28 @@ export default function InvoicesPage() {
   }, []);
 
   const loadInvoices = async () => {
-    const allInvoices = await invoiceStorage.getAllInvoices();
-    // 🔥 نرتب الفواتير من الأحدث للأقدم الأول
-    const sortedInvoices = allInvoices.sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    // 🔥 دلوقتي نعرض آخر فاتورة (الأحدث)
-    console.log('📊 Latest invoice soldBy:', sortedInvoices[0]?.soldBy);
-    console.log('🔧 Latest invoice services:', sortedInvoices[0]?.services);
-    console.log('📦 Latest invoice:', sortedInvoices[0]);
-    setInvoices(sortedInvoices);
-    setLoading(false);
+    try {
+      const allInvoices = await invoiceStorage.getAllInvoices();
+      const { invoices: repairedInvoices, fetchErrors } = await repairOrderInvoiceProfits(allInvoices);
+      const sortedInvoices = repairedInvoices.sort((a, b) =>
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      console.log('📊 Latest invoice soldBy:', sortedInvoices[0]?.soldBy);
+      console.log('🔧 Latest invoice services:', sortedInvoices[0]?.services);
+      console.log('📦 Latest invoice:', sortedInvoices[0]);
+      setInvoices(sortedInvoices);
+      if (fetchErrors.length > 0) {
+        setToast({
+          message: `⚠️ تعذر قراءة سعر الشراء لعدد ${fetchErrors.length} منتج أثناء تحديث أرباح فواتير الطلبات.`,
+          type: 'warning'
+        });
+      }
+    } catch (error) {
+      console.error('Error loading invoices and recalculating order profits:', error);
+      setToast({ message: `❌ تعذر تحميل الفواتير أو إعادة حساب أرباح الطلبات: ${error.message}`, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 🆕 تعديل رسوم الشحن
@@ -712,7 +860,7 @@ export default function InvoicesPage() {
         // Profit details
         const productsProfit = invoice.summary?.productsProfit || 0;
         const discountOnProducts = invoice.summary?.discountOnProducts || 0;
-        const finalProductsProfit = invoice.summary?.finalProductsProfit || productsProfit;
+        const finalProductsProfit = invoice.summary?.finalProductsProfit ?? productsProfit;
         const totalProfit = getInvoiceProfit(invoice);
         const deliveryFee = Number(invoice.summary?.deliveryFee || 0);
         
@@ -1174,6 +1322,12 @@ export default function InvoicesPage() {
           <p className="text-gray-600">إدارة ومتابعة جميع الفواتير</p>
         </div>
 
+        {isCashier && (
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            الأرباح وإجماليات المبيعات مخفية في وضع الكاشير حسب الصلاحيات. لعرض الربح، بدّل إلى وضع المدير.
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className={`grid grid-cols-1 sm:grid-cols-2 ${canViewFinancialTotals ? 'lg:grid-cols-6' : 'lg:grid-cols-3'} gap-4 mb-6`}>
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg">
@@ -1249,7 +1403,7 @@ export default function InvoicesPage() {
             <div className="space-y-1.5 pt-3 border-t border-pink-400 border-opacity-30 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-pink-100">📦 أرباح المنتجات (بعد الخصم)</span>
-                <span className="font-bold">{formatPrice(invoices.reduce((sum, inv) => sum + (inv.summary?.finalProductsProfit || inv.summary?.productsProfit || 0), 0))} ج.م</span>
+                <span className="font-bold">{formatPrice(invoices.reduce((sum, inv) => sum + (inv.summary?.finalProductsProfit ?? inv.summary?.productsProfit ?? 0), 0))} ج.م</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-pink-100">🔧 إيرادات الخدمات</span>
@@ -1727,6 +1881,12 @@ export default function InvoicesPage() {
                       </div>
                     )}
                   </div>
+
+                  {canViewFinancialTotals && invoice.summary?.missingPurchasePriceCount > 0 && (
+                    <p className="mb-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                      ⚠️ لم يُحسب ربح {invoice.summary.missingPurchasePriceCount} منتج لعدم وجود سعر شراء محفوظ.
+                    </p>
+                  )}
 
                   {/* Expandable Details */}
                   {selectedInvoice?.id === invoice.id && (

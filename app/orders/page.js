@@ -10,6 +10,7 @@ import { getKashierSettings } from "@/app/lib/kashier-helpers";
 import { getCitiesCache } from "@/app/lib/bosta-locations-cache";
 import localforage from 'localforage';
 import { invoiceStorage } from '@/app/lib/localforage';
+import { warehouseStorage } from '@/app/lib/warehouse-storage';
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "ترك الدفع", color: "bg-gray-400" },
@@ -40,6 +41,154 @@ const isOrderPaymentConfirmed = (order) => {
 
   return true;
 };
+
+async function getOrderPurchasePriceMap(products, orders = []) {
+  const purchasePriceMap = new Map();
+  const sortedProducts = [...products].sort((a, b) => {
+    const aUpdatedAt = Date.parse(a.updatedAt || a.createdAt || '') || 0;
+    const bUpdatedAt = Date.parse(b.updatedAt || b.createdAt || '') || 0;
+    return aUpdatedAt - bUpdatedAt;
+  });
+
+  sortedProducts.forEach(product => {
+    if (product.purchasePrice === undefined || product.purchasePrice === null || product.purchasePrice === '') return;
+    const purchasePrice = Number(product.purchasePrice);
+    if (Number.isFinite(purchasePrice) && purchasePrice > 0) {
+      purchasePriceMap.set(String(product.wooProductId), purchasePrice);
+    }
+  });
+
+  const productIds = [...new Set(
+    orders.flatMap(order => (order.line_items || [])
+      .map(item => item.product_id || item.id)
+      .filter(Boolean)
+      .map(String))
+  )];
+
+  for (let index = 0; index < productIds.length; index += 8) {
+    await Promise.all(productIds.slice(index, index + 8).map(async productId => {
+      const localPurchasePrice = purchasePriceMap.get(productId);
+      if (localPurchasePrice !== undefined) {
+        const response = await fetch(`/api/products/${encodeURIComponent(productId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ purchasePrice: localPurchasePrice })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || `تعذر حفظ سعر شراء المنتج ${productId} على السحابة`);
+        }
+        return;
+      }
+
+      const response = await fetch(`/api/products/${encodeURIComponent(productId)}`);
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || `تعذر جلب سعر شراء المنتج ${productId} من السحابة`);
+      }
+      const purchasePrice = Number(result.product?.purchase_price);
+      if (Number.isFinite(purchasePrice) && purchasePrice > 0) {
+        purchasePriceMap.set(productId, purchasePrice);
+      }
+    }));
+  }
+
+  return purchasePriceMap;
+}
+
+function buildOrderInvoiceItems(order, purchasePriceMap) {
+  let totalProductsProfit = 0;
+  const profitDetails = [];
+  let profitItemsCount = 0;
+  const missingPurchasePriceItems = [];
+
+  const invoiceItems = (order.line_items || []).map(item => {
+    const productId = item.product_id || item.id;
+    const variationId = item.variation_id;
+    const purchasePrice = variationId && purchasePriceMap.has(String(variationId))
+      ? purchasePriceMap.get(String(variationId))
+      : purchasePriceMap.get(String(productId));
+    const hasPurchasePrice = purchasePrice !== undefined;
+    const price = Number(item.price) || 0;
+    const quantity = Number(item.quantity) || 0;
+    const lineTotal = item.total !== undefined && item.total !== null && item.total !== ''
+      ? Number(item.total)
+      : price * quantity;
+    const actualLineTotal = Number.isFinite(lineTotal) ? lineTotal : price * quantity;
+    const actualUnitPrice = quantity > 0 ? actualLineTotal / quantity : price;
+    const profit = hasPurchasePrice ? actualLineTotal - purchasePrice * quantity : null;
+
+    if (hasPurchasePrice) {
+      totalProductsProfit += profit;
+      profitItemsCount++;
+      profitDetails.push({
+        productId,
+        name: item.name,
+        purchasePrice,
+        sellingPrice: actualUnitPrice,
+        quantity,
+        profit
+      });
+    } else {
+      missingPurchasePriceItems.push({
+        productId,
+        name: item.name
+      });
+    }
+
+    return {
+      id: productId,
+      name: item.name,
+      price,
+      quantity,
+      totalPrice: price * quantity,
+      stock_quantity: null,
+      wholesalePrice: null,
+      purchasePrice: hasPurchasePrice ? purchasePrice : null,
+      profit,
+      hasPurchasePrice,
+      ...(item.image_url || item.image?.src ? { imageUrl: item.image_url || item.image.src } : {})
+    };
+  });
+
+  return {
+    invoiceItems,
+    totalProductsProfit,
+    profitItemsCount,
+    profitDetails,
+    missingPurchasePriceItems
+  };
+}
+
+function updateOrderInvoiceProfit(invoice, order, purchasePriceMap) {
+  const { invoiceItems, totalProductsProfit, profitItemsCount, profitDetails, missingPurchasePriceItems } =
+    buildOrderInvoiceItems(order, purchasePriceMap);
+  const finalProductsProfit = totalProductsProfit;
+
+  return {
+    ...invoice,
+    items: (invoice.items || []).map((item, index) => {
+      const calculatedItem = invoiceItems[index];
+      return calculatedItem ? {
+        ...item,
+        purchasePrice: calculatedItem.purchasePrice,
+        profit: calculatedItem.profit,
+        hasPurchasePrice: calculatedItem.hasPurchasePrice
+      } : item;
+    }),
+    profitDetails,
+    summary: {
+      ...invoice.summary,
+      totalProfit: finalProductsProfit,
+      profitExcludesDeliveryFee: true,
+      productsProfit: totalProductsProfit,
+      finalProductsProfit,
+      profitItemsCount,
+      missingPurchasePriceCount: missingPurchasePriceItems.length,
+      missingPurchasePriceItems
+    }
+  };
+}
 
 // 🎛️ Feature Flags التحكم في الميزات
 const FEATURES = {
@@ -163,6 +312,7 @@ function OrdersContent() {
   
   // 🆕 State للطباعة المجمّعة للأوردرات غير المبعوتة لبوسطة
   const [printingNonBosta, setPrintingNonBosta] = useState(false);
+  const [registeringOrderInvoice, setRegisteringOrderInvoice] = useState(false);
   
   // 🔥 Bulk Selection State
   const [selectedOrders, setSelectedOrders] = useState([]);
@@ -760,30 +910,36 @@ function OrdersContent() {
     
     try {
       const existingInvoices = await invoiceStorage.getAllInvoices();
+      const ordersToRegister = selectedOrders
+        .map(orderId => orders.find(order => order.id === orderId))
+        .filter(Boolean);
+      const purchasePriceMap = await getOrderPurchasePriceMap(
+        await warehouseStorage.getAllProductsData(),
+        ordersToRegister
+      );
       
       for (const orderId of selectedOrders) {
         const order = orders.find(o => o.id === orderId);
         if (!order) continue;
         
         // Check if already registered
-        const alreadyRegistered = existingInvoices.some(inv => inv.orderId === order.id);
-        if (alreadyRegistered) {
+        const existingInvoice = existingInvoices.find(inv => inv.orderId === order.id);
+        if (existingInvoice) {
+          await invoiceStorage.saveInvoice(updateOrderInvoiceProfit(existingInvoice, order, purchasePriceMap));
           alreadyRegisteredCount++;
           continue;
         }
         
         try {
           // Create invoice from order
-          const invoiceItems = order.line_items.map(item => ({
-            id: item.product_id || item.id,
-            name: item.name,
-            price: parseFloat(item.price),
-            quantity: item.quantity,
-            totalPrice: parseFloat(item.price) * item.quantity,
-            stock_quantity: null,
-            wholesalePrice: null,
-            profit: null
-          }));
+          const {
+            invoiceItems,
+            totalProductsProfit,
+            profitItemsCount,
+            profitDetails,
+            missingPurchasePriceItems
+          } =
+            buildOrderInvoiceItems(order, purchasePriceMap);
 
           const productsSubtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
           const shippingFee = parseFloat(order.shipping_total || 0);
@@ -829,10 +985,15 @@ function OrdersContent() {
               extraFee: 0,
               deliveryFee: shippingFee,
               total: orderTotal,
-              totalProfit: 0,
-              profitItemsCount: 0
+              totalProfit: totalProductsProfit,
+              profitExcludesDeliveryFee: true,
+              productsProfit: totalProductsProfit,
+              finalProductsProfit: totalProductsProfit,
+              profitItemsCount,
+              missingPurchasePriceCount: missingPurchasePriceItems.length,
+              missingPurchasePriceItems
             },
-            profitDetails: [],
+            profitDetails,
             paymentMethod: order.payment_method_title || 'غير محدد',
             paymentStatus: 'partial',
             customerInfo: {
@@ -898,7 +1059,7 @@ function OrdersContent() {
       setSelectedOrders([]);
     } catch (error) {
       console.error('Bulk register error:', error);
-      setToast({ message: '❌ فشل تسجيل الفواتير', type: 'error' });
+      setToast({ message: `❌ فشل تسجيل الفواتير: ${error.message}`, type: 'error' });
     } finally {
       setRegisteringBulk(false);
     }
@@ -923,6 +1084,148 @@ function OrdersContent() {
   const deselectAllOrders = () => {
     setSelectedOrders([]);
   };
+
+  const handlePrintOrderInvoice = async (order) => {
+    const printWindow = window.open('about:blank', '_blank');
+    if (!printWindow) {
+      setToast({ message: '⚠️ اسمح بفتح النوافذ المنبثقة لتسجيل وطباعة الفاتورة', type: 'warning' });
+      return;
+    }
+
+    setRegisteringOrderInvoice(true);
+    try {
+      const purchasePriceMap = await getOrderPurchasePriceMap(
+        await warehouseStorage.getAllProductsData(),
+        [order]
+      );
+      const existingInvoices = await invoiceStorage.getAllInvoices();
+      const existingInvoice = existingInvoices.find(
+        invoice => String(invoice.orderId) === String(order.id)
+      );
+
+      let invoice;
+      if (existingInvoice) {
+        invoice = updateOrderInvoiceProfit(existingInvoice, order, purchasePriceMap);
+      } else {
+        const {
+          invoiceItems,
+          totalProductsProfit,
+          profitItemsCount,
+          profitDetails,
+          missingPurchasePriceItems
+        } = buildOrderInvoiceItems(order, purchasePriceMap);
+        const productsSubtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
+        const discountAmount = Number(order.discount_total) || 0;
+        const shippingFee = Number(order.shipping_total) || 0;
+        const cityId = order.meta_data?.find(item => item.key === '_shipping_city_id')?.value || '';
+        const cityName = order.meta_data?.find(item => item.key === '_shipping_city_name')?.value || order.shipping?.city || '';
+        const districtId = order.meta_data?.find(item => item.key === '_shipping_district_id')?.value || '';
+        const districtName = order.meta_data?.find(item => item.key === '_shipping_district_name')?.value || order.shipping?.state || '';
+        const fullAddress = [
+          order.shipping?.address_1,
+          order.shipping?.address_2,
+          districtName,
+          cityName
+        ].filter(Boolean).join(' - ');
+        const vendorNote = order.meta_data?.find(item => item.key === '_vendor_note')?.value || orderNotes[order.id] || '';
+        const customerName = `${order.billing?.first_name || ''} ${order.billing?.last_name || ''}`.trim();
+
+        invoice = {
+          id: `order-${order.id}`,
+          orderId: order.id,
+          date: order.date_created,
+          items: invoiceItems,
+          services: [],
+          orderType: 'delivery',
+          orderNotes: vendorNote,
+          customerNote: order.customer_note || '',
+          summary: {
+            productsSubtotal,
+            servicesTotal: 0,
+            subtotal: productsSubtotal,
+            discount: { type: 'fixed', value: discountAmount, amount: discountAmount },
+            extraFee: 0,
+            deliveryFee: shippingFee,
+            total: Number(order.total) || productsSubtotal + shippingFee - discountAmount,
+            totalProfit: totalProductsProfit,
+            profitExcludesDeliveryFee: true,
+            productsProfit: totalProductsProfit,
+            finalProductsProfit: totalProductsProfit,
+            profitItemsCount,
+            missingPurchasePriceCount: missingPurchasePriceItems.length,
+            missingPurchasePriceItems
+          },
+          profitDetails,
+          paymentMethod: order.payment_method_title || 'غير محدد',
+          paymentStatus: 'partial',
+          customerInfo: {
+            name: customerName,
+            phone: order.billing?.phone || '',
+            email: order.billing?.email || '',
+            address: fullAddress
+          },
+          deliveryPayment: {
+            status: 'fully_paid_no_delivery',
+            paidAmount: productsSubtotal - discountAmount,
+            remainingAmount: shippingFee,
+            note: 'تم الدفع في الستور (ثمن المنتجات فقط) - رسوم التوصيل للتحصيل'
+          },
+          delivery: {
+            type: 'delivery',
+            address: fullAddress,
+            customer: {
+              name: customerName,
+              phone: order.billing?.phone || order.shipping?.phone || '',
+              email: order.billing?.email || '',
+              address: {
+                cityId,
+                city: cityName,
+                districtId,
+                district: districtName,
+                street: order.shipping?.address_1 || '',
+                area: order.shipping?.address_2 || '',
+                building: '',
+                floor: '',
+                apartment: '',
+                landmark: ''
+              }
+            },
+            fee: shippingFee,
+            notes: ''
+          },
+          deliveryStatus: 'pending',
+          synced: true,
+          source: 'order'
+        };
+      }
+
+      await invoiceStorage.saveInvoice(invoice);
+      setSelectedOrder(null);
+      printWindow.location.href = `/pos/invoices/print?id=${encodeURIComponent(invoice.id)}`;
+
+      if (invoice.summary?.missingPurchasePriceCount > 0) {
+        const missingProducts = (invoice.summary.missingPurchasePriceItems || [])
+          .map(item => item.name || `#${item.productId}`)
+          .join('، ');
+        setToast({
+          message: `⚠️ تم تسجيل الفاتورة. لم يُقرأ سعر الشراء لـ: ${missingProducts || `${invoice.summary.missingPurchasePriceCount} منتج`}؛ الربح غير مكتمل.`,
+          type: 'warning'
+        });
+      } else {
+        const profit = Number(invoice.summary?.totalProfit) || 0;
+        setToast({
+          message: `✅ تم تسجيل الفاتورة. صافي ربح المنتجات: ${profit.toLocaleString('ar-EG')} ج.م`,
+          type: 'success'
+        });
+      }
+    } catch (error) {
+      printWindow.close();
+      console.error(`Failed to register and print order ${order.id}:`, error);
+      setToast({ message: `❌ تعذر تسجيل الفاتورة أو حساب الربح: ${error.message}`, type: 'error' });
+    } finally {
+      setRegisteringOrderInvoice(false);
+    }
+  };
   
   // 🔥 Bulk Print & Register
   const handleBulkPrintOrders = async () => {
@@ -942,6 +1245,13 @@ function OrdersContent() {
     
     try {
       const existingInvoices = await invoiceStorage.getAllInvoices();
+      const ordersToRegister = selectedOrders
+        .map(orderId => orders.find(order => order.id === orderId))
+        .filter(Boolean);
+      const purchasePriceMap = await getOrderPurchasePriceMap(
+        await warehouseStorage.getAllProductsData(),
+        ordersToRegister
+      );
       
       for (const orderId of selectedOrders) {
         const order = orders.find(o => o.id === orderId);
@@ -952,16 +1262,14 @@ function OrdersContent() {
         
         try {
           // Create invoice from order (same structure as handleBulkRegisterInvoices)
-          const invoiceItems = order.line_items.map(item => ({
-            id: item.product_id || item.id,
-            name: item.name,
-            price: parseFloat(item.price),
-            quantity: item.quantity,
-            totalPrice: parseFloat(item.price) * item.quantity,
-            stock_quantity: null,
-            wholesalePrice: null,
-            profit: null
-          }));
+          const {
+            invoiceItems,
+            totalProductsProfit,
+            profitItemsCount,
+            profitDetails,
+            missingPurchasePriceItems
+          } =
+            buildOrderInvoiceItems(order, purchasePriceMap);
 
           const productsSubtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
           const shippingFee = parseFloat(order.shipping_total || 0);
@@ -1010,10 +1318,15 @@ function OrdersContent() {
               extraFee: 0,
               deliveryFee: shippingFee,
               total: orderTotal,
-              totalProfit: 0,
-              profitItemsCount: 0
+              totalProfit: totalProductsProfit,
+              profitExcludesDeliveryFee: true,
+              productsProfit: totalProductsProfit,
+              finalProductsProfit: totalProductsProfit,
+              profitItemsCount,
+              missingPurchasePriceCount: missingPurchasePriceItems.length,
+              missingPurchasePriceItems
             },
-            profitDetails: [],
+            profitDetails,
             paymentMethod: order.payment_method_title || 'غير محدد',
             paymentStatus: 'partial',
             customerInfo: {
@@ -1105,7 +1418,7 @@ function OrdersContent() {
       setSelectedOrders([]);
     } catch (error) {
       console.error('Bulk print & register error:', error);
-      setToast({ message: '❌ فشل تسجيل الفواتير', type: 'error' });
+      setToast({ message: `❌ فشل تسجيل الفواتير: ${error.message}`, type: 'error' });
     } finally {
       setRegisteringBulk(false);
     }
@@ -1143,6 +1456,10 @@ function OrdersContent() {
     
     try {
       const existingInvoices = await invoiceStorage.getAllInvoices();
+      const purchasePriceMap = await getOrderPurchasePriceMap(
+        await warehouseStorage.getAllProductsData(),
+        nonBostaOrders
+      );
       
       for (const order of nonBostaOrders) {
         // Check if already registered
@@ -1150,16 +1467,14 @@ function OrdersContent() {
         
         try {
           // Create invoice from order (سواء جديد أو تحديث)
-          const invoiceItems = order.line_items.map(item => ({
-            id: item.product_id || item.id,
-            name: item.name,
-            price: parseFloat(item.price),
-            quantity: item.quantity,
-            totalPrice: parseFloat(item.price) * item.quantity,
-            stock_quantity: null,
-            wholesalePrice: null,
-            profit: null
-          }));
+          const {
+            invoiceItems,
+            totalProductsProfit,
+            profitItemsCount,
+            profitDetails,
+            missingPurchasePriceItems
+          } =
+            buildOrderInvoiceItems(order, purchasePriceMap);
 
           const productsSubtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
           const shippingFee = parseFloat(order.shipping_total || 0);
@@ -1206,10 +1521,15 @@ function OrdersContent() {
               extraFee: 0,
               deliveryFee: shippingFee,
               total: orderTotal,
-              totalProfit: 0,
-              profitItemsCount: 0
+              totalProfit: totalProductsProfit,
+              profitExcludesDeliveryFee: true,
+              productsProfit: totalProductsProfit,
+              finalProductsProfit: totalProductsProfit,
+              profitItemsCount,
+              missingPurchasePriceCount: missingPurchasePriceItems.length,
+              missingPurchasePriceItems
             },
-            profitDetails: [],
+            profitDetails,
             paymentMethod: order.payment_method_title || 'غير محدد',
             paymentStatus: 'partial',
             customerInfo: {
@@ -1290,7 +1610,7 @@ function OrdersContent() {
       }
     } catch (error) {
       console.error('Print non-Bosta orders error:', error);
-      setToast({ message: '❌ فشل تسجيل الفواتير', type: 'error' });
+      setToast({ message: `❌ فشل تسجيل الفواتير: ${error.message}`, type: 'error' });
     } finally {
       setPrintingNonBosta(false);
     }
@@ -1320,6 +1640,10 @@ function OrdersContent() {
       // تسجيل الأوردرات كفواتير (لو مش مسجلة)
       const invoiceIdsToShow = [];
       const existingInvoices = await invoiceStorage.getAllInvoices();
+      const purchasePriceMap = await getOrderPurchasePriceMap(
+        await warehouseStorage.getAllProductsData(),
+        sentToBosta
+      );
       
       for (const order of sentToBosta) {
         // Check if already registered
@@ -1327,17 +1651,14 @@ function OrdersContent() {
         
         if (!existingInvoice) {
           // تسجيل الطلب كفاتورة
-          const invoiceItems = order.line_items.map(item => ({
-            id: item.product_id || item.id,
-            name: item.name,
-            price: parseFloat(item.price),
-            quantity: item.quantity,
-            totalPrice: parseFloat(item.price) * item.quantity,
-            imageUrl: item.image_url || item.image?.src || '',
-            stock_quantity: null,
-            wholesalePrice: null,
-            profit: null
-          }));
+          const {
+            invoiceItems,
+            totalProductsProfit,
+            profitItemsCount,
+            profitDetails,
+            missingPurchasePriceItems
+          } =
+            buildOrderInvoiceItems(order, purchasePriceMap);
 
           const productsSubtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
           const shippingFee = parseFloat(order.shipping_total || 0);
@@ -1382,10 +1703,15 @@ function OrdersContent() {
               extraFee: 0,
               deliveryFee: shippingFee,
               total: orderTotal,
-              totalProfit: 0,
-              profitItemsCount: 0
+              totalProfit: totalProductsProfit,
+              profitExcludesDeliveryFee: true,
+              productsProfit: totalProductsProfit,
+              finalProductsProfit: totalProductsProfit,
+              profitItemsCount,
+              missingPurchasePriceCount: missingPurchasePriceItems.length,
+              missingPurchasePriceItems
             },
-            profitDetails: [],
+            profitDetails,
             paymentMethod: order.payment_method_title || 'غير محدد',
             paymentStatus: 'partial',
             customerInfo: {
@@ -1415,6 +1741,7 @@ function OrdersContent() {
           await invoiceStorage.saveInvoice(invoice);
           invoiceIdsToShow.push(invoice.id);
         } else {
+          await invoiceStorage.saveInvoice(updateOrderInvoiceProfit(existingInvoice, order, purchasePriceMap));
           invoiceIdsToShow.push(existingInvoice.id);
         }
       }
@@ -1428,7 +1755,7 @@ function OrdersContent() {
       setToast({ message: `✅ تقرير جاهز - ${sentToBosta.length} طلب مُرسل لبوسطة اليوم`, type: 'success' });
     } catch (error) {
       console.error('Daily sales report error:', error);
-      setToast({ message: '❌ فشل إنشاء تقرير المبيعات', type: 'error' });
+      setToast({ message: `❌ فشل إنشاء تقرير المبيعات: ${error.message}`, type: 'error' });
     }
   };
   
@@ -1456,6 +1783,10 @@ function OrdersContent() {
       // تسجيل الأوردرات كفواتير (لو مش مسجلة)
       const invoiceIdsToShow = [];
       const existingInvoices = await invoiceStorage.getAllInvoices();
+      const purchasePriceMap = await getOrderPurchasePriceMap(
+        await warehouseStorage.getAllProductsData(),
+        sentToBosta
+      );
       
       for (const order of sentToBosta) {
         // Check if already registered
@@ -1463,17 +1794,14 @@ function OrdersContent() {
         
         if (!existingInvoice) {
           // تسجيل الطلب كفاتورة
-          const invoiceItems = order.line_items.map(item => ({
-            id: item.product_id || item.id,
-            name: item.name,
-            price: parseFloat(item.price),
-            quantity: item.quantity,
-            totalPrice: parseFloat(item.price) * item.quantity,
-            imageUrl: item.image_url || item.image?.src || '',
-            stock_quantity: null,
-            wholesalePrice: null,
-            profit: null
-          }));
+          const {
+            invoiceItems,
+            totalProductsProfit,
+            profitItemsCount,
+            profitDetails,
+            missingPurchasePriceItems
+          } =
+            buildOrderInvoiceItems(order, purchasePriceMap);
 
           const productsSubtotal = invoiceItems.reduce((sum, item) => sum + item.totalPrice, 0);
           const shippingFee = parseFloat(order.shipping_total || 0);
@@ -1518,10 +1846,15 @@ function OrdersContent() {
               extraFee: 0,
               deliveryFee: shippingFee,
               total: orderTotal,
-              totalProfit: 0,
-              profitItemsCount: 0
+              totalProfit: totalProductsProfit,
+              profitExcludesDeliveryFee: true,
+              productsProfit: totalProductsProfit,
+              finalProductsProfit: totalProductsProfit,
+              profitItemsCount,
+              missingPurchasePriceCount: missingPurchasePriceItems.length,
+              missingPurchasePriceItems
             },
-            profitDetails: [],
+            profitDetails,
             paymentMethod: order.payment_method_title || 'غير محدد',
             paymentStatus: 'partial',
             customerInfo: {
@@ -1551,6 +1884,7 @@ function OrdersContent() {
           await invoiceStorage.saveInvoice(invoice);
           invoiceIdsToShow.push(invoice.id);
         } else {
+          await invoiceStorage.saveInvoice(updateOrderInvoiceProfit(existingInvoice, order, purchasePriceMap));
           invoiceIdsToShow.push(existingInvoice.id);
         }
       }
@@ -1566,7 +1900,7 @@ function OrdersContent() {
       setToast({ message: `✅ تقرير جاهز - ${sentToBosta.length} طلب مُرسل لبوسطة أمس (${yesterday.toLocaleDateString('ar-EG')})`, type: 'success' });
     } catch (error) {
       console.error('Yesterday report error:', error);
-      setToast({ message: '❌ فشل إنشاء تقرير أمس', type: 'error' });
+      setToast({ message: `❌ فشل إنشاء تقرير أمس: ${error.message}`, type: 'error' });
     }
   };
 
@@ -5977,10 +6311,11 @@ function OrdersContent() {
             {/* Footer Actions */}
             <div className="sticky bottom-0 bg-gray-50 p-4 rounded-b-2xl border-t flex gap-3">
               <button
-                onClick={() => window.open(`/pos/invoices/print?id=${selectedOrder.id}`, '_blank')}
-                className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-lg font-bold transition-all shadow-md hover:shadow-lg"
+                onClick={() => handlePrintOrderInvoice(selectedOrder)}
+                disabled={registeringOrderInvoice}
+                className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-3 rounded-lg font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                🖨️ طباعة الفاتورة
+                {registeringOrderInvoice ? '⏳ جاري تسجيل الفاتورة...' : '🖨️ تسجيل وطباعة الفاتورة'}
               </button>
               <button
                 onClick={() => setSelectedOrder(null)}

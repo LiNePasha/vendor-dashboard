@@ -18,6 +18,7 @@ export default function WarehousePage() {
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [savingProductData, setSavingProductData] = useState(false);
   const [modalForm, setModalForm] = useState({
     purchasePrice: '',
     localStock: '',
@@ -110,12 +111,29 @@ export default function WarehousePage() {
     }
   };
 
-  const openModal = (product) => {
+  const openModal = async (product) => {
     setSelectedProduct(product);
     const data = warehouseData[product.id] || {};
+    let purchasePrice = data.purchasePrice || '';
+
+    try {
+      const response = await fetch(`/api/products/${product.id}`);
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'تعذر تحميل بيانات المنتج من السحابة');
+      }
+
+      if (result.product?.purchase_price !== undefined && result.product.purchase_price !== null &&
+          result.product.purchase_price !== '') {
+        purchasePrice = result.product.purchase_price;
+      }
+    } catch (error) {
+      console.error('Failed to load cloud purchase price:', error);
+      alert(`⚠️ تعذر تحميل سعر الشراء من السحابة، سيتم عرض السعر المحفوظ على هذا الجهاز إن وجد. ${error.message}`);
+    }
     
     setModalForm({
-      purchasePrice: data.purchasePrice || '',
+      purchasePrice,
       localStock: data.localStock || '',
       notes: data.notes || '',
       selectedSuppliers: (data.suppliers || []).map(s => s.supplierId)
@@ -143,7 +161,19 @@ export default function WarehousePage() {
   const handleSave = async () => {
     if (!selectedProduct) return;
 
+    setSavingProductData(true);
     try {
+      const purchasePrice = parseFloat(modalForm.purchasePrice) || 0;
+      const response = await fetch(`/api/products/${selectedProduct.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purchasePrice })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'تعذر حفظ سعر الشراء على السحابة');
+      }
+
       // تحويل IDs إلى objects
       const suppliersObjects = modalForm.selectedSuppliers.map(id => {
         const supplier = suppliers.find(s => s.id === id);
@@ -155,7 +185,7 @@ export default function WarehousePage() {
       });
 
       await warehouseStorage.setProductData(selectedProduct.id, {
-        purchasePrice: parseFloat(modalForm.purchasePrice) || 0,
+        purchasePrice,
         localStock: parseInt(modalForm.localStock) || 0,
         notes: modalForm.notes,
         suppliers: suppliersObjects
@@ -166,7 +196,9 @@ export default function WarehousePage() {
       await loadData();
     } catch (error) {
       console.error('Error:', error);
-      alert('حدث خطأ');
+      alert(`❌ ${error.message}`);
+    } finally {
+      setSavingProductData(false);
     }
   };
 
@@ -604,9 +636,10 @@ export default function WarehousePage() {
             <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-5 flex gap-3">
               <button
                 onClick={handleSave}
-                className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 font-bold shadow-md transition-colors"
+                disabled={savingProductData}
+                className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 font-bold shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                ✅ حفظ
+                {savingProductData ? 'جاري الحفظ...' : '✅ حفظ'}
               </button>
               <button
                 onClick={() => setShowModal(false)}

@@ -159,6 +159,14 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
   const populateFormFromData = async (product) => {
     imagesUserInteracted.current = false;
+    const localProductData = product.id
+      ? await warehouseStorage.getProductData(product.id)
+      : null;
+    const purchasePrice = product.purchase_price !== undefined &&
+      product.purchase_price !== null &&
+      product.purchase_price !== ''
+      ? product.purchase_price
+      : localProductData?.purchasePrice ?? '';
 
     setForm({
       name: product.name || '',
@@ -166,7 +174,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       sellingPrice: product.regular_price || product.price || '',
       salePrice: product.sale_price || '',
       wholesalePrice: product.wholesale_price ?? '',
-      purchasePrice: product.purchase_price || '',
+      purchasePrice,
       supplierId: '',
       apiStock: product.stock_quantity || 0,
       localStock: 0,
@@ -225,6 +233,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
         name: product.name || '',
         sku: product.sku || '',
         wholesalePrice: product.wholesale_price ?? '',
+        purchasePrice,
         images: product.images || [], // 🔥 FIX: حفظ الصور الأصلية للمقارنة
         categories: product.categories?.map(c => c.id) || [],
         attributes: product.attributes?.map(attr => ({
@@ -436,6 +445,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
       form.name !== originalData.name ||
       form.sku !== originalData.sku ||
       String(form.wholesalePrice) !== String(originalData.wholesalePrice ?? '') ||
+      String(form.purchasePrice) !== String(originalData.purchasePrice ?? '') ||
       imagesChanged() ||
       categoriesChanged ||
       attributesChanged
@@ -702,9 +712,12 @@ export default function ProductForm({ mode = 'create', productId = null, initial
     const savedProductId = result.product.id; // 🔥 استخدام اسم مختلف
     const selectedSupplier = suppliers.find(s => s.id === form.supplierId);
 
-    if (form.purchasePrice || form.supplierId || form.localStock) {
+    await warehouseStorage.setProductData(savedProductId, {
+      purchasePrice: parseFloat(form.purchasePrice) || 0,
+    });
+
+    if (form.supplierId || form.localStock) {
       await warehouseStorage.setProductData(savedProductId, {
-        purchasePrice: parseFloat(form.purchasePrice) || 0,
         localStock: parseInt(form.localStock) || 0,
         notes: '',
         suppliers: selectedSupplier ? [{
@@ -764,6 +777,7 @@ export default function ProductForm({ mode = 'create', productId = null, initial
             name: form.name,
             sku: form.sku,
             wholesalePrice: form.wholesalePrice,
+            purchasePrice: parseFloat(form.purchasePrice) || 0,
             type: 'variable',
             categories: form.categories.length > 0 ? form.categories : null,
             ...(imagesToSend !== null ? { images: imagesToSend } : {}),
@@ -915,9 +929,12 @@ export default function ProductForm({ mode = 'create', productId = null, initial
 
     const selectedSupplier = suppliers.find(s => s.id === form.supplierId);
 
-    if (form.purchasePrice || form.supplierId) {
+    await warehouseStorage.setProductData(parentId, {
+      purchasePrice: parseFloat(form.purchasePrice) || 0,
+    });
+
+    if (form.supplierId) {
       await warehouseStorage.setProductData(parentId, {
-        purchasePrice: parseFloat(form.purchasePrice) || 0,
         localStock: 0,
         notes: '',
         suppliers: selectedSupplier ? [{
@@ -1428,23 +1445,6 @@ export default function ProductForm({ mode = 'create', productId = null, initial
             </div>
 
             <div className='hidden md:block'>
-              <label className="block text-sm font-semibold mb-2">سعر الشراء (ج.م)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={form.purchasePrice}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
-                    setForm({ ...form, purchasePrice: val });
-                  }
-                }}
-                className="w-full px-4 py-2 border rounded-lg"
-                placeholder="300"
-              />
-            </div>
-
-            <div className='hidden md:block'>
               <label className="block text-sm font-semibold mb-2">المورد</label>
               <div className="flex gap-2">
                 <select
@@ -1468,24 +1468,6 @@ export default function ProductForm({ mode = 'create', productId = null, initial
             </div>
           </>
         )}
-
-        <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <label className="block text-sm font-semibold mb-2 text-amber-900">💰 سعر الجملة (ج.م)</label>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={form.wholesalePrice}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
-                setForm({ ...form, wholesalePrice: val });
-              }
-            }}
-            className="w-full px-4 py-2 border border-amber-300 rounded-lg bg-white"
-            placeholder="اختياري"
-          />
-          <p className="text-xs text-amber-800 mt-1">اتركه فارغًا إذا لم يكن للمنتج سعر جملة.</p>
-        </div>
 
         {/* Stock for Simple Products */}
         {form.productType === 'simple' && (
@@ -1529,6 +1511,41 @@ export default function ProductForm({ mode = 'create', productId = null, initial
             </div>
           </>
         )}
+
+        <div>
+          <label className="block text-sm font-semibold mb-2">سعر الشراء (ج.م)</label>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={form.purchasePrice}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                setForm({ ...form, purchasePrice: val });
+              }
+            }}
+            className="w-full px-4 py-2 border rounded-lg"
+            placeholder="300"
+          />
+        </div>
+
+        <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <label className="block text-sm font-semibold mb-2 text-amber-900">💰 سعر الجملة (ج.م)</label>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={form.wholesalePrice}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                setForm({ ...form, wholesalePrice: val });
+              }
+            }}
+            className="w-full px-4 py-2 border border-amber-300 rounded-lg bg-white"
+            placeholder="اختياري"
+          />
+          <p className="text-xs text-amber-800 mt-1">اتركه فارغًا إذا لم يكن للمنتج سعر جملة.</p>
+        </div>
 
         {/* Submit Button */}
         <div className="md:col-span-2 flex gap-4 pt-4">
