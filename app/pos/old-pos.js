@@ -706,13 +706,13 @@ export default function POSPage() {
         }
       `}</style>
       
-      <div className="h-screen flex flex-col bg-gray-100 pos-content">
+      <div className="h-screen w-full max-w-full flex flex-col overflow-x-clip bg-gray-100 pos-content">
         {/* Header */}
-        <div className="bg-blue-900 text-white shadow-lg sticky top-0 z-30">
+        <div className="w-full max-w-full overflow-x-clip bg-blue-900 text-white shadow-lg sticky top-0 z-30">
           <div className="max-w-screen-2xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-2">
+            <div className="flex min-w-0 flex-col items-stretch gap-2 mb-2 md:flex-row md:items-center">
               {/* Top Row on Mobile: Logo + Search */}
-              <div className="flex items-center gap-2 w-full sm:flex-initial">
+              <div className="flex min-w-0 items-center gap-2 w-full md:flex-1">
                 {/* Logo */}
                 <div className="flex items-center gap-2 bg-blue-800 px-2 sm:px-3 py-2 rounded-lg flex-shrink-0">
                   <span className="text-xl sm:text-2xl">🏪</span>
@@ -720,7 +720,7 @@ export default function POSPage() {
                 </div>
 
                 {/* Search Bar */}
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <input
                     type="text"
                     placeholder="🔍 ابحث..."
@@ -732,9 +732,9 @@ export default function POSPage() {
               </div>
 
               {/* Second Row on Mobile: Employee + Actions */}
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex min-w-0 w-full flex-col items-stretch gap-2 md:w-auto md:flex-row md:items-center">
                 {/* Employee Selector - Compact */}
-                <div className="flex-1 sm:flex-initial sm:w-48">
+                <div className="w-full min-w-0 md:w-48 md:flex-none">
                   <EmployeeSelector
                     employees={employees}
                     selectedEmployee={selectedEmployee}
@@ -751,11 +751,11 @@ export default function POSPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex items-center gap-1 sm:gap-2">
+                <div className="grid w-full min-w-0 grid-cols-5 gap-1 md:flex md:w-auto md:flex-none md:items-center md:gap-2">
                   {/* Wholesale Pricing Button */}
                   <button
                     onClick={() => setShowBulkUpload(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-2 sm:px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-1 sm:gap-2"
+                    className="flex h-10 min-w-0 items-center justify-center gap-1 rounded-lg bg-blue-600 px-1.5 text-white font-bold transition-colors hover:bg-blue-700 md:px-2 lg:px-4"
                     title="إضافة منتجات متعددة"
                   >
                     <span className="text-sm sm:text-base">📦</span>
@@ -764,7 +764,7 @@ export default function POSPage() {
 
                   <button
                     onClick={() => setShowWholesaleModal(true)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-1 sm:gap-2"
+                    className="flex h-10 min-w-0 items-center justify-center gap-1 rounded-lg bg-green-600 px-1.5 text-white font-bold transition-colors hover:bg-green-700 md:px-2 lg:px-4"
                     title="تسعير جملة"
                   >
                     <span className="text-sm sm:text-base">🏪</span>
@@ -774,7 +774,7 @@ export default function POSPage() {
                   {/* View Invoices Button */}
                   <button
                     onClick={() => setShowInvoicesModal(true)}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-2 sm:px-4 py-2 rounded-lg font-bold transition-colors flex items-center gap-1 sm:gap-2"
+                    className="flex h-10 min-w-0 items-center justify-center gap-1 rounded-lg bg-purple-600 px-1.5 text-white font-bold transition-colors hover:bg-purple-700 md:px-2 lg:px-4"
                     title="شوف الفواتير"
                   >
                     <span className="text-sm sm:text-base">📋</span>
@@ -785,7 +785,7 @@ export default function POSPage() {
                   <button
                     onClick={syncNow}
                     disabled={syncInProgress}
-                    className="bg-blue-800 hover:bg-blue-700 px-2 sm:px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+                    className="flex h-10 min-w-0 items-center justify-center rounded-lg bg-blue-800 px-2 transition-colors hover:bg-blue-700 disabled:opacity-50 md:px-3"
                     title="تحديث الآن"
                   >
                     <span className={`${syncInProgress ? 'animate-spin' : ''} text-base sm:text-xl`}>🔄</span>
@@ -794,7 +794,7 @@ export default function POSPage() {
                   {/* Quick Add */}
                   <button
                     onClick={() => setShowQuickAdd(true)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-4 py-2 rounded-lg font-bold transition-colors md:flex items-center gap-1 sm:gap-2"
+                    className="flex h-10 min-w-0 items-center justify-center gap-1 rounded-lg bg-green-600 px-1.5 text-white font-bold transition-colors hover:bg-green-700 md:px-2 lg:px-4"
                     title="إضافة منتج"
                   >
                     <span className="text-sm sm:text-base">➕</span>

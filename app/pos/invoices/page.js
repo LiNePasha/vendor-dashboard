@@ -1211,11 +1211,23 @@ export default function InvoicesPage() {
   // Filter invoices
   const getInvoiceRevenueForPaymentFilter = (invoice) => {
     const invoiceTotal = Number(invoice.summary?.total || 0);
-    if (filterPaymentMethod === 'all' || filterPaymentMethod === 'online') return invoiceTotal;
-    if (invoice.paymentMethod !== 'split') return invoiceTotal;
-    return (invoice.paymentBreakdown || [])
+    const deliveryFee = Math.max(0, Number(invoice.summary?.deliveryFee || 0));
+    const salesTotal = Math.max(0, invoiceTotal - deliveryFee);
+    if (filterPaymentMethod === 'all' || filterPaymentMethod === 'online') return salesTotal;
+    if (invoice.paymentMethod !== 'split') return salesTotal;
+
+    const paymentBreakdown = invoice.paymentBreakdown || [];
+    const selectedPayments = paymentBreakdown
       .filter(part => part.method === filterPaymentMethod)
       .reduce((sum, part) => sum + (Number(part.amount) || 0), 0);
+    const totalSplitPayments = paymentBreakdown.reduce(
+      (sum, part) => sum + (Number(part.amount) || 0),
+      0
+    );
+    if (totalSplitPayments <= 0) return 0;
+
+    const collectedShipping = Math.min(deliveryFee, Math.max(0, totalSplitPayments - salesTotal));
+    return Math.max(0, selectedPayments - collectedShipping * (selectedPayments / totalSplitPayments));
   };
 
   const filteredInvoices = invoices.filter(invoice => {

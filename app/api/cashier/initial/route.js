@@ -12,6 +12,69 @@ async function getToken() {
   return cookieStore.get("token")?.value;
 }
 
+function getProductPurchasePrice(product) {
+  const purchasePriceMeta = product.meta_data?.find(meta =>
+    meta.key === 'purchase_price' || meta.key === '_purchase_price'
+  );
+  const purchasePrice = purchasePriceMeta?.value ?? product.purchase_price;
+  const numericPrice = Number(purchasePrice);
+  return Number.isFinite(numericPrice) && numericPrice > 0 ? numericPrice : null;
+}
+
+async function addPurchasePrices(products, API_BASE) {
+  const productsWithPriceStatus = products.map(product => {
+    const purchasePrice = getProductPurchasePrice(product);
+    return {
+      ...product,
+      ...(purchasePrice !== null ? { purchase_price: purchasePrice } : {}),
+      purchase_price_checked: purchasePrice !== null || product.purchase_price_checked === true,
+    };
+  });
+  const productsNeedingPrice = productsWithPriceStatus.filter(product =>
+    !product.purchase_price_checked && product.id
+  );
+
+  for (let index = 0; index < productsNeedingPrice.length; index += 100) {
+    const batch = productsNeedingPrice.slice(index, index + 100);
+    const query = new URLSearchParams({
+      include: batch.map(product => product.id).join(','),
+      per_page: String(batch.length),
+      status: 'any',
+      consumer_key: process.env.WC_CONSUMER_KEY || '',
+      consumer_secret: process.env.WC_CONSUMER_SECRET || '',
+    });
+
+    try {
+      const response = await fetch(`${API_BASE}/wp-json/wc/v3/products?${query}`, {
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        throw new Error(`WooCommerce purchase price lookup failed: ${response.status}`);
+      }
+
+      const productsWithMetadata = await response.json();
+      const metadataById = new Map(
+        productsWithMetadata.map(product => [String(product.id), getProductPurchasePrice(product)])
+      );
+      batch.forEach(product => {
+        const purchasePrice = metadataById.get(String(product.id));
+        product.purchase_price_checked = true;
+        if (purchasePrice !== null && purchasePrice !== undefined) {
+          product.purchase_price = purchasePrice;
+        }
+      });
+    } catch (error) {
+      console.error('Failed to preload product purchase prices:', error);
+      batch.forEach(product => {
+        product.purchase_price_lookup_error = true;
+      });
+    }
+  }
+
+  return productsWithPriceStatus;
+}
+
 function decodeToken(token) {
   try {
     const payload = token.split('.')[1];
@@ -64,13 +127,14 @@ export async function GET(req) {
       }
       
       const products = await wcRes.json();
+      const productsWithPurchasePrices = await addPurchasePrices(products, API_BASE);
       const totalPages = parseInt(wcRes.headers.get('X-WP-TotalPages') || '1');
       const totalProducts = parseInt(wcRes.headers.get('X-WP-Total') || '0');
 
-      console.log(`⚡ Admin: Fetched page ${pageNum} - ${products.length} products (${totalProducts} total)`);
+      console.log(`⚡ Admin: Fetched page ${pageNum} - ${productsWithPurchasePrices.length} products (${totalProducts} total)`);
 
       return NextResponse.json({ 
-        products, 
+        products: productsWithPurchasePrices,
         categories: [],
         pagination: {
           page: pageNum,
@@ -114,6 +178,9 @@ export async function GET(req) {
     }
 
     const data = await res.json();
+    if (Array.isArray(data.products)) {
+      data.products = await addPurchasePrices(data.products, API_BASE);
+    }
     
     console.log(`✅ Cashier API Success: ${data.products?.length || 0} products (Cache: ${data.metadata?.cache})`);
     

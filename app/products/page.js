@@ -52,6 +52,12 @@ const getProductStockQuantity = (product) => {
   return Number(product.stock_quantity || 0);
 };
 
+const formatInventoryCurrency = (value) => (
+  value === null || value === undefined
+    ? '—'
+    : `${Number(value).toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م`
+);
+
 const calculateProductsInventoryValue = (productList = []) => {
   return productList.reduce((total, product) => {
     const quantity = getProductStockQuantity(product);
@@ -62,12 +68,112 @@ const calculateProductsInventoryValue = (productList = []) => {
     return total + (unitPrice * quantity);
   }, 0);
 };
+
+const calculateProductsInventoryProfit = (productList = [], purchasePrices = new Map()) => {
+  let total = 0;
+  let stockQuantity = 0;
+  let missingPurchasePriceCount = 0;
+  let purchasePriceLookupErrorCount = 0;
+  let missingSellingPriceCount = 0;
+  const reportRows = [];
+
+  productList.forEach(product => {
+    const purchasePrice = parsePriceValue(product.purchase_price) ||
+      purchasePrices.get(String(product.id));
+    const variations = product.type === 'variable' && Array.isArray(product.variations)
+      ? product.variations
+      : [];
+    const variationStockLines = variations.map(variation => ({
+          quantity: Number(variation.stock_quantity) || 0,
+          sellingPrice: parsePriceValue(
+            variation.sale_price || variation.price || variation.regular_price
+          )
+        }));
+    const hasVariationStock = variationStockLines.some(line => line.quantity > 0);
+    const stockLines = hasVariationStock
+      ? variationStockLines
+      : [{
+          quantity: getProductStockQuantity(product),
+          sellingPrice: getProductSellPrice(product)
+        }];
+
+    const availableLines = stockLines.filter(line => line.quantity > 0);
+    if (availableLines.length === 0) {
+      reportRows.push({
+        id: product.id,
+        name: product.name || 'منتج بدون اسم',
+        sku: product.sku || '',
+        stockQuantity: 0,
+        accountedQuantity: 0,
+        averageSellingPrice: 0,
+        purchasePrice: purchasePrice || null,
+        salesValue: 0,
+        costValue: 0,
+        profit: 0,
+        status: 'no-stock'
+      });
+      return;
+    }
+
+    const sellableLines = availableLines.filter(line => line.sellingPrice > 0);
+    const productStockQuantity = availableLines.reduce((sum, line) => sum + line.quantity, 0);
+    const accountedQuantity = sellableLines.reduce((sum, line) => sum + line.quantity, 0);
+    const salesValue = sellableLines.reduce((sum, line) => sum + line.sellingPrice * line.quantity, 0);
+    let productProfit = null;
+    let costValue = null;
+    let status = 'included';
+
+    if (!purchasePrice || purchasePrice <= 0) {
+      missingPurchasePriceCount++;
+      if (product.purchase_price_lookup_error) purchasePriceLookupErrorCount++;
+      status = product.purchase_price_lookup_error ? 'lookup-error' : 'missing-cost';
+    } else {
+      availableLines.forEach(line => {
+        if (line.sellingPrice <= 0) {
+          missingSellingPriceCount++;
+          return;
+        }
+        total += (line.sellingPrice - purchasePrice) * line.quantity;
+        stockQuantity += line.quantity;
+      });
+      costValue = accountedQuantity * purchasePrice;
+      productProfit = salesValue - costValue;
+      if (accountedQuantity < productStockQuantity) {
+        status = 'missing-selling-price';
+      }
+    }
+
+    reportRows.push({
+      id: product.id,
+      name: product.name || 'منتج بدون اسم',
+      sku: product.sku || '',
+      stockQuantity: productStockQuantity,
+      accountedQuantity,
+      averageSellingPrice: accountedQuantity > 0 ? salesValue / accountedQuantity : null,
+      purchasePrice: purchasePrice || null,
+      salesValue,
+      costValue,
+      profit: productProfit,
+      status
+    });
+  });
+
+  return {
+    total,
+    stockQuantity,
+    missingPurchasePriceCount,
+    purchasePriceLookupErrorCount,
+    missingSellingPriceCount,
+    reportRows
+  };
+};
 import ProductFormModal from "@/components/ProductFormModal";
 import BulkUploadModal from "@/components/BulkUploadModal";
 import InvoiceUploadModal from "@/components/InvoiceUploadModal";
 import BundleLinkModal from "@/components/BundleLinkModal";
 import Link from "next/link";
 import { productsCacheStorage } from "@/app/lib/localforage";
+import { warehouseStorage } from "@/app/lib/warehouse-storage";
 import { getVendorLogo } from "@/app/lib/vendor-constants";
 import usePOSStore from "@/app/stores/pos-store";
 
@@ -164,6 +270,9 @@ export default function ProductsPage() {
   const [deletingProduct, setDeletingProduct] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [inventoryValue, setInventoryValue] = useState(null);
+  const [inventoryProfit, setInventoryProfit] = useState(null);
+  const [calculatingProfit, setCalculatingProfit] = useState(false);
+  const [showInventoryProfitReport, setShowInventoryProfitReport] = useState(false);
 
   // Admin states
   const [isAdminUser, setIsAdminUser] = useState(false);
@@ -309,6 +418,20 @@ export default function ProductsPage() {
     
     return uniqueProducts;
   }, [filteredProducts]);
+  const inventoryProfitProductsKey = JSON.stringify(productsWithUniqueKeys.map(product => ({
+    id: product.id,
+    price: product.price,
+    regular_price: product.regular_price,
+    sale_price: product.sale_price,
+    stock_quantity: product.stock_quantity,
+    variations: product.variations?.map(variation => ({
+      id: variation.id,
+      price: variation.price,
+      regular_price: variation.regular_price,
+      sale_price: variation.sale_price,
+      stock_quantity: variation.stock_quantity
+    }))
+  })));
 
   // ⏱️ Debouncing للبحث - تأخير 300ms بعد توقف الكتابة (نفس الكاشير)
   useEffect(() => {
@@ -396,7 +519,11 @@ export default function ProductsPage() {
           setLoading(false);
           // تحقق من freshness
           const isStale = await productsCacheStorage.isCacheStale(3 * 60 * 1000);
-          if (!isStale) {
+          const cacheHasPurchasePrices = cache.products.every(product =>
+            product.purchase_price_checked === true ||
+            parsePriceValue(product.purchase_price) > 0
+          );
+          if (!isStale && cacheHasPurchasePrices) {
             __products_fetch_in_flight = false;
             return;
           }
@@ -641,6 +768,36 @@ export default function ProductsPage() {
     });
   };
 
+  const handleCalculateInventoryProfit = async () => {
+    setCalculatingProfit(true);
+    try {
+      const productsToCalculate = productsWithUniqueKeys;
+      const productsKey = inventoryProfitProductsKey;
+      const localProducts = await warehouseStorage.getAllProductsData();
+      const purchasePrices = new Map();
+      localProducts.forEach(product => {
+        const purchasePrice = parsePriceValue(product.purchasePrice);
+        if (purchasePrice > 0) {
+          purchasePrices.set(String(product.wooProductId), purchasePrice);
+        }
+      });
+
+      const profit = calculateProductsInventoryProfit(productsToCalculate, purchasePrices);
+      setInventoryProfit({
+        ...profit,
+        productsKey,
+        productCount: productsToCalculate.length
+      });
+      setShowInventoryProfitReport(true);
+    } catch (error) {
+      console.error('Error calculating inventory profit:', error);
+      setToast({ message: `❌ تعذر حساب الربح الإجمالي: ${error.message}`, type: 'error' });
+      setTimeout(() => setToast(null), 5000);
+    } finally {
+      setCalculatingProfit(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="p-4 sm:p-6 max-w-[1600px] mx-auto">
@@ -661,6 +818,15 @@ export default function ProductsPage() {
               >
                 <span className="text-lg">💰</span>
                 <span>حساب قيمة البيع</span>
+              </button>
+              <button
+                onClick={handleCalculateInventoryProfit}
+                disabled={calculatingProfit || loading || productsWithUniqueKeys.length === 0}
+                className="bg-gradient-to-r from-amber-600 to-orange-700 text-white px-3 sm:px-5 py-2.5 rounded-lg hover:from-amber-700 hover:to-orange-800 transition-all shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                title="حساب ربح المخزون الظاهر بعد البحث والتصفية"
+              >
+                <span className="text-lg">{calculatingProfit ? '⏳' : '📈'}</span>
+                <span>{calculatingProfit ? 'جاري الحساب...' : 'حساب الربح الإجمالي'}</span>
               </button>
               <button
                 onClick={() => setShowBundleModal(true)}
@@ -715,7 +881,179 @@ export default function ProductsPage() {
               </div>
             </div>
           )}
+          {inventoryProfit !== null && inventoryProfit.productsKey === inventoryProfitProductsKey && (
+            <div className="mt-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 text-amber-950 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-amber-800 font-semibold">
+                    إجمالي ربح المخزون الظاهر
+                  </p>
+                  <p className="text-2xl font-black text-amber-900">
+                    {inventoryProfit.total.toLocaleString('en-US', { maximumFractionDigits: 2 })} ج.م
+                  </p>
+                  <p className="text-xs text-amber-800 mt-1">
+                    محسوب من (سعر البيع الحالي − سعر الشراء) × الكمية المتاحة
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="text-sm text-amber-900 bg-white/70 px-3 py-2 rounded-lg border border-amber-200">
+                    {inventoryProfit.stockQuantity} قطعة من {inventoryProfit.productCount} منتج ظاهر
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowInventoryProfitReport(true)}
+                    className="bg-amber-700 hover:bg-amber-800 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors"
+                  >
+                    عرض التقرير التفصيلي
+                  </button>
+                </div>
+              </div>
+              {(inventoryProfit.missingPurchasePriceCount > 0 || inventoryProfit.missingSellingPriceCount > 0) && (
+                <p className="mt-3 text-sm font-semibold text-amber-900">
+                  تنبيه: لم يدخل في الحساب{' '}
+                  {inventoryProfit.missingPurchasePriceCount > 0 &&
+                    `${inventoryProfit.missingPurchasePriceCount} منتج بدون سعر شراء`}
+                  {inventoryProfit.missingPurchasePriceCount > 0 && inventoryProfit.missingSellingPriceCount > 0 && '، '}
+                  {inventoryProfit.missingSellingPriceCount > 0 &&
+                    `${inventoryProfit.missingSellingPriceCount} صنف مخزون بدون سعر بيع`}
+                  .
+                </p>
+              )}
+              {inventoryProfit.purchasePriceLookupErrorCount > 0 && (
+                <p className="mt-2 text-sm font-semibold text-red-700">
+                  تعذر تحميل سعر الشراء من السحابة لـ {inventoryProfit.purchasePriceLookupErrorCount} منتج أثناء تحميل القائمة؛ حدّث المنتجات ثم أعد الحساب.
+                </p>
+              )}
+            </div>
+          )}
         </div>
+
+        {showInventoryProfitReport && inventoryProfit !== null && inventoryProfit.productsKey === inventoryProfitProductsKey && (
+          <div
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 sm:p-5"
+            onClick={() => setShowInventoryProfitReport(false)}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="inventory-profit-report-title"
+              className="w-full max-w-7xl max-h-[95vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+              onClick={event => event.stopPropagation()}
+            >
+              <header className="flex items-start justify-between gap-4 p-4 sm:p-6 border-b border-gray-200 bg-amber-50">
+                <div>
+                  <h2 id="inventory-profit-report-title" className="text-xl sm:text-2xl font-black text-gray-900">
+                    تقرير ربح المخزون
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    تفاصيل المنتجات الظاهرة بعد البحث والتصفية
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowInventoryProfitReport(false)}
+                  aria-label="إغلاق التقرير"
+                  className="shrink-0 w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 hover:bg-gray-100 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              </header>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 p-4 sm:px-6 border-b border-gray-100">
+                <div className="rounded-xl bg-amber-50 p-3">
+                  <p className="text-xs text-amber-800">إجمالي الربح</p>
+                  <p className="font-black text-lg text-amber-900">{formatInventoryCurrency(inventoryProfit.total)}</p>
+                </div>
+                <div className="rounded-xl bg-blue-50 p-3">
+                  <p className="text-xs text-blue-800">الكمية الداخلة في الحساب</p>
+                  <p className="font-black text-lg text-blue-900">{inventoryProfit.stockQuantity} قطعة</p>
+                </div>
+                <div className="rounded-xl bg-gray-50 p-3">
+                  <p className="text-xs text-gray-600">المنتجات في التقرير</p>
+                  <p className="font-black text-lg text-gray-900">{inventoryProfit.reportRows.length} منتج</p>
+                </div>
+                <div className="rounded-xl bg-red-50 p-3">
+                  <p className="text-xs text-red-700">منتجات لم تُحسب لنقص البيانات</p>
+                  <p className="font-black text-lg text-red-800">
+                    {inventoryProfit.reportRows.filter(row =>
+                      row.status === 'missing-cost' ||
+                      row.status === 'lookup-error' ||
+                      row.status === 'missing-selling-price'
+                    ).length}
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-auto flex-1">
+                <table className="min-w-[1050px] w-full text-sm text-right">
+                  <thead className="sticky top-0 bg-gray-100 text-gray-700 z-10">
+                    <tr>
+                      <th className="px-4 py-3 font-bold">المنتج</th>
+                      <th className="px-4 py-3 font-bold">الكمية</th>
+                      <th className="px-4 py-3 font-bold">سعر البيع / قطعة</th>
+                      <th className="px-4 py-3 font-bold">سعر الشراء / قطعة</th>
+                      <th className="px-4 py-3 font-bold">إجمالي البيع المحتسب</th>
+                      <th className="px-4 py-3 font-bold">إجمالي التكلفة</th>
+                      <th className="px-4 py-3 font-bold">الربح</th>
+                      <th className="px-4 py-3 font-bold">الحالة</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {inventoryProfit.reportRows.map((row, index) => {
+                      const statusLabels = {
+                        included: ['داخل الحساب', 'text-green-700 bg-green-50'],
+                        'missing-cost': ['بدون سعر شراء', 'text-amber-800 bg-amber-50'],
+                        'lookup-error': ['تعذر تحميل سعر الشراء', 'text-red-700 bg-red-50'],
+                        'missing-selling-price': ['بعض الأصناف بدون سعر بيع', 'text-amber-800 bg-amber-50'],
+                        'no-stock': ['بدون مخزون', 'text-gray-600 bg-gray-100']
+                      };
+                      const [statusLabel, statusClass] = statusLabels[row.status] || statusLabels.included;
+
+                      return (
+                        <tr key={`${row.id ?? 'product'}-${index}`} className="hover:bg-gray-50">
+                          <td className="px-4 py-3">
+                            <p className="font-bold text-gray-900">{row.name}</p>
+                            {row.sku && <p className="text-xs text-gray-500 mt-0.5">SKU: {row.sku}</p>}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            {row.accountedQuantity === row.stockQuantity
+                              ? `${row.stockQuantity} قطعة`
+                              : `${row.accountedQuantity} من ${row.stockQuantity} قطعة`}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">{formatInventoryCurrency(row.averageSellingPrice)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">{formatInventoryCurrency(row.purchasePrice)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">{formatInventoryCurrency(row.salesValue)}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">{formatInventoryCurrency(row.costValue)}</td>
+                          <td className={`px-4 py-3 whitespace-nowrap font-bold ${row.profit === null ? 'text-gray-400' : row.profit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                            {formatInventoryCurrency(row.profit)}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${statusClass}`}>
+                              {statusLabel}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <footer className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 sm:px-6 border-t border-gray-200 bg-gray-50">
+                <p className="text-xs text-gray-500">
+                  الربح = (سعر البيع الحالي − سعر الشراء) × الكمية. اسحب الجدول أفقيًا لعرض كل التفاصيل.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowInventoryProfitReport(false)}
+                  className="bg-gray-800 hover:bg-gray-900 text-white px-5 py-2 rounded-lg font-semibold"
+                >
+                  إغلاق التقرير
+                </button>
+              </footer>
+            </section>
+          </div>
+        )}
 
         {/* Search & Filter */}
         <div className="mb-6 bg-white rounded-xl shadow-sm p-4 border border-gray-100">
